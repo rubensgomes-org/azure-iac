@@ -1,0 +1,200 @@
+# =============================================================================
+# Terraform Bootstrap Backend - APPLY (manual)
+#
+# Purpose:
+#   Creates/updates ONLY the Terraform *bootstrap backend* resources (state RG,
+#   storage account, blob container, etc.) defined under:
+#       terraform/bootstrap-backend
+#
+# Trigger:
+#   Manual only (workflow_dispatch). You start it from the GitHub Actions UI.
+#
+# Authentication:
+#   Uses Azure Service Principal + Client Secret stored in GitHub Environment
+#   Secrets (Environment name: "AZURE"):
+#     - AZURE_CLIENT_ID
+#     - AZURE_CLIENT_SECRET
+#     - AZURE_TENANT_ID
+#     - AZURE_SUBSCRIPTION_ID
+#
+# Why this exists:
+#   Bootstrap backend resources are foundational (state storage).
+#   Keeping this workflow separate lets you manage backend lifecycle cleanly.
+#
+# Notes:
+#   - Terraform automatically loads terraform.tfvars from WORKING_DIR.
+#     So values like enable_rg_lock=false are applied without passing -var.
+#   - This workflow uses "terraform plan -out=..." followed by
+#     "terraform apply <plan>" so apply uses exactly what was planned.
+#   - azure/login@v2 does NOT accept "client-secret:" as an input; for SP+secret
+#     auth you must use the "creds" JSON object.
+# =============================================================================
+
+name: Terraform Bootstrap Backend - APPLY (manual)
+
+on:
+  workflow_dispatch: {}  # manual trigger only
+
+permissions:
+  # Required to checkout repository content.
+  contents: read
+
+concurrency:
+  # Prevent simultaneous apply/destroy runs against the same bootstrap state.
+  # This helps avoid state corruption and Azure locking race conditions.
+  group: terraform-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply bootstrap backend
+    runs-on: ubuntu-latest
+
+    # -------------------------------------------------------------------------
+    # Bind the GitHub Environment named "AZURE" to this job.
+    # This is REQUIRED for GitHub Environment secrets to be injected into:
+    #   ${{ secrets.AZURE_CLIENT_ID }} etc.
+    # -------------------------------------------------------------------------
+    environment: AZURE
+
+    env:
+      # -----------------------------------------------------------------------
+      # Where your bootstrap Terraform configuration lives.
+      # Update if your repo path changes.
+      # -----------------------------------------------------------------------
+      WORKING_DIR: terraform/bootstrap-backend
+
+      # -----------------------------------------------------------------------
+      # AzureRM provider authentication (Service Principal + Secret)
+      #
+      # Terraform's AzureRM provider reads these ARM_* vars automatically.
+      # These are populated from GitHub Environment secrets.
+      # -----------------------------------------------------------------------
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Tell Terraform it's running in CI (avoids interactive prompts / improves logs)
+      TF_IN_AUTOMATION: "true"
+
+      # -----------------------------------------------------------------------
+      # Bootstrap identifiers used both for documentation and safeguard validation.
+      # IMPORTANT: Keep these in sync with your terraform/bootstrap-backend config.
+      # -----------------------------------------------------------------------
+      EXPECTED_RG_NAME: "rg-tfstate"
+      EXPECTED_STORAGE_ACCOUNT_NAME: "sttfstaterubens01"
+      EXPECTED_CONTAINER_NAME: "tfstate"
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Checkout repository content
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Step 1.5: Verify required secrets are present (fail fast)
+      #
+      # Why:
+      #   - If the job is not bound to the "AZURE" environment OR a secret is missing,
+      #     the values above resolve to empty strings.
+      #   - We fail here with a clear message BEFORE azure/login or terraform runs.
+      #
+      # Security:
+      #   - We do NOT print the secret values; only which variable is missing.
+      # -----------------------------------------------------------------------
+      - name: Verify required secrets are present (no output)
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      # -----------------------------------------------------------------------
+      # Step 2: Azure Login (Service Principal + Client Secret)
+      #
+      # Notes:
+      #   - For azure/login@v2, SP+secret auth must be passed via "creds" JSON.
+      #   - Passing client-secret as a direct input is NOT supported in v2.
+      # -----------------------------------------------------------------------
+      - name: Azure Login (Service Principal Secret)
+        uses: azure/login@v2
+        with:
+          auth-type: SERVICE_PRINCIPAL
+          creds: >-
+            {"clientId":"${{ secrets.AZURE_CLIENT_ID }}",
+             "clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}",
+             "tenantId":"${{ secrets.AZURE_TENANT_ID }}",
+             "subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}"}
+
+      # -----------------------------------------------------------------------
+      # Step 3: Install Terraform on runner
+      #
+      # Notes:
+      #   - Must satisfy `required_version = "~> 1.15"`, declared in
+      #     terraform/bootstrap-backend/versions.tf and in every other
+      #     versions.tf in the repo. This pin was 1.14.3, which does NOT
+      #     satisfy it — `terraform init` would have failed here.
+      #   - Keep in step with .github/workflows/release.yml, which pins the
+      #     same build.
+      # -----------------------------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+
+      # -----------------------------------------------------------------------
+      # Step 4: Check formatting
+      # -----------------------------------------------------------------------
+      - name: Terraform fmt (check)
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform fmt -check -recursive
+
+      # -----------------------------------------------------------------------
+      # Step 5: terraform init
+      # -----------------------------------------------------------------------
+      - name: Terraform init (bootstrap)
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform init --upgrade
+
+      # -----------------------------------------------------------------------
+      # Step 6: terraform validate
+      # -----------------------------------------------------------------------
+      - name: Terraform validate (bootstrap)
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform validate
+
+      # -----------------------------------------------------------------------
+      # Step 7: terraform import bootstrap backend state
+      # -----------------------------------------------------------------------
+      - name: Terraform import backend state (bootstrap)
+        uses: ./.github/actions/import-state
+
+      # -----------------------------------------------------------------------
+      # Step 8: terraform plan (save to file)
+      # -----------------------------------------------------------------------
+      - name: Terraform plan (bootstrap)
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform plan -out=bootstrap.tfplan
+
+      # -----------------------------------------------------------------------
+      # Step 9: terraform apply the saved plan
+      # -----------------------------------------------------------------------
+      - name: Terraform apply (bootstrap)
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform apply -auto-approve bootstrap.tfplan
+
+      # -----------------------------------------------------------------------
+      # Step 9 (optional): Show outputs
+      # -----------------------------------------------------------------------
+      - name: Terraform outputs (bootstrap)
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform output

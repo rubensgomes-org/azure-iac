@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# -----------------------------------------------------------------------------
+# modules/postgresql/scripts/pg-bootstrap.sh.tftpl
+# -----------------------------------------------------------------------------
+# Renders via `templatefile()` inside main.tf and runs as the `local-exec`
+# command for `null_resource.pg_bootstrap`. Purpose:
+#
+#   1. Register the shared UAMI as an AAD-authenticated PG role via
+#      `pgaadauth_create_principal`. Azure PG Flexible Server with
+#      Entra-only auth REQUIRES this stored procedure — a plain `CREATE
+#      ROLE` produces a role that cannot log in.
+#
+#   2. Grant `CONNECT` on every app database to that role, and grant
+#      `USAGE` + `CREATE` on schema `public` inside each app DB. Together,
+#      these are the minimum privileges a microservice needs to open a
+#      connection and create its own tables via a migration tool
+#      (Flyway / Liquibase / etc.).
+#
+# The script is idempotent — every `psql` call is guarded either by a
+# `DO ... IF NOT EXISTS` block or by `IF NOT EXISTS` on the grant. Re-runs
+# are safe.
+#
+# Prereqs on the runner:
+#   - `az` CLI 2.60+ and `psql` (Postgres client 15+).
+#   - ARM_CLIENT_ID / ARM_CLIENT_SECRET / ARM_TENANT_ID exported (used to
+#     `az login --service-principal` inside a temporary AZURE_CONFIG_DIR
+#     so the runner's ambient login is NOT mutated).
+#   - The Terraform SP MUST be a member of the Entra group whose
+#     objectId is `pg_entra_admin_group_object_id`. Without membership
+#     the AAD token is issued but PG rejects the connection ("FATAL:
+#     role does not exist").
+#
+# Template inputs (rendered by Terraform). The `$$` prefix below escapes
+# the interpolation so the rendered script preserves the literal
+# placeholder names — templatefile() would otherwise substitute them at
+# render time (and would fail outright for `apps`, which is a list rather
+# than a string).
+#   $${fqdn}         — <server>.postgres.database.azure.com
+#   $${admin_login}  — Entra admin group display name (used as PGUSER)
+#   $${uami_name}    — Shared UAMI name (`id-<env>-app`)
+#   $${apps}         — Terraform list; iterated inline below
+# -----------------------------------------------------------------------------
+
+set -euo pipefail
+
+# -----------------------------------------------------------------------------
+# Scoped az login
+# -----------------------------------------------------------------------------
+# Sandbox the CLI state in a temp dir so we do NOT touch ~/.azure on the
+# runner. Cleaned up on any exit path via the EXIT trap.
+export AZURE_CONFIG_DIR="$(mktemp -d)"
+trap 'rm -rf "$AZURE_CONFIG_DIR"' EXIT
+
+az login \
+  --service-principal \
+  --username "$ARM_CLIENT_ID" \
+  --password "$ARM_CLIENT_SECRET" \
+  --tenant   "$ARM_TENANT_ID" \
+  --output   none
+
+# AAD access token scoped to the Azure PG data plane. Used as PGPASSWORD;
+# `libpq` accepts an OAuth token here when the server has AAD auth enabled.
+PGPASSWORD="$(az account get-access-token \
+  --resource https://ossrdbms-aad.database.windows.net \
+  --query    accessToken \
+  --output   tsv)"
+export PGPASSWORD
+
+# -----------------------------------------------------------------------------
+# Connection scaffold
+# -----------------------------------------------------------------------------
+PGHOST="${fqdn}"
+PGUSER="${admin_login}"       # the Entra admin group's display name
+
+# Helper: run a SQL snippet against a specific database.
+run_sql() {
+  local target_db="$1" ; shift
+  psql \
+    "host=$PGHOST port=5432 dbname=$target_db user=$PGUSER sslmode=require" \
+    -v ON_ERROR_STOP=1 \
+    "$@"
+}
+
+# -----------------------------------------------------------------------------
+# Step 1 — Register the shared UAMI as an AAD principal (idempotent)
+# -----------------------------------------------------------------------------
+# `pgaadauth_create_principal(name, is_admin, is_mfa)` is the ONLY way to
+# create an AAD-authenticated PG role on Flexible Server. The role is
+# resolved to an Entra principal by NAME — Azure PG looks up the object_id
+# itself. We do NOT make the app identity admin: apps get scoped grants
+# per-DB instead.
+run_sql postgres <<SQL
+DO \$mig\$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${uami_name}') THEN
+    PERFORM pgaadauth_create_principal('${uami_name}', false, false);
+  END IF;
+END
+\$mig\$;
+SQL
+
+# -----------------------------------------------------------------------------
+# Step 2 — Per-app DB grants (idempotent)
+# -----------------------------------------------------------------------------
+# For each app in var.apps:
+#   a) GRANT CONNECT on the app's DB — needed to open a connection.
+#   b) GRANT USAGE + CREATE on schema `public` inside that DB — needed for
+#      migrations to create tables. Scoped to `public` (the default schema);
+#      apps that need custom schemas can create them and grant themselves
+#      later, since CREATE on public suffices for `CREATE SCHEMA`.
+#
+# GRANT is inherently idempotent in Postgres — re-running does not error
+# and does not duplicate anything in `pg_class` / `pg_namespace`.
+%{ for app in apps ~}
+
+# ----- app: ${app} -----
+run_sql postgres -c 'GRANT CONNECT ON DATABASE "${app}" TO "${uami_name}";'
+run_sql ${app}    -c 'GRANT USAGE, CREATE ON SCHEMA public TO "${uami_name}";'
+%{ endfor ~}
+
+echo "pg-bootstrap: done."

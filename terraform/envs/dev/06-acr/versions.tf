@@ -1,0 +1,24 @@
+# envs/dev/06-acr/versions.tf
+# -----------------------------------------------------------------------------
+# Terraform CLI + provider version constraints for the acr root config.
+# Kept consistent with the rest of the estate.
+#
+# This root calls `../../../modules/acr/` (azurerm + random) and reads state
+# from `01-resource-groups` and `04-managed-identities` via
+# `data.terraform_remote_state`.
+# -----------------------------------------------------------------------------
+
+terraform {
+  required_version = "~> 1.15"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.80"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
+  }
+}

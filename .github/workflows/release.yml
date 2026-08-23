@@ -1,0 +1,195 @@
+# =============================================================================
+# Release (tag push)
+#
+# Purpose:
+#   Validates and publishes a release when a semver tag is pushed. It is the
+#   gate that keeps a tag honest: the tag name, the VERSION file, and the
+#   CHANGELOG entry must all agree, and the whole estate must still parse and
+#   validate, before a GitHub Release appears.
+#
+# Trigger:
+#   push of a tag matching v*.*.* — normally produced by:
+#       make release-minor      (bump, roll changelog, commit, tag; LOCAL)
+#       make release-push       (pushes main + the tag; fires this workflow)
+#   See RELEASING.md.
+#
+# Authentication:
+#   NONE. This workflow deliberately holds no Azure credentials and is not
+#   bound to the "AZURE" GitHub Environment. `terraform validate` runs with
+#   -backend=false, so nothing here reaches the subscription. Cutting a
+#   release must never be able to mutate the estate — applying stays a
+#   deliberate `make apply` from a workstation.
+#
+# Notes:
+#   - terraform_version must satisfy the `required_version = "~> 1.15"`
+#     declared in every versions.tf in the repo. All three workflows in this
+#     directory pin the same build; bump them together.
+#   - `gh` is preinstalled on ubuntu-latest, so the release is published with
+#     the CLI rather than a third-party action. GH_TOKEN comes from the
+#     built-in github.token, which the `contents: write` permission below
+#     upgrades enough to create a release.
+# =============================================================================
+
+name: Release (tag push)
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  # contents: write is required to create the GitHub Release. Everything else
+  # stays at the default of none.
+  contents: write
+
+concurrency:
+  # Keyed on the tag, so two different releases never serialise behind each
+  # other, but a re-run of the same tag cannot race itself.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate and publish
+    runs-on: ubuntu-latest
+
+    env:
+      # Tell Terraform it's running in CI (avoids interactive prompts / improves logs)
+      TF_IN_AUTOMATION: "true"
+
+      # The pushed tag, e.g. "v0.2.0". github.ref_name is the short ref.
+      RELEASE_TAG: ${{ github.ref_name }}
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Checkout repository content
+      #
+      # fetch-depth: 0 so the full history and every tag are present — needed
+      # if you ever want to diff against the previous release from here.
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # -----------------------------------------------------------------------
+      # Step 2: Consistency gate (fail fast, before anything expensive)
+      #
+      # Why:
+      #   `make release-<level>` keeps the tag, VERSION, and CHANGELOG in sync
+      #   by construction. A tag cut by hand — or one moved after the fact —
+      #   can drift. This is the only place that drift gets caught, so it runs
+      #   before terraform is even installed.
+      #
+      # Checks:
+      #   1. v$(cat VERSION) == the pushed tag.
+      #   2. CHANGELOG.md carries a "## [<version>]" heading.
+      # -----------------------------------------------------------------------
+      - name: Verify tag matches VERSION and CHANGELOG
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f VERSION ]; then
+            echo "::error::VERSION file is missing at the repo root."
+            exit 1
+          fi
+
+          version="$(tr -d '[:space:]' < VERSION)"
+          expected="v${version}"
+
+          echo "VERSION file : ${version}"
+          echo "Pushed tag   : ${RELEASE_TAG}"
+
+          if [ "${expected}" != "${RELEASE_TAG}" ]; then
+            echo "::error::Tag ${RELEASE_TAG} does not match VERSION (${expected}). Cut releases with 'make release-<level>'."
+            exit 1
+          fi
+
+          if ! grep -q "^## \[${version}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [${version}]' section."
+            exit 1
+          fi
+
+          echo "version=${version}" >> "$GITHUB_ENV"
+
+      # -----------------------------------------------------------------------
+      # Step 3: Install Terraform on runner
+      #
+      # Pinned to a 1.15.x build so it satisfies `required_version = "~> 1.15"`
+      # in every module root and child module.
+      # -----------------------------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+
+      # -----------------------------------------------------------------------
+      # Step 4: Check formatting across the whole tree
+      #
+      # Same command the root Makefile's `fmt` target runs, in -check mode.
+      # -----------------------------------------------------------------------
+      - name: Terraform fmt (check)
+        run: terraform fmt -check -recursive terraform/
+
+      # -----------------------------------------------------------------------
+      # Step 5: Validate all twelve module roots
+      #
+      # `make validate` inits each root with -backend=false, so this needs no
+      # Azure credentials and cannot touch remote state. It DOES download
+      # providers, which is what makes it a real schema-level check rather
+      # than a syntax check.
+      # -----------------------------------------------------------------------
+      - name: Terraform validate (all module roots)
+        run: make validate
+
+      # -----------------------------------------------------------------------
+      # Step 6: Extract this version's changelog section as the release notes
+      #
+      # awk prints everything between "## [<version>]" and the next "## ["
+      # heading. Written to a file rather than an output variable so newlines
+      # and markdown survive intact.
+      # -----------------------------------------------------------------------
+      - name: Build release notes from CHANGELOG
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          awk -v ver="${version}" '
+            $0 == "## [" ver "]" || index($0, "## [" ver "] ") == 1 { f = 1; next }
+            f && /^## \[/ { exit }
+            f { print }
+          ' CHANGELOG.md > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "::error::Extracted release notes for ${version} are empty."
+            exit 1
+          fi
+
+          echo "----- release notes -----"
+          cat release-notes.md
+
+      # -----------------------------------------------------------------------
+      # Step 7: Publish the GitHub Release
+      #
+      # Idempotent-ish: if the release already exists (a re-run), `gh release
+      # create` fails, so we edit instead. Keeps re-runs from being a dead end.
+      # -----------------------------------------------------------------------
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Release ${RELEASE_TAG} already exists - updating notes."
+            gh release edit "${RELEASE_TAG}" \
+              --title "${RELEASE_TAG}" \
+              --notes-file release-notes.md
+          else
+            gh release create "${RELEASE_TAG}" \
+              --title "${RELEASE_TAG}" \
+              --notes-file release-notes.md
+          fi
