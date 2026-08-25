@@ -21,6 +21,14 @@ here.
 
 ### Changed
 
+### Fixed
+
+## [0.1.1] - 2026-08-24
+
+### Added
+
+### Changed
+
 - Both ACR workflows renamed in the Actions sidebar so they sort together:
   `provision-acr.yml` is now **ACR Create (reusable)** (was "Provision ACR
   (reusable)") and `destroy-acr.yml` is now **ACR Destroy (manual)** (was
