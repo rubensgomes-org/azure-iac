@@ -209,6 +209,17 @@ jobs:
       # the make steps cannot drift apart.
       ENV_DIR: terraform/envs/${{ inputs.environment_name }}
 
+      # The same input, bound once for the run blocks below.
+      #
+      # This indirection is load-bearing, not style: a `${{ inputs.* }}`
+      # expression written directly inside a `run:` body is substituted as raw
+      # TEXT before the shell parses the script, so a value containing a quote
+      # or $(...) executes on the runner -- and on a workflow that DESTROYS
+      # things, with the credentials already in scope. Interpolating into an
+      # `env:` VALUE like this is safe: the shell only ever sees a variable.
+      # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
+      ENV_NAME: ${{ inputs.environment_name }}
+
       # Only this GitHub user may run a destructive workflow in this repo.
       # Same gate as tf-bootstrap-destroy.yml. Update on a rename.
       #
@@ -243,10 +254,23 @@ jobs:
       # -----------------------------------------------------------------------
       - name: SAFEGUARD - Validate actor and confirmation phrase
         shell: bash
+        env:
+          # Bound here rather than written into the script body below. A
+          # `${{ ... }}` expression inside a `run:` is pasted in as raw text
+          # before the shell parses it, so a crafted value breaks out of the
+          # quoting and runs on the runner -- in this workflow, ahead of a
+          # destroy, with the guard it is meant to be passing. Through `env:`
+          # the shell only ever sees an ordinary variable.
+          #
+          # The comparisons below are unchanged; only how the values arrive is.
+          # Do not "simplify" these back into the script.
+          ACTOR: ${{ github.actor }}
+          TYPED_ACR: ${{ inputs.acr_name }}
+          TYPED_CONFIRM: ${{ inputs.confirm }}
         run: |
           set -euo pipefail
 
-          actor='${{ github.actor }}'
+          actor="${ACTOR}"
           if [ "${actor}" != "${ALLOWED_ACTOR}" ]; then
             echo "Denied: only '${ALLOWED_ACTOR}' may run this workflow. Actor: '${actor}'."
             exit 1
@@ -255,7 +279,7 @@ jobs:
           tfvars="${ENV_DIR}/06-acr/terraform.tfvars"
           if [ ! -f "${tfvars}" ]; then
             echo "Denied: ${tfvars} not found."
-            echo "Is environment_name='${{ inputs.environment_name }}' correct?"
+            echo "Is environment_name='${ENV_NAME}' correct?"
             exit 1
           fi
 
@@ -266,7 +290,7 @@ jobs:
             exit 1
           fi
 
-          typed_acr='${{ inputs.acr_name }}'
+          typed_acr="${TYPED_ACR}"
           if [ "${typed_acr}" != "${expected_acr}" ]; then
             echo "Denied: acr_name mismatch."
             echo "Expected (from ${tfvars}): '${expected_acr}'"
@@ -275,7 +299,7 @@ jobs:
           fi
 
           expected_phrase="DESTROY ACR ${expected_acr}"
-          typed_phrase='${{ inputs.confirm }}'
+          typed_phrase="${TYPED_CONFIRM}"
           if [ "${typed_phrase}" != "${expected_phrase}" ]; then
             echo "Denied: confirmation phrase did not match exactly."
             echo "Expected: ${expected_phrase}"
@@ -400,7 +424,7 @@ jobs:
       - name: Plan the destroy (module 06 only)
         shell: bash
         run: |
-          make ENV="${{ inputs.environment_name }}" plan-destroy-acr
+          make ENV="$ENV_NAME" plan-destroy-acr
 
       - name: GUARD - Assert the plan destroys only the registry
         shell: bash
@@ -461,7 +485,7 @@ jobs:
       - name: Destroy module 06 - container registry
         shell: bash
         run: |
-          make ENV="${{ inputs.environment_name }}" destroy-acr
+          make ENV="$ENV_NAME" destroy-acr
 
       # -----------------------------------------------------------------------
       # Step 8: Verify the outcome — registry gone, everything else intact
@@ -488,7 +512,7 @@ jobs:
           fi
 
           # Resource groups (module 01) must be untouched.
-          for rg in $(az group list --query "[?starts_with(name, 'rg-${{ inputs.environment_name }}-')].name" -o tsv); do
+          for rg in $(az group list --query "[?starts_with(name, 'rg-${ENV_NAME}-')].name" -o tsv); do
             echo "OK: resource group '${rg}' preserved."
           done
 

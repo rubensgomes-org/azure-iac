@@ -95,7 +95,8 @@ nothing.
 
 Five workflows live in [`.github/workflows/`](./.github/workflows/). Four of
 them authenticate to Azure with the same `terraform-sp` Service Principal used
-locally; `release.yml` deliberately holds no Azure credentials.
+locally; `release.yml` deliberately holds no Azure credentials (its only secret
+is `SONAR_TOKEN`, which reaches sonarcloud.io and nothing else).
 
 | Workflow | Shows in Actions as | Trigger | What it does |
 | --- | --- | --- | --- |
@@ -103,7 +104,7 @@ locally; `release.yml` deliberately holds no Azure credentials.
 | [`acr-destroy.yml`](./.github/workflows/acr-destroy.yml) | **ACR Destroy (reusable)** | `workflow_call`, `workflow_dispatch` | Destroys module 06 only — the registry and every image in it. Resource groups (01) and the shared UAMI (04) are left standing. Actor-restricted and type-to-confirm guarded on both triggers. |
 | [`tf-bootstrap-create.yml`](./.github/workflows/tf-bootstrap-create.yml) | **TF Bootstrap Create** | `workflow_dispatch` | Creates/updates the state backend (`rg-tfstate`, `sttfstaterubens01`, `tfstate`). |
 | [`tf-bootstrap-destroy.yml`](./.github/workflows/tf-bootstrap-destroy.yml) | **TF Bootstrap Destroy** | `workflow_dispatch` | Tears the state backend down. |
-| [`release.yml`](./.github/workflows/release.yml) | **Release (tag push)** | tag `v*.*.*` | Validates the tag against `VERSION` + `CHANGELOG.md`, publishes a GitHub Release. |
+| [`release.yml`](./.github/workflows/release.yml) | **Release (tag push)** | tag `v*.*.*` | Validates the tag against `VERSION` + `CHANGELOG.md`, runs `fmt`/`validate` and the SonarCloud quality gate, publishes a GitHub Release. |
 
 The middle column is the `name:` each workflow declares — that is the label in
 the repository's **Actions** sidebar, which is where you start the manual ones.
@@ -205,6 +206,34 @@ Two things will block a caller that has not been set up for this on purpose:
 
 Running the same thing by hand, plus cost, teardown, and the safety notes, is
 covered in [PROVISION_ACR.md](./PROVISION_ACR.md).
+
+### Static analysis (SonarCloud)
+
+`release.yml` runs a SonarCloud scan before it publishes anything, and **fails
+the run if the quality gate is red**. Configuration lives in
+[`sonar-project.properties`](./sonar-project.properties) at the repo root — the
+workflow passes no scanner arguments of its own, so changing analysis scope
+means editing that file, not the workflow.
+
+`make sonar` runs the identical scan locally (needs Docker and `SONAR_TOKEN`
+exported). Use it before cutting a tag: the workflow fires on a tag that has
+already been pushed, and a published tag is never moved, so a red gate found in
+CI costs a whole patch release.
+
+Accepted findings are suppressed in `sonar-project.properties` with
+`sonar.issue.ignore.multicriteria`, never marked "Accepted" in the SonarCloud
+UI — an exemption that lives in the repo is greppable, reviewable in a diff, and
+carries its reason in a comment beside it. Each one is pinned to an exact file
+path so a new module raising the same rule still gets flagged.
+
+Two things must be true on the SonarCloud side, and neither is visible from the
+repo:
+
+- **Automatic Analysis must stay disabled** for the project (Administration →
+  Analysis Method). It is mutually exclusive with CI-based analysis; with both
+  on, every CI scan fails.
+- `SONAR_TOKEN` is an organization Actions secret on `rubensgomes-org`, shared
+  with this repository.
 
 ## Releases
 

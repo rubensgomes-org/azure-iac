@@ -495,6 +495,56 @@ validate:
 	    && terraform validate ); \
 	done
 
+# Run the same SonarCloud scan release.yml runs, BEFORE cutting a tag.
+#
+# Why this exists: release.yml fires on a tag that has ALREADY been pushed, and
+# RELEASING.md forbids moving or deleting a published tag. So a red quality gate
+# discovered in CI is not a retry -- it costs a whole patch release. Find it
+# here instead, while the tag is still just a number in VERSION.
+#
+# Configuration comes entirely from sonar-project.properties, exactly as in CI,
+# so this and the workflow cannot drift. No scanner arguments are passed.
+#
+# Uses the official scanner image because sonar-scanner is not installed by
+# default on macOS and Docker is; the image bundles its own JRE.
+#
+# The GIT_CONFIG_* trio is load-bearing, and its absence does not look like a
+# config problem -- it looks like a hang. The container runs as uid 1000 while
+# the bind-mounted tree is owned by the host user, so git refuses the repo with
+# "detected dubious ownership in repository at /usr/src". The scanner's SCM
+# publisher then cannot use the native git blame path and falls back to walking
+# the history itself, which on an emulated x86 image over a macOS bind mount
+# crawls -- the run appears to stop dead at "SCM Publisher N source files to be
+# analyzed". Setting safe.directory through the environment fixes it without
+# writing a git config into the mounted tree (143 files blame in ~9s).
+#
+# Blame data is not optional here: SonarCloud attributes findings to NEW code
+# from it, and the quality gate conditions are all new_* metrics. Do not "fix" a
+# slow SCM step with sonar.scm.disabled=true -- that would silently change which
+# findings the gate counts, and this target's whole value is matching CI.
+#
+# The image is amd64-only, so on Apple Silicon it runs under emulation. Slower
+# than native, but correct; the warning Docker prints about it is expected.
+#
+# WARNING: this PUBLISHES results to SonarCloud and they become the project's
+# current state for the branch. Run it on a clean tree at the commit you intend
+# to tag, not over work in progress -- otherwise the project ends up reporting
+# on code that was never committed.
+.PHONY: sonar
+sonar:
+	@if [ -z "$$SONAR_TOKEN" ]; then \
+	  echo "ERROR: SONAR_TOKEN is not set. Export it before running 'make sonar'." >&2; \
+	  echo "It is an organization Actions secret on rubensgomes-org; generate a" >&2; \
+	  echo "local token at https://sonarcloud.io -> My Account -> Security." >&2; \
+	  exit 1; \
+	fi
+	docker run --rm -e SONAR_TOKEN \
+	  -e GIT_CONFIG_COUNT=1 \
+	  -e GIT_CONFIG_KEY_0=safe.directory \
+	  -e GIT_CONFIG_VALUE_0=/usr/src \
+	  -v "$(CURDIR):/usr/src" \
+	  sonarsource/sonar-scanner-cli:latest
+
 .PHONY: list
 list:
 	@echo "Modules (dependency order):"
@@ -531,6 +581,8 @@ help:
 	@echo "Utility:"
 	@echo "  fmt               terraform fmt -recursive terraform/"
 	@echo "  validate          terraform validate every module root (no cloud calls)"
+	@echo "  sonar             SonarCloud scan + quality gate (same as CI; needs"
+	@echo "                    SONAR_TOKEN and docker). Run before cutting a tag"
 	@echo "  list              Show all modules in dependency order"
 	@echo "  help              This message"
 	@echo ""

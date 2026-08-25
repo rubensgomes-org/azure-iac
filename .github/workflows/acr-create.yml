@@ -173,6 +173,16 @@ jobs:
       # the make steps cannot drift apart.
       ENV_DIR: terraform/envs/${{ inputs.environment_name }}
 
+      # The same input, bound once for the `make ENV=` steps below.
+      #
+      # This indirection is load-bearing, not style: a `${{ inputs.* }}`
+      # expression written directly inside a `run:` body is substituted as raw
+      # TEXT before the shell parses the script, so a value containing a quote
+      # or $(...) executes on the runner. Interpolating into an `env:` VALUE
+      # like this is safe -- the shell only ever sees it as a variable.
+      # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
+      ENV_NAME: ${{ inputs.environment_name }}
+
     steps:
       # -----------------------------------------------------------------------
       # Step 1: Checkout repository content
@@ -232,7 +242,7 @@ jobs:
       - name: Module 01 - resource groups
         shell: bash
         run: |
-          make ENV="${{ inputs.environment_name }}" \
+          make ENV="$ENV_NAME" \
             init-resource-groups plan-resource-groups apply-resource-groups
 
       # -----------------------------------------------------------------------
@@ -244,7 +254,7 @@ jobs:
       - name: Module 04 - managed identities
         shell: bash
         run: |
-          make ENV="${{ inputs.environment_name }}" \
+          make ENV="$ENV_NAME" \
             init-managed-identities plan-managed-identities apply-managed-identities
 
       # -----------------------------------------------------------------------
@@ -256,7 +266,7 @@ jobs:
       - name: Module 06 - container registry
         shell: bash
         run: |
-          make ENV="${{ inputs.environment_name }}" \
+          make ENV="$ENV_NAME" \
             init-acr plan-acr apply-acr
 
       # -----------------------------------------------------------------------

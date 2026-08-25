@@ -14,20 +14,31 @@
 #   See RELEASING.md.
 #
 # Authentication:
-#   NONE. This workflow deliberately holds no Azure credentials and is not
-#   bound to the "AZURE" GitHub Environment. `terraform validate` runs with
+#   This workflow deliberately holds no Azure credentials and is not bound to
+#   the "AZURE" GitHub Environment. `terraform validate` runs with
 #   -backend=false, so nothing here reaches the subscription. Cutting a
 #   release must never be able to mutate the estate — applying stays a
 #   deliberate `make apply` from a workstation.
 #
+#   The one secret it does hold is SONAR_TOKEN (step-scoped, organization
+#   Actions secret on rubensgomes-org). That is a SonarCloud analysis token:
+#   it reaches sonarcloud.io and nothing else, and cannot touch the Azure
+#   subscription. The no-Azure-credentials rule is unchanged — keep it that
+#   way.
+#
 # Notes:
 #   - terraform_version must satisfy the `required_version = "~> 1.15"`
-#     declared in every versions.tf in the repo. All three workflows in this
+#     declared in every versions.tf in the repo. All five workflows in this
 #     directory pin the same build; bump them together.
 #   - `gh` is preinstalled on ubuntu-latest, so the release is published with
 #     the CLI rather than a third-party action. GH_TOKEN comes from the
 #     built-in github.token, which the `contents: write` permission below
 #     upgrades enough to create a release.
+#   - The Sonar quality gate (step 7) is configured entirely by
+#     sonar-project.properties at the repo root, including the
+#     `sonar.qualitygate.wait=true` that makes it blocking. Never add
+#     `continue-on-error` to that step: a release that publishes over a red
+#     gate defeats the point of having one.
 # =============================================================================
 
 name: Release (tag push)
@@ -52,6 +63,12 @@ jobs:
   release:
     name: Validate and publish
     runs-on: ubuntu-latest
+
+    # No ceiling existed here before the Sonar gate landed. Step 7 blocks
+    # waiting on SonarCloud to finish computing the gate, which is exactly the
+    # kind of step that can hang, so give the job the same kind of ceiling the
+    # other four workflows in this directory carry.
+    timeout-minutes: 20
 
     env:
       # Tell Terraform it's running in CI (avoids interactive prompts / improves logs)
@@ -145,7 +162,67 @@ jobs:
         run: make validate
 
       # -----------------------------------------------------------------------
-      # Step 6: Extract this version's changelog section as the release notes
+      # Step 6: Verify the SonarCloud token is present (no output)
+      #
+      # Why:
+      #   Without SONAR_TOKEN the scanner still downloads a JRE and the scanner
+      #   binaries before dying on an opaque 401. Fail here instead, naming the
+      #   cause. The likely cause -- the organization secret not being shared
+      #   with this repository -- is not otherwise visible in the log.
+      #
+      # Security:
+      #   Only the NAME of the missing variable is printed. Never the value.
+      # -----------------------------------------------------------------------
+      - name: Verify required secrets are present (no output)
+        shell: bash
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in SONAR_TOKEN; do
+            if [ -z "${!v:-}" ]; then
+              echo "::error::Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "SONAR_TOKEN is an organization Actions secret on"
+            echo "rubensgomes-org. Confirm it is shared with this repository."
+          fi
+          exit $missing
+
+      # -----------------------------------------------------------------------
+      # Step 7: SonarCloud static analysis + quality gate
+      #
+      # Why:
+      #   The tag is the last honest checkpoint before a release exists. A red
+      #   quality gate must stop the GitHub Release from ever appearing, so
+      #   this runs ahead of steps 8 and 9. There are no `if:` conditions
+      #   anywhere in this workflow, so a failure here stops the job outright.
+      #
+      # Notes:
+      #   - Every scanner setting lives in sonar-project.properties at the repo
+      #     root; nothing is passed here. `sonar.qualitygate.wait=true` in that
+      #     file is what makes the scanner poll the gate and exit non-zero when
+      #     it fails -- there is no separate quality-gate action. Change scope
+      #     THERE, so this job and a local `make sonar` cannot drift.
+      #   - SONAR_HOST_URL is deliberately unset. It exists for self-hosted
+      #     SonarQube Server; this is SonarQube Cloud and sonar.host.url is
+      #     already in the properties file.
+      #   - Do NOT guard this with `if: env.SONAR_TOKEN != ''`. That silently
+      #     skips the gate exactly when the secret is misconfigured, which is
+      #     the opposite of what a gate is for. Step 6 is the guard.
+      #   - Step 1 checks out with fetch-depth: 0, which the scanner needs for
+      #     new-code blame attribution. Do not reduce it.
+      # -----------------------------------------------------------------------
+      - name: SonarCloud scan (quality gate blocks the release)
+        uses: SonarSource/sonarqube-scan-action@v8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      # -----------------------------------------------------------------------
+      # Step 8: Extract this version's changelog section as the release notes
       #
       # awk prints everything between "## [<version>]" and the next "## ["
       # heading. Written to a file rather than an output variable so newlines
@@ -171,7 +248,7 @@ jobs:
           cat release-notes.md
 
       # -----------------------------------------------------------------------
-      # Step 7: Publish the GitHub Release
+      # Step 9: Publish the GitHub Release
       #
       # Idempotent-ish: if the release already exists (a re-run), `gh release
       # create` fails, so we edit instead. Keeps re-runs from being a dead end.

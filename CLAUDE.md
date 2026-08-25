@@ -112,10 +112,17 @@ Every release is a `MAJOR.MINOR.PATCH` git tag on `main`. Read
   `release = local.release` into `var.tags`. Read from disk, not passed as
   `-var`, so a bare `terraform apply` typed by hand stamps the same value.
 - `.github/workflows/release.yml` fires on `v*.*.*`: checks tag ==
-  `VERSION` == a `CHANGELOG.md` section, runs `fmt -check` + `make validate`,
-  publishes a GitHub Release. **`release.yml` specifically holds no Azure
-  credentials — keep it that way.** Other workflows in this repo do hold
-  them; see the CI section below.
+  `VERSION` == a `CHANGELOG.md` section, runs `fmt -check` + `make validate`
+  + the **SonarCloud quality gate**, then publishes a GitHub Release.
+  **`release.yml` specifically holds no Azure credentials — keep it that
+  way.** Its one secret is `SONAR_TOKEN`, which reaches sonarcloud.io and
+  cannot touch the subscription; that carve-out does not open the door to
+  `ARM_*`. Other workflows in this repo do hold Azure credentials; see the CI
+  section below.
+- **A red quality gate blocks the release but not the tag.** The scan runs
+  after the tag is already pushed, so a failure leaves a tag with no GitHub
+  Release. RELEASING.md forbids moving a published tag, so the fix is the next
+  patch release. `make sonar` before tagging is how that is avoided.
 
 ## CI — GitHub Actions
 
@@ -125,7 +132,7 @@ documented under Auth model.
 
 | Workflow | Actions-tab name | Trigger | Touches Azure | Secret source |
 | --- | --- | --- | --- | --- |
-| `release.yml` | Release (tag push) | tag `v*.*.*` | **no** | — |
+| `release.yml` | Release (tag push) | tag `v*.*.*` | **no** | **org**-level `SONAR_TOKEN` (not Azure) |
 | `acr-create.yml` | ACR Create (reusable) | `workflow_call` + `workflow_dispatch` | yes | **org**-level Actions secrets |
 | `acr-destroy.yml` | ACR Destroy (reusable) | `workflow_call` + `workflow_dispatch` | yes | **Environment** `AZURE` (caller-resolved on `workflow_call`) |
 | `tf-bootstrap-create.yml` | TF Bootstrap Create | `workflow_dispatch` | yes | **Environment** `AZURE` |
@@ -139,6 +146,15 @@ keys off a workflow's display name.
 Filenames are `<subject>-<verb>.yml` (`acr-create`, `acr-destroy`,
 `tf-bootstrap-create`, `tf-bootstrap-destroy`) so a subject's pair sorts
 together in the directory listing. Keep new workflows to that shape.
+
+**Never write a `${{ ... }}` expression inside a `run:` body.** GitHub
+substitutes it as raw text before the shell parses the script, so a value
+containing a quote or `$(...)` executes on the runner — and in this repo the
+affected steps were the type-to-confirm guards in front of two destroys, with
+credentials already in scope. Bind the expression to an `env:` key (safe: the
+shell only ever sees a variable) and reference `"$VAR"`. This is Sonar rule
+`githubactions:S7630`; every workflow here is currently clean, and a scan of
+`run:` bodies for `${{` should stay empty.
 
 **`acr-create.yml` is a reusable workflow** — the CI equivalent of
 `PROVISION_ACR.md`. It runs `make init/plan/apply` for modules 01, 04, and 06
@@ -224,6 +240,39 @@ false — `terraform/bootstrap-backend/backend.tf` hardcodes an azurerm backend
 Each import swallows failure with `|| WARN … continuing anyway`, so if a guard
 ever stopped holding, a failed import would fall through to planning a
 *create* of a resource that already exists.
+
+**Static analysis.** `sonar-project.properties` at the repo root is the single
+source of scanner config; `release.yml` step 7 and `make sonar` both read it and
+pass no arguments, so CI and local cannot drift. Things that will bite:
+
+- **Automatic Analysis must stay disabled** in the SonarCloud project. It is
+  mutually exclusive with CI analysis — with both enabled every CI scan fails
+  with *"You are running CI analysis while Automatic Analysis is enabled"*.
+  Nothing in the repo can assert this; it is a UI setting.
+- `sonar.exclusions` covers `**/.terraform/**` on purpose. `make validate` runs
+  first and leaves a `.terraform/modules/` copy of every local module's `.tf`
+  files, which `sonar.sources=.` would otherwise index alongside the originals
+  — doubling ncloc and raising every finding twice.
+- **Every accepted finding is suppressed in `sonar-project.properties`, not in
+  the SonarCloud UI or quality profile** — so each exemption is greppable, shows
+  up in a diff, and carries its rationale in a comment next to it. Five
+  `sonar.issue.ignore.multicriteria` entries today:
+  - `e1` — `githubactions:S7637` (pin actions to a full commit SHA) across
+    `.github/workflows/*.yml`, against this repo's deliberate major-tag
+    convention. Without it the scan action's own `@v8` pin fails the gate it
+    adds.
+  - `e2`–`e4` — `terraform:S6378` (missing `identity` block) on
+    `bootstrap-backend/main.tf`, `modules/acr/main.tf`, `modules/storage/main.tf`.
+    These resources are the *targets* of the shared UAMI's auth, not callers.
+  - `e5` — `terraform:S6382` (client certificate mode) on
+    `modules/container-apps/main.tf`. mTLS on public ingress is not in scope.
+
+  `e2`–`e5` are pinned to **exact file paths, not globs**, on purpose: a new
+  module that omits an identity block must still raise the finding. If you add
+  a module and see S6378, judge it — do not widen the pattern reflexively.
+- `.scannerwork/` is gitignored. Without that, `make sonar` dirties the tree and
+  the next `make release-<level>` aborts in `release-check` for a reason that
+  looks unrelated.
 
 All five workflows pin `terraform_version: "1.15.8"` and
 `terraform_wrapper: false` (the wrapper intercepts stdout and would break
@@ -353,6 +402,22 @@ the per-module commands by hand.
   signal — code at the new release, Azure still labelled with the old one —
   not a bug. It clears on the next `make apply`. Tag changes are in-place
   updates in `azurerm`; a version bump never recreates a resource.
+- **`make sonar` hanging at "SCM Publisher N source files to be analyzed" is a
+  git ownership problem, not a slow scan.** The scanner container runs as uid
+  1000 while the bind-mounted tree belongs to the host user, so git rejects the
+  repo with *detected dubious ownership* and the SCM publisher falls back off
+  the native blame path onto its own history walk — which, on an amd64 image
+  emulated on Apple Silicon over a macOS bind mount, looks exactly like a hang.
+  The `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_0`/`GIT_CONFIG_VALUE_0` trio in the
+  `sonar` recipe sets `safe.directory` through the environment and fixes it.
+  Do not reach for `sonar.scm.disabled=true` instead: every quality-gate
+  condition is a `new_*` metric, and those are attributed from blame data, so
+  disabling SCM changes which findings the gate counts. CI is unaffected —
+  it runs natively on Linux against its own checkout.
+- **`make sonar` dirties the tree, and `release-check` fails on a dirty tree.**
+  The scanner writes `.scannerwork/` at the repo root. It is gitignored, so this
+  only bites if that entry is ever removed — the symptom is a `make release-*`
+  that aborts complaining about uncommitted changes right after a scan.
 - **`make validate` breaks `terraform output`**. Validate inits with
   `-backend=false`, leaving every module's `.terraform/` pointed at an empty
   local backend. Any later `terraform output` returns nothing until the

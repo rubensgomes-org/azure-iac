@@ -1465,10 +1465,27 @@ Query it with `az group show -n rg-dev-app --query tags`.
 **CI holds no Azure credentials.** `.github/workflows/release.yml` fires on
 `v*.*.*`, checks that the tag, `VERSION`, and `CHANGELOG.md` agree, runs
 `terraform fmt -check -recursive terraform/` and `make validate` (which inits
-with `-backend=false`), and publishes a GitHub Release whose body is that
-version's changelog section. It is not bound to the `AZURE` environment, so
-pushing a release tag can never mutate the estate — applying remains a
-deliberate `make apply` from a workstation, per §14.
+with `-backend=false`), runs the SonarCloud quality gate, and publishes a
+GitHub Release whose body is that version's changelog section. It is not bound
+to the `AZURE` environment, so pushing a release tag can never mutate the
+estate — applying remains a deliberate `make apply` from a workstation, per §14.
+
+Its one secret is `SONAR_TOKEN`, an organization Actions secret that reaches
+sonarcloud.io and nothing else. The no-Azure-credentials property is unchanged.
+
+**Static analysis gates the release.** Scanner configuration lives in
+`sonar-project.properties` at the repo root and is read unmodified by both
+`release.yml` and `make sonar`, so CI and a local pre-tag check cannot drift.
+`sonar.qualitygate.wait=true` in that file is what makes the step blocking — the
+scanner polls the gate and exits non-zero when it fails. Two consequences worth
+recording:
+
+- The gate runs *after* the tag is pushed. A red gate therefore leaves a tag
+  with no GitHub Release; per §16 a published tag is never moved, so the
+  remedy is the next patch release. `make sonar` before tagging avoids it.
+- `sonar.exclusions` must keep covering `**/.terraform/**`. `make validate`
+  runs first and leaves a `.terraform/modules/` copy of every local module's
+  `.tf` files; without the exclusion `sonar.sources=.` indexes both copies.
 
 **Terraform CLI pin in CI.** All five workflows in `.github/workflows/`
 (`release.yml`, `acr-create.yml`, `acr-destroy.yml`,

@@ -45,6 +45,13 @@ terraform.rc
 # ever present if awk or mv died mid-rewrite; it must never be committed.
 CHANGELOG.md.tmp
 
+# Scratch directory the Sonar scanner writes at the repo root (`make sonar`,
+# and the scan step in release.yml). Not ignoring it bites indirectly:
+# `make release-check` fails on a dirty working tree, so a local `make sonar`
+# followed by `make release-patch` would abort the bump for a reason that looks
+# nothing like the cause.
+.scannerwork/
+
 # macOS redundant file
 .DS_Store
 

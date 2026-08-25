@@ -74,21 +74,32 @@ with real application images and verifies clean.**
 # 1. Land your work on main and record it under [Unreleased] in CHANGELOG.md.
 #    A release refuses to proceed if [Unreleased] has no entries.
 
-# 2. See where you are and what each bump would produce.
+# 2. Check the SonarCloud quality gate BEFORE tagging. release.yml runs the
+#    same scan and refuses to publish if the gate is red -- but by then the tag
+#    is already pushed and cannot be moved (see "Undoing a release").
+export SONAR_TOKEN=<your token>
+make sonar
+
+# 3. See where you are and what each bump would produce.
 make version
 make release-check
 
-# 3. Bump. Writes VERSION, rolls the changelog, commits, creates the
+# 4. Bump. Writes VERSION, rolls the changelog, commits, creates the
 #    annotated tag. All LOCAL — nothing is pushed.
 make release-patch      # or release-minor / release-major
 
-# 4. Inspect.
+# 5. Inspect.
 git show --stat HEAD
 git tag -l
 
-# 5. Publish. This pushes main and the tag, which fires release.yml.
+# 6. Publish. This pushes main and the tag, which fires release.yml.
 make release-push
 ```
+
+`make sonar` runs the identical scan CI runs, reading the same
+`sonar-project.properties`, so the two cannot disagree. It publishes its results
+to SonarCloud — run it on a clean tree at the commit you are about to tag, not
+over work in progress.
 
 `make release-tag` is the one-off variant: it tags the current `VERSION`
 without bumping. It requires `CHANGELOG.md` to already contain a section for
@@ -169,8 +180,17 @@ version bump. Confirm with `make plan-resource-groups` if you want to see it.
 2. Fails if `CHANGELOG.md` has no section for that version.
 3. `terraform fmt -check -recursive terraform/`.
 4. `make validate` — all twelve roots, `-backend=false`.
-5. Publishes a GitHub Release whose body is that version's changelog section.
+5. SonarCloud static analysis. **Fails the run if the quality gate is red**, so
+   no Release is published over failing analysis.
+6. Publishes a GitHub Release whose body is that version's changelog section.
 
 It holds **no Azure credentials** by design. Pushing a release tag can never
 touch the estate; applying is always something you do deliberately from your
-workstation with `make apply`.
+workstation with `make apply`. The one secret it does carry is `SONAR_TOKEN`,
+an organization Actions secret that reaches sonarcloud.io and nothing else.
+
+**If the gate fails, the tag is already pushed.** Step 5 runs after the tag
+exists, so a red gate leaves a tag with no GitHub Release behind it. Do not
+delete or move the tag — fix the findings and cut the next patch release, per
+"Undoing a release" above. `make sonar` before step 4 of the recipe is how you
+avoid being in that position.

@@ -68,6 +68,8 @@ all apps (acceptable for a playground).
 - `PROVISION_ACR.md` — standalone runbook for standing up just the ACR
   (modules 01 → 04 → 06) and tearing it back down
 - `RELEASING.md` — what MAJOR/MINOR/PATCH mean here and how a tag is cut
+- `sonar-project.properties` — SonarCloud scanner config, read unmodified by
+  both `release.yml` and `make sonar`. A red quality gate blocks the release
 
 ## Auth model (Terraform → Azure)
 

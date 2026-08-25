@@ -19,9 +19,84 @@ here.
 
 ### Added
 
+- **SonarCloud quality gate in `release.yml`.** A new step runs the scanner
+  before the GitHub Release is published and **fails the run if the quality
+  gate is red**, so a release can never publish over failing static analysis.
+  It sits after `make validate` and before the release-notes/publish steps —
+  the slowest gate last, but still strictly ahead of anything user-visible.
+  A preceding step verifies `SONAR_TOKEN` is present and names it if not,
+  rather than letting the scanner die on an opaque 401 minutes later. The
+  scan step is deliberately **not** guarded with `if: env.SONAR_TOKEN != ''`,
+  which would silently skip the gate exactly when it is misconfigured.
+- `sonar-project.properties` (added in this release) is the single source of
+  scanner config. `release.yml` and `make sonar` both read it and pass no
+  arguments of their own, so CI and local cannot drift. Two additions to the
+  file as authored:
+  - `sonar.exclusions=**/.terraform/**,**/.scannerwork/**` — `make validate`
+    runs first and leaves a `.terraform/modules/` copy of every local module's
+    `.tf` files; without this `sonar.sources=.` indexes both copies, doubling
+    ncloc and raising every finding twice.
+  - five `sonar.issue.ignore.multicriteria` entries, each with its rationale
+    in a comment beside it. `e1` suppresses `githubactions:S7637` (pin actions
+    to a full commit SHA) across `.github/workflows/*.yml` — this repo pins
+    major version tags on purpose, and without this the scan action's own
+    `@v8` pin would fail the very gate it adds. `e2`–`e4` suppress
+    `terraform:S6378` (missing `identity` block) on the two storage accounts
+    and the registry, which are the *targets* of the shared UAMI's auth rather
+    than callers of anything (PROVISIONING_PLAN.md §12). `e5` suppresses
+    `terraform:S6382` (client certificate mode) on container-app ingress.
+
+    All of these are suppressed **in-repo rather than marked Accepted in the
+    SonarCloud UI**, so every exemption is greppable, diff-visible, and
+    reasoned in place instead of living in a web console. `e2`–`e5` are pinned
+    to exact file paths, not globs, so a new module that omits an identity
+    block still raises the finding.
+- `make sonar` — runs the identical scan locally via the official scanner
+  image (needs Docker and `SONAR_TOKEN`). `release.yml` fires on a tag that is
+  *already pushed* and RELEASING.md forbids moving a published tag, so a red
+  gate found in CI costs a whole patch release. This finds it while the tag is
+  still just a number in `VERSION`.
+- `make sonar` passes `safe.directory` into the container through
+  `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_0`/`GIT_CONFIG_VALUE_0`. Without it the
+  scanner container (uid 1000) is refused by git on the bind-mounted tree
+  (owned by the host user) with *detected dubious ownership*, the SCM publisher
+  drops off the native blame path onto its own history walk, and the run
+  appears to hang at "SCM Publisher N source files to be analyzed". With it,
+  143 files blame in about nine seconds. CI never hit this — it runs natively
+  on Linux against its own checkout.
+- `timeout-minutes: 20` on the `release` job. It had no ceiling; the new step
+  blocks waiting on SonarCloud, which is exactly the shape of hang a ceiling
+  exists for.
+- `.scannerwork/` added to `.gitignore`. Not cosmetic: `make release-check`
+  fails on a dirty tree, so without it a local `make sonar` followed by
+  `make release-patch` aborts the bump for a reason that looks unrelated.
+
 ### Changed
 
 ### Fixed
+
+- **Script-injection hardening across all four Azure-touching workflows**
+  (Sonar `githubactions:S7630`, 9 findings rated BLOCKER). A
+  `${{ ... }}` expression written inside a `run:` body is substituted as raw
+  text before the shell parses the script, so a value containing a quote or
+  `$(...)` executes on the runner. Every occurrence is now bound to an `env:`
+  key — safe, because the shell only ever sees a variable — and referenced as
+  `"$VAR"`. Comparison logic is unchanged everywhere; only how the values
+  arrive is:
+  - `acr-create.yml` — job-level `ENV_NAME`, used by the three `make ENV=` steps.
+  - `acr-destroy.yml` — job-level `ENV_NAME` for four sites, plus step-level
+    `ACTOR` / `TYPED_ACR` / `TYPED_CONFIRM` in the SAFEGUARD step.
+  - `tf-bootstrap-destroy.yml` — the same class in its type-to-confirm guard
+    (five values, ten occurrences). Sonar did not flag these, but they are the
+    identical pattern in the workflow that destroys the state backend, and
+    they were the worst form of it: `${{ ... }}` pasted directly into `[ ... ]`
+    tests and one entirely unquoted `echo`.
+
+  The affected steps were the guards standing in front of two destroys, with
+  credentials already in scope — which is what made this worth fixing rather
+  than suppressing. CLAUDE.md now carries the rule so it does not regress.
+- `release.yml` header said "All three workflows in this directory pin the same
+  build"; there are five.
 
 ## [0.2.0] - 2026-08-25
 

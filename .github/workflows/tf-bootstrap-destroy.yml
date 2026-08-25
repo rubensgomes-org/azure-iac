@@ -156,45 +156,63 @@ jobs:
       # -----------------------------------------------------------------------
       - name: SAFEGUARD - Validate confirmation (type-to-confirm)
         shell: bash
+        env:
+          # Every dispatch input and github.* value this step compares is bound
+          # here rather than written into the script body below.
+          #
+          # A `${{ ... }}` expression inside a `run:` is pasted in as raw TEXT
+          # before the shell parses the script, so a crafted input escapes the
+          # quoting and executes on the runner -- here, inside the guard that
+          # stands between a dispatch and the destruction of the Terraform state
+          # backend, with the credentials already in scope. Through `env:` the
+          # shell only ever sees ordinary variables.
+          #
+          # The comparisons are unchanged; only how the values arrive is. Do not
+          # "simplify" these back into the script.
+          ACTOR: ${{ github.actor }}
+          TYPED_RG_NAME: ${{ github.event.inputs.rg_name }}
+          TYPED_STORAGE_ACCOUNT_NAME: ${{ github.event.inputs.storage_account_name }}
+          TYPED_CONTAINER_NAME: ${{ github.event.inputs.container_name }}
+          TYPED_CONFIRM: ${{ github.event.inputs.confirm }}
         run: |
           set -euo pipefail
 
           # ---- (Optional) Actor allowlist gate ----
           # Comment this block out if you do NOT want actor restriction.
-          if [ "${{ github.actor }}" != "${ALLOWED_ACTOR}" ]; then
+          if [ "${ACTOR}" != "${ALLOWED_ACTOR}" ]; then
             echo "Denied: Only '${ALLOWED_ACTOR}' may run this workflow."
-            echo "Current actor: '${{ github.actor }}'"
+            echo "Current actor: '${ACTOR}'"
             exit 1
           fi
 
           # ---- Validate target identifiers match expected ----
-          if [ "${{ github.event.inputs.rg_name }}" != "${EXPECTED_RG_NAME}" ]; then
+          if [ "${TYPED_RG_NAME}" != "${EXPECTED_RG_NAME}" ]; then
             echo "Denied: rg_name mismatch."
             echo "Expected: '${EXPECTED_RG_NAME}'"
-            echo "Got:      '${{ github.event.inputs.rg_name }}'"
+            echo "Got:      '${TYPED_RG_NAME}'"
             exit 1
           fi
 
-          if [ "${{ github.event.inputs.storage_account_name }}" != "${EXPECTED_STORAGE_ACCOUNT_NAME}" ]; then
+          if [ "${TYPED_STORAGE_ACCOUNT_NAME}" != "${EXPECTED_STORAGE_ACCOUNT_NAME}" ]; then
             echo "Denied: storage_account_name mismatch."
             echo "Expected: '${EXPECTED_STORAGE_ACCOUNT_NAME}'"
-            echo "Got:      '${{ github.event.inputs.storage_account_name }}'"
+            echo "Got:      '${TYPED_STORAGE_ACCOUNT_NAME}'"
             exit 1
           fi
 
-          if [ "${{ github.event.inputs.container_name }}" != "${EXPECTED_CONTAINER_NAME}" ]; then
+          if [ "${TYPED_CONTAINER_NAME}" != "${EXPECTED_CONTAINER_NAME}" ]; then
             echo "Denied: container_name mismatch."
             echo "Expected: '${EXPECTED_CONTAINER_NAME}'"
-            echo "Got:      '${{ github.event.inputs.container_name }}'"
+            echo "Got:      '${TYPED_CONTAINER_NAME}'"
             exit 1
           fi
 
           # ---- Validate type-to-confirm phrase ----
           expected="DESTROY ${EXPECTED_RG_NAME} ${EXPECTED_STORAGE_ACCOUNT_NAME} ${EXPECTED_CONTAINER_NAME}"
-          if [ "${{ github.event.inputs.confirm }}" != "${expected}" ]; then
+          if [ "${TYPED_CONFIRM}" != "${expected}" ]; then
             echo "Denied: Confirmation phrase did not match exactly."
             echo "Expected: ${expected}"
-            echo "Got:      ${{ github.event.inputs.confirm }}"
+            echo "Got:      ${TYPED_CONFIRM}"
             exit 1
           fi
 
