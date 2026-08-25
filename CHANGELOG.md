@@ -23,6 +23,14 @@ here.
 
 ### Fixed
 
+## [0.3.1] - 2026-08-25
+
+### Added
+
+### Changed
+
+### Fixed
+
 - **`sonar.branch.name=main` pinned in `sonar-project.properties`.** Without it
   the v0.3.0 release run failed at the quality-gate step and published nothing.
   `release.yml` is triggered by a tag push, so `GITHUB_REF` is
