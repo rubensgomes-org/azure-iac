@@ -97,12 +97,15 @@ Four workflows live in [`.github/workflows/`](./.github/workflows/). Three of
 them authenticate to Azure with the same `terraform-sp` Service Principal used
 locally; `release.yml` deliberately holds no Azure credentials.
 
-| Workflow | Trigger | What it does |
-| --- | --- | --- |
-| [`provision-acr.yml`](./.github/workflows/provision-acr.yml) | `workflow_call`, `workflow_dispatch` | Applies modules 01 → 04 → 06 so a registry exists and is writable. Publishes `acr_name` / `acr_login_server` outputs. |
-| [`terraform-bootstrap-apply.yml`](./.github/workflows/terraform-bootstrap-apply.yml) | `workflow_dispatch` | Creates/updates the state backend (`rg-tfstate`, `sttfstaterubens01`, `tfstate`). |
-| [`terraform-bootstrap-destroy.yml`](./.github/workflows/terraform-bootstrap-destroy.yml) | `workflow_dispatch` | Tears the state backend down. |
-| [`release.yml`](./.github/workflows/release.yml) | tag `v*.*.*` | Validates the tag against `VERSION` + `CHANGELOG.md`, publishes a GitHub Release. |
+| Workflow | Shows in Actions as | Trigger | What it does |
+| --- | --- | --- | --- |
+| [`provision-acr.yml`](./.github/workflows/provision-acr.yml) | **Provision ACR (reusable)** | `workflow_call`, `workflow_dispatch` | Applies modules 01 → 04 → 06 so a registry exists and is writable. Publishes `acr_name` / `acr_login_server` outputs. |
+| [`terraform-bootstrap-apply.yml`](./.github/workflows/terraform-bootstrap-apply.yml) | **TF Bootstrap Create** | `workflow_dispatch` | Creates/updates the state backend (`rg-tfstate`, `sttfstaterubens01`, `tfstate`). |
+| [`terraform-bootstrap-destroy.yml`](./.github/workflows/terraform-bootstrap-destroy.yml) | **TF Bootstrap Destroy** | `workflow_dispatch` | Tears the state backend down. |
+| [`release.yml`](./.github/workflows/release.yml) | **Release (tag push)** | tag `v*.*.*` | Validates the tag against `VERSION` + `CHANGELOG.md`, publishes a GitHub Release. |
+
+The middle column is the `name:` each workflow declares — that is the label in
+the repository's **Actions** sidebar, which is where you start the manual ones.
 
 ### Provisioning the ACR from an application pipeline
 

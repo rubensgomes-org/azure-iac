@@ -21,6 +21,12 @@ here.
 
 ### Changed
 
+- Workflow display names shortened for the Actions sidebar:
+  `terraform-bootstrap-apply.yml` is now **TF Bootstrap Create** (was
+  "Terraform Bootstrap Backend - APPLY (manual)") and
+  `terraform-bootstrap-destroy.yml` is now **TF Bootstrap Destroy**. Filenames
+  and behaviour are unchanged; nothing keys off a workflow's `name:`.
+
 ### Fixed
 
 ## [0.0.2] - 2026-08-24

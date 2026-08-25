@@ -122,12 +122,17 @@ Four workflows, two credential models. All Azure-touching workflows get
 `ARM_*` from GitHub secrets holding the same `terraform-sp` Service Principal
 documented under Auth model.
 
-| Workflow | Trigger | Touches Azure | Secret source |
-| --- | --- | --- | --- |
-| `release.yml` | tag `v*.*.*` | **no** | — |
-| `provision-acr.yml` | `workflow_call` + `workflow_dispatch` | yes | **org**-level Actions secrets |
-| `terraform-bootstrap-apply.yml` | `workflow_dispatch` | yes | **Environment** `AZURE` |
-| `terraform-bootstrap-destroy.yml` | `workflow_dispatch` | yes | **Environment** `AZURE` |
+| Workflow | Actions-tab name | Trigger | Touches Azure | Secret source |
+| --- | --- | --- | --- | --- |
+| `release.yml` | Release (tag push) | tag `v*.*.*` | **no** | — |
+| `provision-acr.yml` | Provision ACR (reusable) | `workflow_call` + `workflow_dispatch` | yes | **org**-level Actions secrets |
+| `terraform-bootstrap-apply.yml` | TF Bootstrap Create | `workflow_dispatch` | yes | **Environment** `AZURE` |
+| `terraform-bootstrap-destroy.yml` | TF Bootstrap Destroy | `workflow_dispatch` | yes | **Environment** `AZURE` |
+
+The filename and the `name:` differ deliberately — the filename encodes what
+the workflow *is*, the `name:` is what reads well in the Actions sidebar. When
+renaming either, update both this table and README.md; nothing else in the repo
+keys off a workflow's display name.
 
 **`provision-acr.yml` is a reusable workflow** — the CI equivalent of
 `PROVISION_ACR.md`. It runs `make init/plan/apply` for modules 01, 04, and 06
