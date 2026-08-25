@@ -19,6 +19,14 @@ here.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.4.0] - 2026-08-25
+
+### Added
+
 - **`.github/workflows/pr-verify.yml`** — the gate on every pull request into
   `main`, and what branch protection's required checks point at. Until now the
   repo had **no CI on a branch at all**: `fmt -check`, `make validate` and the
