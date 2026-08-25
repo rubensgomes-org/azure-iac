@@ -23,6 +23,14 @@ here.
 
 ### Fixed
 
+## [0.0.2] - 2026-08-24
+
+### Added
+
+### Changed
+
+### Fixed
+
 - `release.yml` pinned `actions/checkout@v4` and
   `hashicorp/setup-terraform@v3`, both of which target the deprecated Node.js
   20 runtime — GitHub force-ran them on Node.js 24 and annotated the `v0.0.1`
