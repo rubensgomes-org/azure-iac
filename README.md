@@ -6,6 +6,10 @@ infrastructure resources (e.g., resource group, storage account, networking,
 app configuration, container registry, container app, blob storage, service
 bus, and database) in Azure Cloud.
 
+**Making a change?** Start at
+[Working on this project](#working-on-this-project) — `main` is protected, so
+the first step is always a feature branch.
+
 ## AI-Assisted Development
 
 This project was developed primarily using AI-assisted code generation. All
@@ -243,19 +247,110 @@ repo:
 - `SONAR_TOKEN` is an organization Actions secret on `rubensgomes-org`, shared
   with this repository.
 
+## Working on this project
+
+Two flows: shipping a change, and cutting a release. Both go through a pull
+request — `main` is protected and accepts nothing else.
+
+### Starting new work
+
+```bash
+# 1. Always start from a current main.
+git switch main && git pull
+
+# 2. Branch. Prefixes in use: feat/ fix/ docs/ chore/
+#    (release/ is reserved — see "Cutting a release" below).
+git switch -c feat/<short-name>
+
+# 3. Work. Before pushing, run what the terraform check will run:
+make fmt          # rewrites; the CI check is fmt -check and will fail on drift
+make validate     # all twelve module roots, no cloud calls
+
+# 4. Record the change under [Unreleased] in CHANGELOG.md, then commit.
+git add -A && git commit
+
+# 5. Push and open the PR. The template prompts for the changelog entry
+#    and the infra-impact level.
+git push -u origin feat/<short-name>
+gh pr create --fill
+
+# 6. Wait for terraform + workflows + sonar to pass, then squash-merge.
+gh pr merge --squash --delete-branch
+
+# 7. Back to main, and drop the local branch (the remote one deletes itself).
+git switch main && git pull
+git branch -D feat/<short-name>
+```
+
+Four things worth knowing before the first time:
+
+- **Nothing stops you committing to local `main`.** Branch protection only
+  applies at push time, so a forgotten `git switch -c` shows up as a rejected
+  push after several commits, not as an early warning. Recovering is
+  `git switch -c feat/<name>` followed by `git branch -f main origin/main`, but
+  branching first is cheaper.
+- **Write the `CHANGELOG.md` entry in the same PR.** `make release-check`
+  refuses to cut a release on an empty `[Unreleased]`, so it has to happen
+  eventually — and it is far easier now than reconstructed from `git log` at
+  release time.
+- **Do not run `make sonar`.** The `sonar` check on your PR does the same scan
+  natively in seconds. The local target is a slow fallback for reproducing a CI
+  failure; on Apple Silicon it takes minutes.
+- **If the PR touches Terraform, fill in the *Infra impact* box honestly.** It
+  is what decides whether the next release is MAJOR, MINOR or PATCH under this
+  repo's infra-impact semver.
+
+### Cutting a release
+
+A release is an ordinary PR that happens to bump `VERSION` and roll the
+changelog, followed by a tag.
+
+```bash
+# 1. Current main, and see what each bump level would produce.
+git switch main && git pull
+make version && make release-check
+
+# 2. Branch — the name must start with release/ or step 3 refuses to run.
+git switch -c release/v0.4.1
+
+# 3. Bump. Writes VERSION, rolls [Unreleased] into a dated section, commits.
+#    Does NOT tag.
+make release-prep-patch        # or release-prep-minor / release-prep-major
+
+# 4. PR it, exactly like any other change.
+git push -u origin release/v0.4.1
+gh pr create --title "release: v0.4.1" --fill
+gh pr merge --squash --delete-branch
+
+# 5. Tag main's real tip, now that the release commit is on it.
+git switch main && git pull
+make release-tag
+
+# 6. Publish. Fires release.yml, which re-runs the checks and creates the
+#    GitHub Release.
+make release-push
+```
+
+**The tag is created after the merge, and that ordering is load-bearing.** A
+squash-merge rewrites the commit SHA, so a tag made before merging would point
+at a commit `main` never sees. You do not have to remember this: `release-prep-*`
+refuses to run anywhere but a `release/*` branch, and `release-tag` refuses to
+run anywhere but `main`.
+
+`make release-patch|minor|major` no longer exist — they bumped, committed *and*
+tagged in one shot, which cannot work when `main` is PR-only. They fail with a
+pointer to the recipe above.
+
+Full detail, including what each semver level means for infrastructure and how
+to undo a release at each stage, is in [RELEASING.md](./RELEASING.md).
+
 ## Branching
+
+The model behind the commands in
+[Working on this project](#working-on-this-project).
 
 `main` is protected and **PR-only**. Nothing is pushed to it directly — every
 change, releases included, goes through a pull request whose checks pass.
-
-```bash
-git switch main && git pull
-git switch -c feat/<short-name>
-# ... work, commit ...
-git push -u origin feat/<short-name>
-gh pr create --fill
-# ... checks go green, then squash-merge ...
-```
 
 Merges are **squash only**, and the branch is deleted automatically. That keeps
 `main` linear — one commit per PR — which is what makes tagging a release
@@ -287,22 +382,8 @@ Every release is a `MAJOR.MINOR.PATCH` git tag on `main`. The repo-root
 Azure resource in the estate carries a matching `release` tag so you can tell
 from the portal which release provisioned it.
 
-Releases are manual — you choose the bump level:
-
-```bash
-make release-check     # preflight; shows what each bump would produce
-git switch -c release/v0.4.0
-make release-prep-minor   # bump, roll CHANGELOG.md, commit — no tag yet
-git push -u origin release/v0.4.0 && gh pr create --fill
-# ... merge the release PR ...
-git switch main && git pull
-make release-tag          # tag main's real tip
-make release-push         # push the tag; fires .github/workflows/release.yml
-```
-
-The tag is created **after** the merge on purpose: a squash-merge rewrites the
-commit SHA, so a locally created tag would point at a commit that never reaches
-`main`.
+Releases are manual — you choose the bump level. The commands are in
+[Cutting a release](#cutting-a-release); this section is what they mean.
 
 Nothing is published until `release-push`. Before the release PR merges a
 mistake is just a closed PR; after it merges but before the push, it is a
