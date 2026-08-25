@@ -19,6 +19,14 @@ here.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.2.0] - 2026-08-25
+
+### Added
+
 - `acr-destroy.yml` now also accepts **`workflow_call`**, so another repository
   can tear the registry down as a step in its own pipeline. Every existing
   guard applies unchanged on that path: the `ALLOWED_ACTOR` allowlist (on a
