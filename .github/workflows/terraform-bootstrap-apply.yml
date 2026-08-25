@@ -30,7 +30,7 @@
 #     auth you must use the "creds" JSON object.
 # =============================================================================
 
-name: Terraform Bootstrap Backend - APPLY (manual)
+name: Provision TF Bootstrap (manual)
 
 on:
   workflow_dispatch: {}  # manual trigger only

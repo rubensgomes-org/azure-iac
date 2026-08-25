@@ -23,6 +23,13 @@ here.
 
 ### Fixed
 
+- `release.yml` pinned `actions/checkout@v4` and
+  `hashicorp/setup-terraform@v3`, both of which target the deprecated Node.js
+  20 runtime — GitHub force-ran them on Node.js 24 and annotated the `v0.0.1`
+  release run. Bumped to `@v7` and `@v4`, matching the other three workflows.
+  No infra impact: the release workflow validates and publishes, and holds no
+  Azure credentials.
+
 ## [0.0.1] - 2026-08-24
 
 Baseline for the first release. The repository was recreated from scratch, so

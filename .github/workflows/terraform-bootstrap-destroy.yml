@@ -32,7 +32,7 @@
 #     auth you must use the "creds" JSON object.
 # =============================================================================
 
-name: Terraform Bootstrap Backend - DESTROY (manual)
+name: Destroy TF Bootstrap (manual)
 
 # -----------------------------------------------------------------------------
 # Manual trigger ONLY, with safeguard inputs.
