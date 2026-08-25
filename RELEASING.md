@@ -3,8 +3,14 @@
 How a release is cut in this repo, and what the version number means.
 
 Releases are **manual and explicit**. You decide the bump level; nothing infers
-it from commit messages. There is no branch/PR flow — work lands on
-`main`, and a release is a tagged commit on `main`.
+it from commit messages.
+
+`main` is **PR-only**: every commit, releases included, reaches it through a
+pull request whose checks pass. A release is therefore two steps rather than
+one — a *release PR* that bumps `VERSION` and rolls the changelog, and then a
+tag placed on `main` **after** that PR merges. Tagging after the merge is not
+ceremony: a squash-merge rewrites the commit SHA, so a tag created locally
+before merging would point at a commit that never reaches `main`.
 
 ## The moving parts
 
@@ -71,35 +77,48 @@ with real application images and verifies clean.**
 ## Cutting a release
 
 ```bash
-# 1. Land your work on main and record it under [Unreleased] in CHANGELOG.md.
+# 1. Get main current. Every feature PR that belongs in this release is merged,
+#    and each one recorded its own entry under [Unreleased] in CHANGELOG.md.
 #    A release refuses to proceed if [Unreleased] has no entries.
+git switch main && git pull
 
 # 2. Check the SonarCloud quality gate BEFORE tagging. release.yml runs the
 #    same scan and refuses to publish if the gate is red -- but by then the tag
 #    is already pushed and cannot be moved (see "Undoing a release").
 export SONAR_TOKEN=<your token>
-make sonar
+make sonar                    # main only; it refuses to run off main
 
 # 3. See where you are and what each bump would produce.
 make version
 make release-check
 
-# 4. Bump. Writes VERSION, rolls the changelog, commits, creates the
-#    annotated tag. All LOCAL — nothing is pushed.
-make release-patch      # or release-minor / release-major
+# 4. Bump on a release branch. Writes VERSION, rolls the changelog, commits.
+#    Does NOT tag -- the tag comes after the merge.
+git switch -c release/v0.3.2
+make release-prep-patch       # or release-prep-minor / release-prep-major
 
-# 5. Inspect.
-git show --stat HEAD
-git tag -l
+# 5. Open the release PR and merge it once the checks are green.
+git push -u origin release/v0.3.2
+gh pr create --title "release: v0.3.2" --fill
 
-# 6. Publish. This pushes main and the tag, which fires release.yml.
+# 6. Tag main's real tip, now that the release commit is on it.
+git switch main && git pull
+make release-tag
+
+# 7. Publish. Pushes the tag, which fires release.yml.
 make release-push
 ```
 
 `make sonar` runs the identical scan CI runs, reading the same
 `sonar-project.properties`, so the two cannot disagree. It publishes its results
-to SonarCloud — run it on a clean tree at the commit you are about to tag, not
-over work in progress.
+to SonarCloud and **refuses to run anywhere but `main`** — on a feature branch
+it would overwrite main's analysis with unmerged code. Pull requests get their
+own PR-mode scan from `pr-verify.yml`.
+
+`make release-patch|minor|major` no longer exist. They bumped, committed *and*
+tagged in one shot on `main`, which cannot work when `main` is PR-only. They now
+fail with a pointer to this recipe rather than leaving you holding an unpushable
+tag.
 
 `make release-tag` is the one-off variant: it tags the current `VERSION`
 without bumping. It requires `CHANGELOG.md` to already contain a section for
@@ -119,7 +138,8 @@ value rather than trusting this paragraph.
 
 - a missing or malformed `VERSION` (must be `N.N.N`);
 - a dirty working tree — staged or unstaged;
-- being on a branch other than `main`;
+- being on the wrong branch for the step: `release-prep-*` requires a
+  `release/*` branch, everything else requires `main`;
 - `HEAD` being behind `origin/main` (fetch failures are a warning, not an error,
   so the targets still work offline);
 - an empty `[Unreleased]` section (bump targets only);
@@ -127,19 +147,34 @@ value rather than trusting this paragraph.
 
 ## Undoing a release
 
-Trivial before `make release-push`, because nothing has left your machine:
+How much you can undo depends on which of the two phases you are in.
+
+**Before the release PR is merged** — nothing has affected `main`. Close the PR
+and delete the branch, or just fix it and push again:
+
+```bash
+git switch main
+git branch -D release/v0.3.2
+git push origin --delete release/v0.3.2
+```
+
+**After the merge but before `make release-push`** — the release commit is on
+`main` and is not yours to reset; only the tag is local:
 
 ```bash
 git tag -d v$(cat VERSION)
-git reset --hard HEAD~1
 ```
 
-That order matters: `git reset` first and you have a tag pointing at a commit
-that no longer exists on any branch.
+If you decide not to release that version at all, the `VERSION` bump and the
+dated `CHANGELOG.md` heading are already on `main`, so the honest fix is to go
+forward: tag it, or open another PR that rolls the section back to
+`[Unreleased]`.
 
-After the push, do **not** delete or move the tag — cut a new patch release
-instead. A published tag that later points at different code is worse than a
-release you regret.
+**After `make release-push`** — do **not** delete or move the tag. Cut a new
+patch release instead. A published tag that later points at different code is
+worse than a release you regret. This is also what happens when the quality gate
+fails: the tag is pushed, no GitHub Release is created, and the fix is the next
+patch — see `CHANGELOG.md` `[0.3.1]` for a worked example.
 
 ## The `release` tag on Azure resources
 
@@ -161,7 +196,7 @@ az group show -n rg-dev-app --query tags
 Two consequences worth internalising:
 
 1. **A version bump immediately puts the estate "behind".** Right after
-   `make release-minor`, `terraform plan` shows a pending `~ tags` update on
+   `make release-prep-minor`, `terraform plan` shows a pending `~ tags` update on
    every resource in all twelve modules. That diff is the intended signal:
    the code is at 0.2.0, Azure is still labelled 0.1.0. It clears on the next
    `make apply`.
@@ -175,6 +210,11 @@ version bump. Confirm with `make plan-resource-groups` if you want to see it.
 ## What CI does on a tag
 
 `.github/workflows/release.yml` runs on any pushed tag matching `v*.*.*`:
+
+(`pr-verify.yml` runs the same `fmt`, `validate` and Sonar checks on the pull
+request, so by the time a tag exists this should all be a formality. It is
+repeated here because a tag can be pushed for a commit whose PR checks passed
+weeks earlier.)
 
 1. Fails if `v$(cat VERSION)` does not equal the tag name.
 2. Fails if `CHANGELOG.md` has no section for that version.

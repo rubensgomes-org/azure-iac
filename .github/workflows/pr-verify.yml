@@ -1,0 +1,247 @@
+# =============================================================================
+# PR Verify
+#
+# Purpose:
+#   The gate on every pull request into main. main is PR-only (branch
+#   protection requires a pull request and requires these checks to pass), and
+#   this workflow is what those required checks point at. Before it existed the
+#   repo had no CI on a branch at all -- `fmt -check`, `make validate` and the
+#   Sonar gate only ran at tag time, inside release.yml, which is far too late
+#   to be useful feedback.
+#
+# Trigger:
+#   pull_request into main. Not `push`: a branch with no PR open is nobody's
+#   business but its author's, and running on both doubles every run for no
+#   gain. Not `pull_request_target`: that runs trusted, with secrets, against
+#   untrusted head code, which is the wrong default for a repo whose secrets
+#   include an Azure Service Principal.
+#
+# Relationship to release.yml:
+#   Same three checks, different moment. This one catches problems while they
+#   are still cheap to fix; release.yml re-runs them at tag time as the final
+#   gate before a GitHub Release is published. Neither replaces the other --
+#   a tag can be pushed for a commit whose PR checks were green weeks earlier.
+#
+# Structure:
+#   THREE JOBS, NOT ONE, on purpose. They run in parallel, and more importantly
+#   each job is a separately named required status check, so `sonar` can be
+#   left out of the required list until PR-mode analysis is proven on this
+#   project without also un-gating the terraform checks.
+#
+# Notes:
+#   - terraform_version must satisfy the `required_version = "~> 1.15"`
+#     declared in every versions.tf in the repo. SIX workflows in this
+#     directory now pin the same build; bump them together.
+#   - terraform_wrapper is false, matching every other workflow here.
+# =============================================================================
+
+name: PR Verify
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  # Read the code. `pull-requests: write` is for SonarCloud's PR decoration --
+  # the inline findings it posts onto the diff. Nothing here writes contents.
+  contents: read
+  pull-requests: write
+
+concurrency:
+  # Keyed on the PR, so a force-push supersedes its own in-flight run. Unlike
+  # the release and ACR workflows, cancelling here is safe and desirable: these
+  # jobs touch no Azure state and hold no locks.
+  group: pr-verify-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: terraform
+  #
+  # The two gates release.yml runs at tag time. No credentials: `make validate`
+  # inits every root with -backend=false, so this cannot reach the subscription
+  # or the state container.
+  # ---------------------------------------------------------------------------
+  terraform:
+    name: terraform
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      TF_IN_AUTOMATION: "true"
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Checkout repository content
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # -----------------------------------------------------------------------
+      # Step 2: Install Terraform on the runner
+      # -----------------------------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+
+      # -----------------------------------------------------------------------
+      # Step 3: Check formatting across the whole tree
+      #
+      # Same command the root Makefile's `fmt` target runs, in -check mode.
+      # -----------------------------------------------------------------------
+      - name: Terraform fmt (check)
+        run: terraform fmt -check -recursive terraform/
+
+      # -----------------------------------------------------------------------
+      # Step 4: Validate all twelve module roots
+      #
+      # Downloads providers, so this is a real schema-level check rather than a
+      # syntax check -- which is what makes it worth the ~1 minute it costs.
+      # -----------------------------------------------------------------------
+      - name: Terraform validate (all module roots)
+        run: make validate
+
+  # ---------------------------------------------------------------------------
+  # Job 2: workflows
+  #
+  # Guards the workflow files themselves. This repo edits them constantly and a
+  # broken one is only discovered when the workflow next fires -- which for the
+  # release and destroy workflows is exactly the worst moment.
+  # ---------------------------------------------------------------------------
+  workflows:
+    name: workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # -----------------------------------------------------------------------
+      # Step 1: Every workflow file must parse as YAML
+      # -----------------------------------------------------------------------
+      - name: Workflows parse as YAML
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+          for f in .github/workflows/*.yml .github/actions/*/action.yml; do
+            [ -e "$f" ] || continue
+            if ruby -ryaml -e 'YAML.load_file(ARGV[0])' "$f" 2>/dev/null; then
+              echo "  ok   $f"
+            else
+              echo "::error file=$f::does not parse as YAML"
+              rc=1
+            fi
+          done
+          exit $rc
+
+      # -----------------------------------------------------------------------
+      # Step 2: No GitHub expression interpolated inside any `run:` body
+      #
+      # Why:
+      #   GitHub substitutes such an expression as raw TEXT before the shell
+      #   parses the script, so a value containing a quote or $(...) executes on
+      #   the runner. In this repo the affected steps were the type-to-confirm
+      #   guards in front of two destroys, with credentials already in scope.
+      #   Bind through `env:` and reference "$VAR" instead.
+      #
+      #   This is Sonar rule githubactions:S7630, which the sonar job below also
+      #   catches -- but that job needs a token and a network round trip, and
+      #   this check is instant and works on a fork. Cheap enough to duplicate.
+      #
+      #   The convention is documented in CLAUDE.md.
+      # -----------------------------------------------------------------------
+      - name: No expression interpolation inside run blocks
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -ryaml -e '
+            bad = []
+            Dir[".github/workflows/*.yml"].sort.each do |f|
+              doc = YAML.load_file(f) || {}
+              (doc["jobs"] || {}).each_value do |job|
+                (job["steps"] || []).each do |step|
+                  body = step["run"] or next
+                  body.scan(/\$\{\{[^}]*\}\}/) do |m|
+                    bad << [f, step["name"] || "<unnamed>", m]
+                  end
+                end
+              end
+            end
+            bad.each do |f, name, m|
+              puts "::error file=#{f}::#{m} appears inside the run body of step " \
+                   "\x27#{name}\x27. Bind it to an env: key and reference \"$VAR\" instead."
+            end
+            if bad.empty?
+              puts "clean: no run body interpolates a GitHub expression"
+            else
+              puts "#{bad.size} interpolation(s) found. See CLAUDE.md."
+              exit 1
+            end
+          '
+
+  # ---------------------------------------------------------------------------
+  # Job 3: sonar
+  #
+  # SonarCloud analysis in PULL REQUEST mode. The scan action reads the
+  # pull_request event and sets sonar.pullrequest.key / .branch / .base itself,
+  # so findings decorate this PR's diff and the gate reflects the PR, not main.
+  #
+  # Deliberately passes NO sonar.branch.name. That property used to be pinned
+  # to main in sonar-project.properties; pinning it here would submit the PR's
+  # code AS main and overwrite main's analysis. See that file's header.
+  # ---------------------------------------------------------------------------
+  sonar:
+    name: sonar
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Checkout, with full history
+      #
+      # fetch-depth: 0 is required -- the scanner attributes findings to new
+      # code from git blame, and a shallow clone silently degrades that.
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # -----------------------------------------------------------------------
+      # Step 2: Fail fast if SONAR_TOKEN is missing
+      #
+      # Same shape as release.yml. Only the NAME is printed, never the value.
+      # -----------------------------------------------------------------------
+      - name: Verify required secrets are present (no output)
+        shell: bash
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in SONAR_TOKEN; do
+            if [ -z "${!v:-}" ]; then
+              echo "::error::Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "SONAR_TOKEN is an organization Actions secret on"
+            echo "rubensgomes-org. Confirm it is shared with this repository."
+          fi
+          exit $missing
+
+      # -----------------------------------------------------------------------
+      # Step 3: Scan
+      #
+      # sonar.qualitygate.wait=true in sonar-project.properties makes this
+      # blocking, so a PR that fails the gate fails this check.
+      # -----------------------------------------------------------------------
+      - name: SonarCloud scan (PR mode)
+        uses: SonarSource/sonarqube-scan-action@v8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

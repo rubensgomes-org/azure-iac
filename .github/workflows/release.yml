@@ -34,11 +34,15 @@
 #     the CLI rather than a third-party action. GH_TOKEN comes from the
 #     built-in github.token, which the `contents: write` permission below
 #     upgrades enough to create a release.
-#   - The Sonar quality gate (step 7) is configured entirely by
-#     sonar-project.properties at the repo root, including the
-#     `sonar.qualitygate.wait=true` that makes it blocking. Never add
-#     `continue-on-error` to that step: a release that publishes over a red
-#     gate defeats the point of having one.
+#   - The Sonar quality gate (step 7) is configured by sonar-project.properties
+#     at the repo root, including the `sonar.qualitygate.wait=true` that makes
+#     it blocking. The single exception is `-Dsonar.branch.name=main`, passed
+#     from this workflow because a tag push would otherwise be analysed as a
+#     short-lived branch; that file explains why it cannot be pinned globally
+#     any more. Never add `continue-on-error` to that step: a release that
+#     publishes over a red gate defeats the point of having one.
+#   - Pull requests are gated separately by pr-verify.yml. This workflow is the
+#     last gate, not the only one.
 # =============================================================================
 
 name: Release (tag push)
@@ -218,6 +222,13 @@ jobs:
       # -----------------------------------------------------------------------
       - name: SonarCloud scan (quality gate blocks the release)
         uses: SonarSource/sonarqube-scan-action@v8
+        with:
+          # The ONE scanner argument this repo passes from a workflow, and it is
+          # load-bearing. Without it the tag ref is submitted as a SHORT-lived
+          # branch and the gate lookup 403s -- see sonar-project.properties.
+          # It cannot live in that file any more, because pr-verify.yml must be
+          # free to submit PR analyses under their own identity.
+          args: -Dsonar.branch.name=main
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
