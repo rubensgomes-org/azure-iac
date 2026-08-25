@@ -447,7 +447,15 @@ the per-module commands by hand.
   workflow" rule, and the file says so.
 - **`make sonar` refuses to run off `main`**, for the same reason. Feature
   branches are analysed by `pr-verify.yml` on the pull request.
-- **`make sonar` hanging at "SCM Publisher N source files to be analyzed" is a
+- **`make sonar` is a local fallback, not part of the release recipe.** The PR
+  gate (`pr-verify.yml`) and the tag gate (`release.yml`) both run the same
+  scan, so the release flow never needs a local one. On Apple Silicon the
+  scanner image runs emulated and blames through JGit rather than the git CLI —
+  measured at minutes for ~144 files against ~1s for native `git blame`, and
+  worse once `main` has merge commits for JGit to walk both parents of.
+  `SCM blame is in progress..` means it is working, not hung. Let CI do it.
+- **`make sonar` stopping dead at "SCM Publisher N source files to be
+  analyzed" — with no "blame is in progress" line — is a different thing: a
   git ownership problem, not a slow scan.** The scanner container runs as uid
   1000 while the bind-mounted tree belongs to the host user, so git rejects the
   repo with *detected dubious ownership* and the SCM publisher falls back off

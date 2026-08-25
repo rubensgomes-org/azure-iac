@@ -217,10 +217,11 @@ the run if the quality gate is red**. Configuration lives in
 workflow passes no scanner arguments of its own, so changing analysis scope
 means editing that file, not the workflow.
 
-`make sonar` runs the identical scan locally (needs Docker and `SONAR_TOKEN`
-exported). Use it before cutting a tag: the workflow fires on a tag that has
-already been pushed, and a published tag is never moved, so a red gate found in
-CI costs a whole patch release.
+Every PR is gated on the same scan by `pr-verify.yml`, so a red gate blocks the
+merge before a tag exists. `make sonar` runs it locally (Docker + `SONAR_TOKEN`)
+but is **not** part of the release recipe — it is a fallback for reproducing a
+CI Sonar failure, and on Apple Silicon it is very slow, since the scanner image
+is amd64-only and blames through JGit.
 
 Pull requests are scanned in PR mode by `pr-verify.yml`, and the tag build is
 scanned as `main` by `release.yml`. The branch name is therefore passed by each

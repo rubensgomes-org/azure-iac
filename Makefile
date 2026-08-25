@@ -543,12 +543,15 @@ validate:
 	    && terraform validate ); \
 	done
 
-# Run the same SonarCloud scan release.yml runs, BEFORE cutting a tag.
+# Run the same SonarCloud scan CI runs. LOCAL FALLBACK ONLY -- this is NOT part
+# of the release recipe. See RELEASING.md.
 #
-# Why this exists: release.yml fires on a tag that has ALREADY been pushed, and
-# RELEASING.md forbids moving or deleting a published tag. So a red quality gate
-# discovered in CI is not a retry -- it costs a whole patch release. Find it
-# here instead, while the tag is still just a number in VERSION.
+# It used to be: release.yml fires on a tag that is ALREADY pushed, and
+# RELEASING.md forbids moving a published tag, so a red gate discovered in CI
+# cost a whole patch release and there was no earlier gate. That reason is gone.
+# main is PR-only now and pr-verify.yml runs the same scan in PR mode, so the
+# gate blocks the merge before any tag exists, and release.yml scans again at
+# tag time. Reach for this only to reproduce a CI Sonar failure locally.
 #
 # Configuration comes entirely from sonar-project.properties, exactly as in CI,
 # so this and the workflow cannot drift. No scanner arguments are passed.
@@ -563,16 +566,22 @@ validate:
 # publisher then cannot use the native git blame path and falls back to walking
 # the history itself, which on an emulated x86 image over a macOS bind mount
 # crawls -- the run appears to stop dead at "SCM Publisher N source files to be
-# analyzed". Setting safe.directory through the environment fixes it without
-# writing a git config into the mounted tree (143 files blame in ~9s).
+# analyzed". Setting safe.directory through the environment fixes THAT failure
+# -- git can read the repo again -- but do not expect it to make the step fast;
+# see the Apple Silicon note below.
 #
 # Blame data is not optional here: SonarCloud attributes findings to NEW code
 # from it, and the quality gate conditions are all new_* metrics. Do not "fix" a
 # slow SCM step with sonar.scm.disabled=true -- that would silently change which
 # findings the gate counts, and this target's whole value is matching CI.
 #
-# The image is amd64-only, so on Apple Silicon it runs under emulation. Slower
-# than native, but correct; the warning Docker prints about it is expected.
+# ON APPLE SILICON THIS IS SLOW ENOUGH TO LOOK BROKEN. The image is amd64-only
+# and runs under emulation, and the scanner's SCM publisher blames through JGit
+# rather than the git CLI: measured at MINUTES for ~144 files, where a native
+# `git blame` over the same files takes about one second. "SCM blame is in
+# progress.." means it is working, not hung -- but budget for the wait, or just
+# let CI do it, which is the whole point of the PR gate. A merge commit in the
+# history makes it worse, because JGit walks both parents.
 #
 # WARNING: this PUBLISHES results to SonarCloud and they become the project's
 # current state for the branch. Run it on a clean tree at the commit you intend
@@ -644,9 +653,9 @@ help:
 	@echo "Utility:"
 	@echo "  fmt               terraform fmt -recursive terraform/"
 	@echo "  validate          terraform validate every module root (no cloud calls)"
-	@echo "  sonar             SonarCloud scan + quality gate of main (same as CI;"
-	@echo "                    needs SONAR_TOKEN and docker). Run before cutting a"
-	@echo "                    tag. Refuses to run off main"
+	@echo "  sonar             SonarCloud scan of main. LOCAL FALLBACK only -- CI"
+	@echo "                    gates every PR. Needs SONAR_TOKEN + docker, refuses"
+	@echo "                    to run off main, very slow on Apple Silicon"
 	@echo "  list              Show all modules in dependency order"
 	@echo "  help              This message"
 	@echo ""
