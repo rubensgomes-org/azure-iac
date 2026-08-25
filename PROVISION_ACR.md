@@ -228,7 +228,7 @@ Notes on the mechanics:
 
 ### Running the same sequence in CI
 
-`.github/workflows/provision-acr.yml` is the CI equivalent of this section. It
+`.github/workflows/acr-create.yml` is the CI equivalent of this section. It
 runs the identical `make init/plan/apply` targets for modules 01, 04, and 06
 in the same order — it reimplements nothing, it just exports `ARM_*` from
 GitHub secrets and calls the Makefile.
@@ -239,7 +239,7 @@ from an application repository and gate the image push on its outputs:
 ```yaml
 jobs:
   provision-acr:
-    uses: rubensgomes-org/azure-iac/.github/workflows/provision-acr.yml@main
+    uses: rubensgomes-org/azure-iac/.github/workflows/acr-create.yml@main
     with:
       environment_name: dev
     secrets:
@@ -344,11 +344,44 @@ make destroy-managed-identities   # optional — the UAMI. Reverse numeric order
 `make destroy-acr` alone stops all billing; the UAMI is free, so leaving it in
 place costs nothing and saves a step next time.
 
-From CI, the equivalent is the **ACR Destroy (manual)** workflow
-(`.github/workflows/destroy-acr.yml`), run from the Actions tab. It destroys
-module 06 only — resource groups and the managed identity are left standing,
-and a guard step aborts the run if the destroy plan says otherwise. It asks you
-to type `DESTROY ACR rubensdevacr` before it will proceed.
+From CI, the equivalent is the **ACR Destroy (reusable)** workflow
+(`.github/workflows/acr-destroy.yml`), run from the Actions tab
+(`workflow_dispatch`) or called from another repository (`workflow_call`). It
+destroys module 06 only — resource groups and the managed identity are left
+standing, and a guard step aborts the run if the destroy plan says otherwise.
+It asks you to type `DESTROY ACR rubensdevacr` before it will proceed.
+
+Called from another repository it looks like this — and note that nothing is
+relaxed for the caller:
+
+```yaml
+jobs:
+  destroy-acr:
+    uses: rubensgomes-org/azure-iac/.github/workflows/acr-destroy.yml@main
+    with:
+      environment_name: dev
+      acr_name: rubensdevacr                # required; no default on this path
+      confirm: DESTROY ACR rubensdevacr     # required; must match exactly
+    secrets:
+      AZURE_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+```
+
+The dispatch form prefills `acr_name` and `confirm`; the reusable path
+deliberately does not, so a caller has to spell the registry name out twice in
+its own YAML. Two further conditions apply to callers only:
+
+- The calling repository must define a GitHub Environment named **`AZURE`**.
+  The destroy job binds one, and for a reusable workflow that binding resolves
+  in the caller's repo — so a repository cannot call this until someone has
+  created that Environment on purpose (and can put required reviewers on it).
+  `acr-create.yml` binds no Environment precisely to avoid imposing this;
+  here the imposition is the guard.
+- The actor allowlist is enforced on this path too. `github.actor` is whoever
+  triggered the *caller's* run, so a push by anyone else, or a scheduled or
+  bot-triggered upstream run, is denied before any credential is used.
 
 No post-destroy purge is needed. Basic-SKU ACR has no soft-delete concept, so
 the name is released immediately — unlike Key Vault, which needs the purge
@@ -486,8 +519,10 @@ make destroy-managed-identities   # optional
 
 Related docs:
 
-- `.github/workflows/provision-acr.yml` — the CI equivalent of §4, reusable
+- `.github/workflows/acr-create.yml` — the CI equivalent of §4, reusable
   from an application repository
+- `.github/workflows/acr-destroy.yml` — the CI equivalent of §7, reusable but
+  actor-restricted and type-to-confirm guarded on every trigger
 - `docs/PROVISIONING_PLAN.md` — §4 dependency map, §12 passwordless auth,
   §15 full-teardown procedure
 - `terraform/envs/dev/06-acr/README.md` — the by-hand `terraform` equivalents

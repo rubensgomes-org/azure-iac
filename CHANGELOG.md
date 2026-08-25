@@ -19,9 +19,66 @@ here.
 
 ### Added
 
+- `acr-destroy.yml` now also accepts **`workflow_call`**, so another repository
+  can tear the registry down as a step in its own pipeline. Every existing
+  guard applies unchanged on that path: the `ALLOWED_ACTOR` allowlist (on a
+  called run `github.actor` is whoever triggered the *caller's* run, so a
+  bot-, schedule-, or third-party-triggered upstream run is denied), the typed
+  `DESTROY ACR <name>` phrase, and the plan-scope assertion. `acr_name` and
+  `confirm` are declared with **no defaults** on the reusable path — only the
+  dispatch form prefills them — so a `uses:` line cannot delete a registry by
+  accident. The job keeps `environment: AZURE`, which for a reusable workflow
+  resolves in the caller's repo: a calling repository must define that
+  Environment itself, which is the point. Its four `workflow_call` secrets are
+  therefore `required: false` — a caller may pass them or let its `AZURE`
+  Environment supply them, and the existing fail-fast step catches the case where neither happened.
+
 ### Changed
 
+- **Workflow files renamed** to a `<subject>-<verb>.yml` shape so each
+  subject's pair sorts together in the directory listing. No behaviour change,
+  but any external `uses:` reference must be updated:
+  - `provision-acr.yml` → **`acr-create.yml`**
+  - `destroy-acr.yml` → **`acr-destroy.yml`**
+  - `terraform-bootstrap-apply.yml` → **`tf-bootstrap-create.yml`**
+  - `terraform-bootstrap-destroy.yml` → **`tf-bootstrap-destroy.yml`**
+- `acr-destroy.yml`'s Actions-sidebar name is now **ACR Destroy (reusable)**
+  (was "ACR Destroy (manual)"), matching its new trigger set.
+- The shared ACR concurrency group is now `acr-lifecycle-<env>` (was
+  `provision-acr-<env>`), changed in `acr-create.yml` and `acr-destroy.yml`
+  together. The string is deliberately lifecycle-shaped rather than
+  verb-shaped: a group only serialises runs that name it identically, and what
+  must never overlap a destroy is a create of the same modules.
+- README.md, CLAUDE.md, and PROVISION_ACR.md updated for the new filenames,
+  the reusable-destroy path, and the caller-side `AZURE` Environment
+  requirement.
+- `docs/PROVISIONING_PLAN.md` §10 and §16 now describe five workflows rather
+  than three, name them, and record the `terraform_wrapper: false` requirement
+  alongside the shared `terraform_version` pin.
+- `docs/PROJECT_SUMMARY.md` gained the `.github/workflows/`, `PROVISION_ACR.md`
+  and `RELEASING.md` entries its repo-layout list was missing, plus a short
+  note on how releases work.
+
 ### Fixed
+
+- **Three documents disagreed about what is actually applied in Azure.**
+  `docs/PROVISIONING_PLAN.md` → Progress and `docs/PROJECT_SUMMARY.md` →
+  Status both still described the 2026-07-26 estate ("everything except module
+  11 is live"), while CLAUDE.md carried the verified 2026-08-24 state (module
+  01 only; the five resource groups exist and are empty; every state key but
+  `resource-groups/` is an empty shell). Both are now aligned with CLAUDE.md,
+  and both carry the `az` commands to re-check rather than trust the note.
+- `RELEASING.md` and CLAUDE.md both still claimed **"no release has been cut
+  yet"** with `VERSION` at `0.0.1` and `git tag -l` empty — untrue since
+  `v0.0.1` shipped. Both now point at `make version` as the authoritative
+  value instead of restating it.
+- `RELEASING.md`'s "undoing a release" snippet hardcoded `git tag -d v0.1.1`;
+  it now reads `VERSION`, and says why the tag must be deleted before the
+  `git reset`.
+- `RELEASING.md` described `make release-tag` as "not the path to the first
+  release", which stopped being the useful framing once the first release
+  shipped. It now says what the target is actually for: recovering a lost tag
+  on an already-committed bump.
 
 ## [0.1.1] - 2026-08-24
 

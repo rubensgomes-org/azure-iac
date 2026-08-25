@@ -61,6 +61,13 @@ all apps (acceptable for a playground).
 - `docs/PROVISIONING_PLAN.md` — the master plan (naming conventions, per-module
   command reference §13, passwordless wiring §12)
 - `Makefile` — whole-estate + per-module `apply`/`destroy`/`reprovision`
+- `.github/workflows/` — five workflows: `acr-create.yml` / `acr-destroy.yml`
+  (both `workflow_call` + `workflow_dispatch`), `tf-bootstrap-create.yml` /
+  `tf-bootstrap-destroy.yml`, and `release.yml`. All but `release.yml` touch
+  Azure; each one shells out to repo-root `make` targets. See README.md
+- `PROVISION_ACR.md` — standalone runbook for standing up just the ACR
+  (modules 01 → 04 → 06) and tearing it back down
+- `RELEASING.md` — what MAJOR/MINOR/PATCH mean here and how a tag is cut
 
 ## Auth model (Terraform → Azure)
 
@@ -74,25 +81,45 @@ export ARM_TENANT_ID=<tenant-id>
 export ARM_SUBSCRIPTION_ID=<subscription-id>
 ```
 
-## Status (paused, updated 2026-07-26)
+## Status (paused, estate state verified 2026-08-24)
 
 **Feature-complete in code.** All 12 modules are implemented, and all have been
-applied and verified against Azure; `make validate` passes across every root.
-The user runs all `terraform` / `make` commands manually.
+applied and verified against Azure at least once; `make validate` passes across
+every root. The user runs all `terraform` / `make` commands manually.
 
-**Live in Azure right now: every module except 11-container-apps.**
-`make destroy-container-apps` was run on 2026-07-26, so `rg-dev-app` contains
-only the Container App Environment (`cae-dev`) and the `container-apps` state
-key is empty. Nothing downstream depends on the apps — module 12's diagnostic
-settings target KV, ACR, Storage, Service Bus, and PostgreSQL. Restore with
-`make apply-container-apps`; every upstream module is still standing.
+**Live in Azure right now: module 01 only — everything else is torn down.**
+The five resource groups exist and are all empty (`az resource list -g <rg>`
+returns nothing for any of them), and in the `tfstate` container only
+`resource-groups/terraform.tfstate` is populated; every other module's state
+key is an empty few-hundred-byte shell. Nothing is running, so the estate
+currently costs **$0/month** — resource groups and the state Storage Account
+are free at this scale.
+
+Verify rather than trust that line; it ages every time something is applied:
+
+```bash
+az group list --query "[].name" -o tsv
+az resource list -g rg-dev-platform -o tsv    # empty => nothing applied
+```
+
+Rebuild with `make apply` from the repo root (01 no-ops), or module-by-module
+in numeric order — a module whose upstreams are not applied fails at plan with
+*Unsupported attribute*. ACR alone is `make apply-managed-identities &&
+make apply-acr` (~$5.07/month); Container Apps needs 01, 04, 06, 07, 08, 09,
+10, then 11. PROVISIONING_PLAN.md → Progress has the detail.
+
+**Releases.** Tagged `v<VERSION>` off `main`; `VERSION` at the repo root is the
+source of truth and every Azure resource carries a matching `release` tag.
+Semver here is infra-impact based — see `RELEASING.md`.
 
 **Deferred / outstanding work:**
 
 - **D1** — set a real image for module 11 (it last ran the
   `mcr.microsoft.com/k8se/quickstart` placeholder) once real Spring Boot images
   are pushed to ACR *(blocked on app dev)*. Since 11 is destroyed, this is a
-  fresh `make apply-container-apps` with `apps_image_map` set
+  fresh `make apply-container-apps` with `apps_image_map` set — and the
+  registry is destroyed too, so ACR must be reprovisioned and the images
+  repushed first
 - **D2** — wire `APPLICATIONINSIGHTS_CONNECTION_STRING` into Container Apps
   *(depends on D1)*
 - **D3** — replace the manual PG data-plane bootstrap with a Container Apps Job

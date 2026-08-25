@@ -29,7 +29,7 @@
 #   with each calling repository.
 #
 #   This job is deliberately NOT bound to a GitHub Environment, unlike
-#   terraform-bootstrap-apply.yml. Two reasons:
+#   tf-bootstrap-create.yml and acr-destroy.yml. Two reasons:
 #
 #     1. Organization secrets are not Environment secrets. A job with no
 #        `environment:` resolves them fine.
@@ -39,6 +39,11 @@
 #
 #   Adding an approval gate later means creating the environment in each
 #   calling repo, on purpose — not inheriting one by copy-paste.
+#
+#   acr-destroy.yml makes the opposite call and keeps `environment: AZURE` even
+#   though it too is reusable. That is not an inconsistency: forcing every
+#   caller to stand up an Environment is friction, and friction is unwanted in
+#   front of a create and wanted in front of a destroy.
 #
 #   Callers must pass the four secrets explicitly (see `secrets:` below).
 #   `secrets: inherit` also works but hides which credentials cross the repo
@@ -59,6 +64,9 @@
 #   - terraform_version must satisfy the `required_version = "~> 1.15"`
 #     declared in every versions.tf in the repo. All five workflows in this
 #     directory pin the same build; bump them together.
+#   - The teardown counterpart is acr-destroy.yml, which is reusable too but
+#     destroys module 06 only and is guarded by an actor allowlist, a typed
+#     confirmation phrase, and a plan-scope assertion.
 #   - terraform_wrapper is false. The wrapper intercepts stdout, which would
 #     break the `terraform output -raw` calls that produce this workflow's
 #     outputs.
@@ -123,7 +131,10 @@ jobs:
     timeout-minutes: 30
 
     # Serialise runs per environment so two applies never race for the same
-    # state blob.
+    # state blob. The group string is shared verbatim with acr-destroy.yml so a
+    # create and a destroy of the same modules cannot overlap; it is
+    # lifecycle-shaped rather than verb-shaped for that reason. Never change it
+    # in one file without the other.
     #
     # LIMITATION, and it matters: concurrency groups are scoped to the
     # repository that OWNS THE RUN. When this workflow is called from another
@@ -133,7 +144,7 @@ jobs:
     # run FAILS with a lock error rather than corrupting state. That is the
     # accepted failure mode. Never paper over it with -lock=false.
     concurrency:
-      group: provision-acr-${{ inputs.environment_name }}
+      group: acr-lifecycle-${{ inputs.environment_name }}
       cancel-in-progress: false
 
     outputs:

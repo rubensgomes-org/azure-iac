@@ -26,25 +26,52 @@
 #   anyway, and fails closed if it is ever untrue.
 #
 # Trigger:
-#   workflow_dispatch ONLY. Never workflow_call — this must not be something an
-#   application repository can invoke with `uses:`, and never a push/tag event.
+#   workflow_dispatch — the primary path. A maintainer runs this from the
+#                       Actions tab and types the confirmation phrase.
+#   workflow_call     — reusable, so a sibling repository can tear the registry
+#                       down as a step in its own pipeline (an ephemeral-estate
+#                       teardown job, say). Never a push/tag event.
 #
-# Relationship to provision-acr.yml:
-#   The inverse operation, but deliberately NOT its mirror image. provision-acr
-#   is reusable, unguarded, and applies three modules (01, 04, 06). This one is
-#   manual, type-to-confirm guarded, and destroys one. Bringing the registry
-#   back is `provision-acr.yml`, or `make apply-acr` locally — the registry name
-#   is fixed at `rubensdevacr` in terraform.tfvars, so it returns with the same
-#   login server and every image reference stays valid. Only the IMAGES are
-#   unrecoverable.
+#   Making a DESTROY reusable is a deliberate, load-bearing decision, not
+#   convenience. Three guards apply identically on both paths, and none of them
+#   is relaxed for a caller:
+#
+#     1. ALLOWED_ACTOR — `github.actor` on a called run is whoever triggered the
+#        CALLER's run, so a pipeline kicked off by anyone else, by a bot, or by
+#        a schedule is denied at step 2 before a credential is touched.
+#     2. The typed `DESTROY ACR <name>` phrase is a REQUIRED input with no
+#        default on the workflow_call path. A caller has to spell the registry
+#        name out in its own YAML; it cannot invoke this by accident.
+#     3. The step 6 plan guard fails closed on anything outside module 06.
+#
+# Relationship to acr-create.yml:
+#   The inverse operation, and now reachable the same two ways, but still NOT
+#   its mirror image. acr-create is unguarded and applies three modules
+#   (01, 04, 06). This one is triple-guarded and destroys one. Bringing the
+#   registry back is `acr-create.yml`, or `make apply-acr` locally — the
+#   registry name is fixed at `rubensdevacr` in terraform.tfvars, so it returns
+#   with the same login server and every image reference stays valid. Only the
+#   IMAGES are unrecoverable.
 #
 # Authentication:
 #   Service Principal + client secret from the GitHub Environment named "AZURE",
-#   matching terraform-bootstrap-destroy.yml rather than provision-acr.yml.
-#   Binding an Environment is possible here precisely BECAUSE this workflow is
-#   not reusable (for a reusable workflow `environment:` resolves in the
-#   caller's repo), and it buys the option of adding a required-reviewer gate
-#   in repo settings without touching this file.
+#   matching tf-bootstrap-destroy.yml rather than acr-create.yml.
+#
+#   THE ENVIRONMENT BINDING IS KEPT ON BOTH PATHS, AND THAT HAS A COST WORTH
+#   UNDERSTANDING. For a reusable workflow `environment:` is resolved in the
+#   CALLER's repository, so any repo that `uses:` this one must define an
+#   Environment named "AZURE" itself. That is the point: a remote repository
+#   cannot destroy this registry until someone has deliberately created that
+#   Environment there — and can attach required reviewers to it — rather than
+#   inheriting the ability by copy-pasting a `uses:` line. acr-create.yml binds
+#   no Environment precisely to avoid imposing this on callers; here the
+#   imposition IS the guard.
+#
+#   Consequently the four `secrets:` below are declared `required: false`. A
+#   caller may pass them explicitly, or let its own AZURE Environment supply
+#   them. Step 3 fails fast, naming the missing variable, if neither happened —
+#   which is the only way a caller finds out cheaply rather than inside
+#   `terraform init`.
 #
 # Notes:
 #   - No post-destroy purge exists or is needed. Basic-SKU ACR has no
@@ -60,9 +87,12 @@
 #     break `terraform output -raw`.
 # =============================================================================
 
-name: ACR Destroy (manual)
+name: ACR Destroy (reusable)
 
 on:
+  # -------------------------------------------------------------------------
+  # Manual entry point. The primary path.
+  # -------------------------------------------------------------------------
   workflow_dispatch:
     inputs:
       environment_name:
@@ -86,6 +116,46 @@ on:
         type: string
         required: true
 
+  # -------------------------------------------------------------------------
+  # Reusable entry point.
+  #
+  # NOTE the deliberate absence of defaults on `acr_name` and `confirm`. On the
+  # dispatch path above they are prefilled so the Actions form is usable; here
+  # a caller must write both out in full, which is what stops a `uses:` line
+  # from being a one-word registry deletion. Keep them undefaulted.
+  # -------------------------------------------------------------------------
+  workflow_call:
+    inputs:
+      environment_name:
+        description: 'Estate environment to destroy the registry in. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
+        type: string
+        required: false
+        default: dev
+
+      acr_name:
+        description: 'Registry to destroy. Must match acr_name in terraform/envs/<env>/06-acr/terraform.tfvars.'
+        type: string
+        required: true
+
+      confirm:
+        description: 'SAFEGUARD: must be EXACTLY "DESTROY ACR <acr_name>". Every image and repository in the registry is deleted permanently; Basic SKU has no soft-delete.'
+        type: string
+        required: true
+
+    # Optional because the job binds the "AZURE" Environment, which the CALLER
+    # resolves — a caller with that Environment configured needs to pass
+    # nothing. A caller without one must pass all four. Either way step 3
+    # verifies them before Terraform runs.
+    secrets:
+      AZURE_CLIENT_ID:
+        required: false
+      AZURE_CLIENT_SECRET:
+        required: false
+      AZURE_TENANT_ID:
+        required: false
+      AZURE_SUBSCRIPTION_ID:
+        required: false
+
 # Reads the repository. Creates no commits, tags or releases.
 permissions:
   contents: read
@@ -103,20 +173,28 @@ jobs:
 
     # Environment secrets are only injected into a job that binds the
     # Environment. Also the hook for a required-reviewer approval gate.
+    #
+    # On the workflow_call path this resolves in the CALLER's repository, so a
+    # calling repo must define its own "AZURE" Environment. Intentional — see
+    # the Authentication note in the header. Do not make this conditional on
+    # `github.event_name` to spare callers the setup; that would hand every
+    # `uses:` an ungated destroy.
     environment: AZURE
 
-    # Deliberately the SAME group string as provision-acr.yml, despite reading
-    # oddly for a teardown: a group only serialises runs that name it
-    # identically, and the run that must never overlap this one is a provision
-    # of the same modules. Renaming it to something tidier would let an apply
-    # and a destroy race for module 06's state blob.
+    # Deliberately the SAME group string as acr-create.yml: a group only
+    # serialises runs that name it identically, and the run that must never
+    # overlap this one is a create of the same modules. The name is
+    # lifecycle-shaped rather than verb-shaped for exactly that reason — it
+    # covers both directions. Change it in one file only and an apply and a
+    # destroy can race for module 06's state blob.
     #
-    # Same caveat as provision-acr.yml: groups are scoped to the repository
-    # that owns the run, so a caller's provision in ANOTHER repo is not
-    # serialised by this. The azurerm blob lease is the real guard there — the
-    # loser fails with a lock error. Never add -lock=false.
+    # Same caveat as acr-create.yml: groups are scoped to the repository that
+    # owns the run, so a caller's create in ANOTHER repo is not serialised by
+    # this — and now that this workflow is reusable too, neither is a caller's
+    # destroy. The azurerm blob lease is the real guard there: the loser fails
+    # with a lock error. Never add -lock=false.
     concurrency:
-      group: provision-acr-${{ inputs.environment_name }}
+      group: acr-lifecycle-${{ inputs.environment_name }}
       cancel-in-progress: false
 
     env:
@@ -132,7 +210,12 @@ jobs:
       ENV_DIR: terraform/envs/${{ inputs.environment_name }}
 
       # Only this GitHub user may run a destructive workflow in this repo.
-      # Same gate as terraform-bootstrap-destroy.yml. Update on a rename.
+      # Same gate as tf-bootstrap-destroy.yml. Update on a rename.
+      #
+      # Enforced on BOTH triggers. On workflow_call `github.actor` is the user
+      # who triggered the caller's run, so a called destroy only proceeds when
+      # that person is this user — a push by anyone else, or a bot/scheduled
+      # trigger upstream, is denied.
       ALLOWED_ACTOR: "rubensgomes"
 
     steps:
@@ -146,7 +229,9 @@ jobs:
       # Step 2: SAFEGUARD — actor allowlist + type-to-confirm
       #
       # Runs BEFORE any credential is used, so a failed confirmation never
-      # reaches Azure at all.
+      # reaches Azure at all. Identical on both triggers: a workflow_call
+      # caller passes `acr_name` and `confirm` as inputs and is checked by the
+      # same three comparisons a human typing into the Actions form is.
       #
       # The expected registry name is read from terraform.tfvars rather than
       # hardcoded here: terraform.tfvars is what the destroy will actually act
@@ -221,6 +306,9 @@ jobs:
           done
           if [ "$missing" -ne 0 ]; then
             echo "Check the GitHub Environment named 'AZURE' and its secrets."
+            echo "If this run was invoked via workflow_call, the Environment is"
+            echo "resolved in the CALLING repository — define it there, or pass"
+            echo "the four secrets explicitly in the caller's \`secrets:\` block."
           fi
           exit $missing
 

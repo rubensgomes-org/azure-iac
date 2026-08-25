@@ -32,25 +32,49 @@ eventually automate provision / destroy / reprovision end-to-end.
   and granted `CONNECT`/schema privileges on every app DB (fanned out via
   `for_each = toset(var.apps)`).
 
-## Progress (as of 2026-07-26)
+## Progress (as of 2026-08-24)
 
 Modules **01 through 12 are fully implemented, and all have been applied
-and verified** — the estate is feature-complete in code.
+and verified against Azure at least once** — the estate is
+feature-complete in code.
 
-**Currently applied in Azure: everything except module 11.**
-`make destroy-container-apps` was run on 2026-07-26, so
-`tfstate/container-apps/terraform.tfstate` is empty and `rg-dev-app`
-holds only the Container App Environment (`cae-dev`). Every other
-module is still live. Bring 11 back with a single
-`make apply-container-apps` — module 10 and all of 11's upstreams
-(01, 04, 06, 07, 08, 09) are untouched, so no other module needs
-re-applying.
+**Currently applied in Azure: module 01 ONLY. Everything else is torn
+down.** Verified 2026-08-24: the five resource groups
+(`rg-dev-platform`, `-network`, `-data`, `-app`, `-observability`)
+exist and are all empty — `az resource list -g <rg>` returns nothing
+for any of them. In the `tfstate` container only
+`resource-groups/terraform.tfstate` is populated (~10 KB); every other
+module's state key is an empty few-hundred-byte shell (serial +
+lineage, no resources).
 
-Nothing downstream broke: module 12's five diagnostic settings target
-KV, ACR, Storage, Service Bus, and PostgreSQL — none of them reference
-Container Apps.
+The estate therefore costs $0/month at present: resource groups and the
+state Storage Account are free at this scale.
 
-Module inventory:
+Re-check rather than trusting this note — a status line ages badly:
+
+```bash
+az group list --query "[].name" -o tsv
+az resource list -g rg-dev-platform -o tsv          # empty => nothing applied
+az storage blob list --account-name sttfstaterubens01 \
+  --container-name tfstate --auth-mode key \
+  --query "[].{name:name,size:properties.contentLength}" -o table
+```
+
+`--auth-mode key` is required: the interactive user account holds no
+`Storage Blob Data *` role, so `--auth-mode login` fails on that
+container.
+
+**Rebuilding** is `make apply` from the repo root (01 no-ops), or
+module-by-module in numeric order. Each module's upstreams must be
+applied first — a root whose `data.terraform_remote_state` points at an
+empty state key fails at plan with *Unsupported attribute*, which is
+not a useful message. Two chains worth knowing: ACR alone is
+`make apply-managed-identities && make apply-acr` (~$5.07/month, all of
+it the Basic registry unit); Container Apps needs 01, 04, 06, 07, 08,
+09, 10, then 11.
+
+Module inventory (implementation status — all twelve are written and
+have been proven against Azure; see above for what is applied *now*):
 
 - 01-resource-groups
 - 02-networking
@@ -65,14 +89,15 @@ Module inventory:
   because the runner's ISP blocks outbound TCP 5432; see the module's
   README "Data-plane bootstrap" section)
 - 10-container-app-environment
-- 11-container-apps — **destroyed 2026-07-26, not currently applied.**
-  Was deployed with the `mcr.microsoft.com/k8se/quickstart:latest`
-  placeholder image on port 80; swap to real ACR-hosted images via
-  `apps_image_map` + `target_port` in the root's `terraform.tfvars`
-  once Spring Boot images are pushed — see
-  `11-container-apps/README.md` → "Swapping the placeholder image".
-  Since the apps are down anyway, that swap is now a re-apply rather
-  than an in-place update (see D1)
+- 11-container-apps — was deployed with the
+  `mcr.microsoft.com/k8se/quickstart:latest` placeholder image on port
+  80; swap to real ACR-hosted images via `apps_image_map` +
+  `target_port` in the root's `terraform.tfvars` once Spring Boot
+  images are pushed — see `11-container-apps/README.md` → "Swapping the
+  placeholder image". Since the apps are down, that swap is a re-apply
+  rather than an in-place update (see D1) — and note the registry is
+  down too, so ACR has to be reprovisioned and the images repushed
+  first
 - 12-monitoring (App Insights workspace-based on the shared LAW, one
   Action Group with an email receiver, five diagnostic settings sinking
   `allLogs` + `AllMetrics` into the shared LAW from KV, ACR, Storage
@@ -468,8 +493,12 @@ Root `Makefile` with per-module targets (`make apply-networking`,
 `make destroy-key-vault`) and whole-estate targets (`make apply`,
 `make destroy`, `make reprovision`) that iterate `envs/dev/[0-9][0-9]-*` in
 forward order for apply and reverse for destroy. Uses the same
-`-backend-config` + `-var-file` invocations. GitHub Actions (already in progress
-per git history) can reuse the same `make` targets via a matrix job.
+`-backend-config` + `-var-file` invocations. GitHub Actions reuses the same
+`make` targets rather than reimplementing them — see the five workflows in
+`.github/workflows/`, described in README.md and CLAUDE.md. `acr-create.yml`
+is the worked example: it exports `ARM_*` and calls
+`make init/plan/apply-<name>` for modules 01, 04 and 06 in order. When a
+workflow and the Makefile disagree, fix the Makefile.
 
 ### 11. Documentation split
 
@@ -1441,12 +1470,16 @@ version's changelog section. It is not bound to the `AZURE` environment, so
 pushing a release tag can never mutate the estate — applying remains a
 deliberate `make apply` from a workstation, per §14.
 
-**Terraform CLI pin in CI.** All three workflows in `.github/workflows/` pin
+**Terraform CLI pin in CI.** All five workflows in `.github/workflows/`
+(`release.yml`, `acr-create.yml`, `acr-destroy.yml`,
+`tf-bootstrap-create.yml`, `tf-bootstrap-destroy.yml`) pin
 `terraform_version: "1.15.8"`, which is the minimum needed to satisfy the
 `required_version = "~> 1.15"` declared in every `versions.tf` in the repo —
 roots, child modules, and `bootstrap-backend/`. The two bootstrap workflows
 originally pinned `1.14.3`, which does *not* satisfy that constraint; they
-would have failed `terraform init`. Bump all three together.
+would have failed `terraform init`. Bump all five together. They also all set
+`terraform_wrapper: false`, because the wrapper intercepts stdout and would
+break `terraform output -raw`.
 
 ## Critical files to be created (in execution phases)
 

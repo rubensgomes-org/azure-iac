@@ -92,8 +92,8 @@ Every release is a `MAJOR.MINOR.PATCH` git tag on `main`. Read
 **`RELEASING.md`** before touching anything release-related;
 `docs/PROVISIONING_PLAN.md` §16 has the design rationale.
 
-- Repo-root **`VERSION`** (bare `0.0.1`, no `v`) is the single source of
-  truth. The tag is `v$(cat VERSION)`; the `CHANGELOG.md` heading and the
+- Repo-root **`VERSION`** (bare `MAJOR.MINOR.PATCH`, no `v`) is the single
+  source of truth. The tag is `v$(cat VERSION)`; the `CHANGELOG.md` heading and the
   `release` tag on every Azure resource both derive from it.
 - Semver is **infra-impact based**: MAJOR = `plan` destroys/recreates or
   renames an existing resource; MINOR = additive; PATCH = in-place only.
@@ -103,9 +103,10 @@ Every release is a `MAJOR.MINOR.PATCH` git tag on `main`. Read
   `VERSION`, rolls `[Unreleased]` into a dated section, commits, and creates
   the annotated tag — **locally**. `make release-push` is the separate,
   network-touching, non-undoable step. `make release-tag` tags the current
-  `VERSION` without bumping. **No release has been cut yet** — the repo was
-  recreated fresh, so `git tag -l` is empty and `CHANGELOG.md` holds only
-  `[Unreleased]`. `v0.0.1` will be the first tag.
+  `VERSION` without bumping. Released so far: `v0.0.1` … `v0.2.0`, all of it
+  CI, Makefile, and documentation work — **no release to date has changed a
+  Terraform resource**, so no release has moved the estate. `make version` is
+  the authoritative current value; do not trust this line after a bump.
 - Every module root has a `locals.tf` reading `VERSION` off disk
   (`trimspace(file("${path.root}/../../../../VERSION"))`) and merges
   `release = local.release` into `var.tags`. Read from disk, not passed as
@@ -125,17 +126,21 @@ documented under Auth model.
 | Workflow | Actions-tab name | Trigger | Touches Azure | Secret source |
 | --- | --- | --- | --- | --- |
 | `release.yml` | Release (tag push) | tag `v*.*.*` | **no** | — |
-| `provision-acr.yml` | ACR Create (reusable) | `workflow_call` + `workflow_dispatch` | yes | **org**-level Actions secrets |
-| `destroy-acr.yml` | ACR Destroy (manual) | `workflow_dispatch` | yes | **Environment** `AZURE` |
-| `terraform-bootstrap-apply.yml` | TF Bootstrap Create | `workflow_dispatch` | yes | **Environment** `AZURE` |
-| `terraform-bootstrap-destroy.yml` | TF Bootstrap Destroy | `workflow_dispatch` | yes | **Environment** `AZURE` |
+| `acr-create.yml` | ACR Create (reusable) | `workflow_call` + `workflow_dispatch` | yes | **org**-level Actions secrets |
+| `acr-destroy.yml` | ACR Destroy (reusable) | `workflow_call` + `workflow_dispatch` | yes | **Environment** `AZURE` (caller-resolved on `workflow_call`) |
+| `tf-bootstrap-create.yml` | TF Bootstrap Create | `workflow_dispatch` | yes | **Environment** `AZURE` |
+| `tf-bootstrap-destroy.yml` | TF Bootstrap Destroy | `workflow_dispatch` | yes | **Environment** `AZURE` |
 
 The filename and the `name:` differ deliberately — the filename encodes what
 the workflow *is*, the `name:` is what reads well in the Actions sidebar. When
 renaming either, update both this table and README.md; nothing else in the repo
 keys off a workflow's display name.
 
-**`provision-acr.yml` is a reusable workflow** — the CI equivalent of
+Filenames are `<subject>-<verb>.yml` (`acr-create`, `acr-destroy`,
+`tf-bootstrap-create`, `tf-bootstrap-destroy`) so a subject's pair sorts
+together in the directory listing. Keep new workflows to that shape.
+
+**`acr-create.yml` is a reusable workflow** — the CI equivalent of
 `PROVISION_ACR.md`. It runs `make init/plan/apply` for modules 01, 04, and 06
 in order and publishes `acr_name` / `acr_login_server` as workflow outputs, so
 an application repo can gate its image push on it with `needs:`. First
@@ -149,21 +154,47 @@ Things to know before editing it:
 - It is deliberately **not** bound to a GitHub Environment. For a reusable
   workflow, `environment:` resolves in the *caller's* repo, so binding
   `AZURE` here would silently force every caller to define one. The bootstrap
-  workflows are not reusable, so they can and do bind it.
+  workflows are not reusable, so they can and do bind it. `acr-destroy.yml`
+  *is* reusable and binds it anyway — see below; that is a decision, not an
+  oversight.
 - Its `plan-*` steps **gate nothing** — `apply-<name>` re-plans internally
   under `-auto-approve` and never reads the `tfplan` that `plan-<name>` wrote.
   They exist for log visibility only.
 - `concurrency` is evaluated in the repo that owns the run, so a caller's run
   does not serialise against this repo's own. The azurerm blob lease is the
   real guard — a collision fails with a lock error. Never add `-lock=false`.
+  The group string is `acr-lifecycle-<env>`, shared verbatim with
+  `acr-destroy.yml` so a create and a destroy of module 06 cannot overlap.
+  Lifecycle-shaped, not verb-shaped, for that reason. Changing it in one file
+  without the other silently removes the interlock.
 
-**`destroy-acr.yml` is the teardown counterpart**, and intentionally asymmetric
-with `provision-acr.yml`: `workflow_dispatch` only (never `workflow_call` — an
-application repo must not be able to `uses:` a destroy), gated on
-`ALLOWED_ACTOR` plus a typed `DESTROY ACR <name>` phrase, and bound to the
-`AZURE` Environment so a required-reviewer gate can be added in repo settings
-without editing the file.
+**`acr-destroy.yml` is the teardown counterpart.** It takes the same two
+triggers as `acr-create.yml` (`workflow_call` + `workflow_dispatch`) but is
+asymmetric with it everywhere that matters: gated on `ALLOWED_ACTOR` plus a
+typed `DESTROY ACR <name>` phrase, and bound to the `AZURE` Environment so a
+required-reviewer gate can be added in repo settings without editing the file.
+None of those guards is relaxed on the `workflow_call` path — that is the whole
+basis on which a destroy is safe to expose as reusable:
 
+- **`environment: AZURE` is kept on both triggers, deliberately.** For a
+  reusable workflow the binding resolves in the *caller's* repo, so a calling
+  repository must define an `AZURE` Environment itself before it can invoke
+  this. That imposition is the guard — it is why `acr-create.yml` avoids an
+  Environment and this one keeps it. Do not make it conditional on
+  `github.event_name` to spare callers the setup; that hands every `uses:` an
+  ungated destroy.
+- Because the Environment can supply the credentials caller-side, the four
+  `workflow_call` `secrets:` are declared `required: false`. A caller either
+  passes them or lets its `AZURE` Environment provide them; the fail-fast step
+  catches the case where neither happened and says so.
+- **`acr_name` and `confirm` have no defaults on the `workflow_call` path**,
+  though the dispatch form prefills both. A caller has to spell the registry
+  name out in its own YAML, so a `uses:` line cannot be a one-word registry
+  deletion. Keep them undefaulted.
+- **`ALLOWED_ACTOR` applies to callers too.** On `workflow_call`,
+  `github.actor` is whoever triggered the *caller's* run, so a push by another
+  user or a bot/scheduled upstream trigger is denied at step 2, before any
+  credential is touched.
 - It destroys **module 06 only** — the registry plus its `AcrPull` role
   assignment. Modules 01 and 04 are never planned. That is structural (module
   06 has its own state key and a destroy can only remove what is in the state
@@ -174,10 +205,11 @@ without editing the file.
   `terraform/envs/<env>/06-acr/terraform.tfvars`, not hardcoded in the
   workflow — comparing the typed confirmation against anything else would let
   the guard pass while a different registry was torn down.
-- Its `concurrency.group` is `provision-acr-<env>` — the *same string* as
-  `provision-acr.yml`, on purpose. A group only serialises runs that name it
-  identically, and the run that must never overlap a destroy is a provision of
-  the same modules.
+- Its `concurrency.group` is `acr-lifecycle-<env>` — the *same string* as
+  `acr-create.yml`, on purpose. A group only serialises runs that name it
+  identically, and the run that must never overlap a destroy is a create of
+  the same modules. (It was `provision-acr-<env>` before the workflow files
+  were renamed; both files changed together.)
 - Deleting the registry deletes every repository, tag, and manifest with it.
   Basic SKU has no soft-delete, so there is no purge step and the name is
   released immediately. The pre-destroy inventory step logs what was in the
@@ -195,14 +227,15 @@ ever stopped holding, a failed import would fall through to planning a
 
 All five workflows pin `terraform_version: "1.15.8"` and
 `terraform_wrapper: false` (the wrapper intercepts stdout and would break
-`terraform output -raw`). Bump the pin in all four together.
+`terraform output -raw`). Bump the pin in all five together.
 
 ## Repo layout (high level)
 
 - `.github/workflows/` — five workflows; see the CI section above.
 - `.github/actions/import-state/` — composite action, bootstrap workflows only.
 - `PROVISION_ACR.md` — standalone runbook for provisioning/destroying just the
-  ACR (modules 01 → 04 → 06), by hand or via `provision-acr.yml`.
+  ACR (modules 01 → 04 → 06), by hand or via `acr-create.yml` /
+  `acr-destroy.yml`.
 - `terraform/bootstrap-backend/` — the state backend module. Already
   provisioned (`rg-tfstate`, `sttfstaterubens01`, `tfstate` container).
   Do not touch unless re-bootstrapping.

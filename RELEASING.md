@@ -92,13 +92,15 @@ make release-push
 
 `make release-tag` is the one-off variant: it tags the current `VERSION`
 without bumping. It requires `CHANGELOG.md` to already contain a section for
-that version, so it is not the path to the first release — `[Unreleased]` has
-no version heading yet. Use `make release-<level>` for that.
+that version, so it only helps when a bump committed cleanly but the tag was
+lost or deleted. It is never the way to cut a *new* release — `[Unreleased]`
+has no version heading for it to find. Use `make release-<level>` for that.
 
-**No release has been cut yet.** The repository was recreated from scratch, so
-`git tag -l` is empty, `VERSION` is `0.0.1`, and `CHANGELOG.md` holds only
-`[Unreleased]`. The first tag will be produced by a `make release-<level>`
-bump off `0.0.1`.
+**Where the repo is now.** `VERSION` is `0.2.0` and `git tag -l` lists
+`v0.0.1` … `v0.2.0`. Everything so far has been CI, Makefile, and
+documentation work: no release to date has changed a Terraform resource, so
+none has moved the estate. Run `make version` for the authoritative current
+value rather than trusting this paragraph.
 
 ### Preflight checks
 
@@ -117,9 +119,12 @@ bump off `0.0.1`.
 Trivial before `make release-push`, because nothing has left your machine:
 
 ```bash
-git tag -d v0.1.1
+git tag -d v$(cat VERSION)
 git reset --hard HEAD~1
 ```
+
+That order matters: `git reset` first and you have a tag pointing at a commit
+that no longer exists on any branch.
 
 After the push, do **not** delete or move the tag — cut a new patch release
 instead. A published tag that later points at different code is worse than a

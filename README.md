@@ -99,36 +99,44 @@ locally; `release.yml` deliberately holds no Azure credentials.
 
 | Workflow | Shows in Actions as | Trigger | What it does |
 | --- | --- | --- | --- |
-| [`provision-acr.yml`](./.github/workflows/provision-acr.yml) | **ACR Create (reusable)** | `workflow_call`, `workflow_dispatch` | Applies modules 01 → 04 → 06 so a registry exists and is writable. Publishes `acr_name` / `acr_login_server` outputs. |
-| [`destroy-acr.yml`](./.github/workflows/destroy-acr.yml) | **ACR Destroy (manual)** | `workflow_dispatch` | Destroys module 06 only — the registry and every image in it. Resource groups (01) and the shared UAMI (04) are left standing. Type-to-confirm guarded. |
-| [`terraform-bootstrap-apply.yml`](./.github/workflows/terraform-bootstrap-apply.yml) | **TF Bootstrap Create** | `workflow_dispatch` | Creates/updates the state backend (`rg-tfstate`, `sttfstaterubens01`, `tfstate`). |
-| [`terraform-bootstrap-destroy.yml`](./.github/workflows/terraform-bootstrap-destroy.yml) | **TF Bootstrap Destroy** | `workflow_dispatch` | Tears the state backend down. |
+| [`acr-create.yml`](./.github/workflows/acr-create.yml) | **ACR Create (reusable)** | `workflow_call`, `workflow_dispatch` | Applies modules 01 → 04 → 06 so a registry exists and is writable. Publishes `acr_name` / `acr_login_server` outputs. |
+| [`acr-destroy.yml`](./.github/workflows/acr-destroy.yml) | **ACR Destroy (reusable)** | `workflow_call`, `workflow_dispatch` | Destroys module 06 only — the registry and every image in it. Resource groups (01) and the shared UAMI (04) are left standing. Actor-restricted and type-to-confirm guarded on both triggers. |
+| [`tf-bootstrap-create.yml`](./.github/workflows/tf-bootstrap-create.yml) | **TF Bootstrap Create** | `workflow_dispatch` | Creates/updates the state backend (`rg-tfstate`, `sttfstaterubens01`, `tfstate`). |
+| [`tf-bootstrap-destroy.yml`](./.github/workflows/tf-bootstrap-destroy.yml) | **TF Bootstrap Destroy** | `workflow_dispatch` | Tears the state backend down. |
 | [`release.yml`](./.github/workflows/release.yml) | **Release (tag push)** | tag `v*.*.*` | Validates the tag against `VERSION` + `CHANGELOG.md`, publishes a GitHub Release. |
 
 The middle column is the `name:` each workflow declares — that is the label in
 the repository's **Actions** sidebar, which is where you start the manual ones.
 
-`destroy-acr.yml` is the inverse of `provision-acr.yml`, but deliberately not
-its mirror image: it is manual-only (never `workflow_call`), restricted to a
-single GitHub actor, and refuses to run until you type
-`DESTROY ACR rubensdevacr` into the dispatch form. It destroys **only** module
-06, and asserts that from the destroy plan before touching anything — a plan
-proposing to delete a resource group or a managed identity aborts the run.
-Every image and repository in the registry is deleted permanently; the
-registry *name* is fixed in `terraform.tfvars`, so re-running
-`provision-acr.yml` brings it back at the same login server and only the images
-need repushing.
+`acr-destroy.yml` is the inverse of `acr-create.yml` and is reachable the same
+two ways, but it is not its mirror image. Three guards apply on **both**
+triggers, callers included: the run is restricted to a single GitHub actor, it
+refuses to proceed until the phrase `DESTROY ACR rubensdevacr` is supplied
+exactly, and it asserts the blast radius from the destroy plan before touching
+anything — a plan proposing to delete a resource group or a managed identity
+aborts the run. It destroys **only** module 06. Every image and repository in
+the registry is deleted permanently; the registry *name* is fixed in
+`terraform.tfvars`, so re-running `acr-create.yml` brings it back at the same
+login server and only the images need repushing.
+
+Note the asymmetry in Environment binding. `acr-create.yml` binds no GitHub
+Environment, because for a reusable workflow `environment:` resolves in the
+*caller's* repository and imposing that setup on callers of a create is
+pointless friction. `acr-destroy.yml` keeps `environment: AZURE` for exactly
+that reason inverted — a repository cannot call the destroy until someone has
+deliberately created an `AZURE` Environment there, and can attach required
+reviewers to it.
 
 ### Provisioning the ACR from an application pipeline
 
-`provision-acr.yml` is a **reusable** workflow. An application repository calls
+`acr-create.yml` is a **reusable** workflow. An application repository calls
 it and gates its image push on the result, so the registry hostname is never
 hardcoded on the application side:
 
 ```yaml
 jobs:
   provision-acr:
-    uses: rubensgomes-org/azure-iac/.github/workflows/provision-acr.yml@main
+    uses: rubensgomes-org/azure-iac/.github/workflows/acr-create.yml@main
     with:
       environment_name: dev          # optional; defaults to dev
     secrets:
@@ -161,6 +169,39 @@ and must be **shared with the calling repository**. Pass them explicitly
 rather than using `secrets: inherit` — this SP has subscription-wide write
 access, and the explicit list is the only record of which credentials cross a
 repo boundary.
+
+### Destroying the ACR from another pipeline
+
+`acr-destroy.yml` is reusable too, for a pipeline that stands an estate up and
+tears it back down. The caller must repeat the registry name in full — there
+are no defaults on `acr_name` or `confirm` on this path, so a `uses:` line
+cannot delete a registry by accident:
+
+```yaml
+jobs:
+  destroy-acr:
+    uses: rubensgomes-org/azure-iac/.github/workflows/acr-destroy.yml@main
+    with:
+      environment_name: dev                 # optional; defaults to dev
+      acr_name: rubensdevacr                # required; no default
+      confirm: DESTROY ACR rubensdevacr     # required; must match exactly
+    secrets:
+      AZURE_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+```
+
+Two things will block a caller that has not been set up for this on purpose:
+
+- The calling repository must define a GitHub Environment named **`AZURE`**,
+  because the destroy job binds one and that binding resolves caller-side. Its
+  Environment secrets can supply the four credentials, in which case the
+  `secrets:` block above is optional.
+- `github.actor` on the called run is whoever triggered the *caller's* run, and
+  the actor allowlist is enforced there too. A push by anyone else, or a
+  scheduled or bot-triggered upstream run, is denied before any credential is
+  used.
 
 Running the same thing by hand, plus cost, teardown, and the safety notes, is
 covered in [PROVISION_ACR.md](./PROVISION_ACR.md).
