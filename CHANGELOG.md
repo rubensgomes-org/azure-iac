@@ -19,6 +19,18 @@ here.
 
 ### Added
 
+- `.github/workflows/destroy-acr.yml` (**Destroy ACR (manual)**) — manual,
+  type-to-confirm workflow that destroys module 06 and nothing else: the
+  container registry and every repository, tag, and manifest inside it. The
+  five resource groups (module 01) and the shared UAMI (module 04) are
+  explicitly preserved, and a guard step reads the destroy plan as JSON and
+  aborts the run if it proposes deleting anything other than
+  `azurerm_container_registry` / `azurerm_role_assignment`. Binds the `AZURE`
+  GitHub Environment, like the bootstrap-destroy workflow.
+- `make plan-destroy-<name>` — per-module `terraform plan -destroy -out=tfplan`,
+  generated for all twelve modules by the existing target factory. Preview
+  only; nothing consumes the artifact.
+
 ### Changed
 
 ### Fixed

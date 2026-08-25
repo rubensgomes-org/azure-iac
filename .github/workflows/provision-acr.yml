@@ -57,7 +57,7 @@
 #     naming them explicitly keeps these lines matching the documented
 #     sequence in PROVISION_ACR.md.
 #   - terraform_version must satisfy the `required_version = "~> 1.15"`
-#     declared in every versions.tf in the repo. All four workflows in this
+#     declared in every versions.tf in the repo. All five workflows in this
 #     directory pin the same build; bump them together.
 #   - terraform_wrapper is false. The wrapper intercepts stdout, which would
 #     break the `terraform output -raw` calls that produce this workflow's

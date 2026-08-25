@@ -204,6 +204,7 @@ module by a factory in the Makefile. For `acr` they expand to:
 | `make init-acr` | `terraform init -reconfigure -backend-config=../backend.hcl -backend-config="key=acr/terraform.tfstate"` |
 | `make plan-acr` | `init-acr`, then `terraform plan -var-file=../env.tfvars -var-file=terraform.tfvars -out=tfplan` |
 | `make apply-acr` | `init-acr`, then `terraform apply -auto-approve -var-file=../env.tfvars -var-file=terraform.tfvars` |
+| `make plan-destroy-acr` | `init-acr`, then `terraform plan -destroy -var-file=../env.tfvars -var-file=terraform.tfvars -out=tfplan` |
 | `make destroy-acr` | `init-acr`, then `terraform destroy -auto-approve -var-file=../env.tfvars -var-file=terraform.tfvars` |
 
 Substitute `resource-groups` or `managed-identities` for `acr` to get the
@@ -342,6 +343,12 @@ make destroy-managed-identities   # optional — the UAMI. Reverse numeric order
 
 `make destroy-acr` alone stops all billing; the UAMI is free, so leaving it in
 place costs nothing and saves a step next time.
+
+From CI, the equivalent is the **Destroy ACR (manual)** workflow
+(`.github/workflows/destroy-acr.yml`), run from the Actions tab. It destroys
+module 06 only — resource groups and the managed identity are left standing,
+and a guard step aborts the run if the destroy plan says otherwise. It asks you
+to type `DESTROY ACR rubensdevacr` before it will proceed.
 
 No post-destroy purge is needed. Basic-SKU ACR has no soft-delete concept, so
 the name is released immediately — unlike Key Vault, which needs the purge

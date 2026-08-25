@@ -93,19 +93,31 @@ nothing.
 
 ## GitHub Actions
 
-Four workflows live in [`.github/workflows/`](./.github/workflows/). Three of
+Five workflows live in [`.github/workflows/`](./.github/workflows/). Four of
 them authenticate to Azure with the same `terraform-sp` Service Principal used
 locally; `release.yml` deliberately holds no Azure credentials.
 
 | Workflow | Shows in Actions as | Trigger | What it does |
 | --- | --- | --- | --- |
 | [`provision-acr.yml`](./.github/workflows/provision-acr.yml) | **Provision ACR (reusable)** | `workflow_call`, `workflow_dispatch` | Applies modules 01 → 04 → 06 so a registry exists and is writable. Publishes `acr_name` / `acr_login_server` outputs. |
+| [`destroy-acr.yml`](./.github/workflows/destroy-acr.yml) | **Destroy ACR (manual)** | `workflow_dispatch` | Destroys module 06 only — the registry and every image in it. Resource groups (01) and the shared UAMI (04) are left standing. Type-to-confirm guarded. |
 | [`terraform-bootstrap-apply.yml`](./.github/workflows/terraform-bootstrap-apply.yml) | **TF Bootstrap Create** | `workflow_dispatch` | Creates/updates the state backend (`rg-tfstate`, `sttfstaterubens01`, `tfstate`). |
 | [`terraform-bootstrap-destroy.yml`](./.github/workflows/terraform-bootstrap-destroy.yml) | **TF Bootstrap Destroy** | `workflow_dispatch` | Tears the state backend down. |
 | [`release.yml`](./.github/workflows/release.yml) | **Release (tag push)** | tag `v*.*.*` | Validates the tag against `VERSION` + `CHANGELOG.md`, publishes a GitHub Release. |
 
 The middle column is the `name:` each workflow declares — that is the label in
 the repository's **Actions** sidebar, which is where you start the manual ones.
+
+`destroy-acr.yml` is the inverse of `provision-acr.yml`, but deliberately not
+its mirror image: it is manual-only (never `workflow_call`), restricted to a
+single GitHub actor, and refuses to run until you type
+`DESTROY ACR rubensdevacr` into the dispatch form. It destroys **only** module
+06, and asserts that from the destroy plan before touching anything — a plan
+proposing to delete a resource group or a managed identity aborts the run.
+Every image and repository in the registry is deleted permanently; the
+registry *name* is fixed in `terraform.tfvars`, so re-running
+`provision-acr.yml` brings it back at the same login server and only the images
+need repushing.
 
 ### Provisioning the ACR from an application pipeline
 

@@ -98,7 +98,7 @@ DIRS_REV := $(strip $(call reverse,$(DIRS)))
 # Backend key is the short name (`key-vault/terraform.tfstate`), matching
 # what every module README documents.
 define MODULE_TARGETS
-.PHONY: init-$(2) plan-$(2) apply-$(2) destroy-$(2)
+.PHONY: init-$(2) plan-$(2) plan-destroy-$(2) apply-$(2) destroy-$(2)
 
 init-$(2):
 	@echo "=== INIT $(1) ==="
@@ -109,6 +109,16 @@ init-$(2):
 plan-$(2): init-$(2)
 	@echo "=== PLAN $(1) ==="
 	@cd $(ENV_DIR)/$(1) && terraform plan \
+	  -var-file=../env.tfvars -var-file=terraform.tfvars -out=tfplan
+
+# Speculative TEARDOWN plan. Writes the same `tfplan` filename as plan-$(2),
+# so the two overwrite each other — that is deliberate: a stale plan file of
+# the wrong polarity is far more dangerous than no plan file at all. Nothing
+# consumes the artifact (destroy-$(2) re-plans internally under
+# -auto-approve); it exists to be READ, by eye or by `terraform show -json`.
+plan-destroy-$(2): init-$(2)
+	@echo "=== PLAN -destroy $(1) ==="
+	@cd $(ENV_DIR)/$(1) && terraform plan -destroy \
 	  -var-file=../env.tfvars -var-file=terraform.tfvars -out=tfplan
 
 apply-$(2): init-$(2)
@@ -497,6 +507,7 @@ help:
 	@echo "Per-module (short-name suffix, e.g. 'key-vault' not '05-key-vault'):"
 	@echo "  init-<name>       terraform init  (with correct backend key)"
 	@echo "  plan-<name>       terraform plan  -out=tfplan"
+	@echo "  plan-destroy-<name>  terraform plan -destroy -out=tfplan (preview only)"
 	@echo "  apply-<name>      terraform apply -auto-approve"
 	@echo "  destroy-<name>    terraform destroy -auto-approve"
 	@echo ""
