@@ -19,6 +19,14 @@ here.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.3.0] - 2026-08-25
+
+### Added
+
 - **SonarCloud quality gate in `release.yml`.** A new step runs the scanner
   before the GitHub Release is published and **fails the run if the quality
   gate is red**, so a release can never publish over failing static analysis.
