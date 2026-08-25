@@ -19,6 +19,20 @@ here.
 
 ### Added
 
+- **README.md gained a "Working on this project" section** — the end-to-end
+  steps for both flows, "starting new work" and "cutting a release", as
+  numbered command sequences with the non-obvious parts called out: branch
+  protection only bites at push time so a forgotten `git switch -c` surfaces
+  late; the `[Unreleased]` entry belongs in the same PR; `make sonar` is not
+  part of the flow; and the release tag must be created after the merge. A
+  pointer to it sits at the top of the README, since a contributor's first
+  question is "where do I start" and that answer was previously two thirds of
+  the way down the file.
+
+  The `Branching` and `Releases` sections kept their explanations but lost
+  their command blocks, which were now a second copy of the same recipe. Two
+  copies drift — this repo has spent several releases fixing exactly that.
+
 ### Changed
 
 - **`make sonar` dropped from the release recipe.** It existed because
