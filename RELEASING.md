@@ -82,38 +82,41 @@ with real application images and verifies clean.**
 #    A release refuses to proceed if [Unreleased] has no entries.
 git switch main && git pull
 
-# 2. Check the SonarCloud quality gate BEFORE tagging. release.yml runs the
-#    same scan and refuses to publish if the gate is red -- but by then the tag
-#    is already pushed and cannot be moved (see "Undoing a release").
-export SONAR_TOKEN=<your token>
-make sonar                    # main only; it refuses to run off main
-
-# 3. See where you are and what each bump would produce.
+# 2. See where you are and what each bump would produce.
 make version
 make release-check
 
-# 4. Bump on a release branch. Writes VERSION, rolls the changelog, commits.
+# 3. Bump on a release branch. Writes VERSION, rolls the changelog, commits.
 #    Does NOT tag -- the tag comes after the merge.
-git switch -c release/v0.3.2
+git switch -c release/v0.4.1
 make release-prep-patch       # or release-prep-minor / release-prep-major
 
-# 5. Open the release PR and merge it once the checks are green.
-git push -u origin release/v0.3.2
-gh pr create --title "release: v0.3.2" --fill
+# 4. Open the release PR. pr-verify.yml runs terraform + workflows + sonar;
+#    all three must pass before GitHub will let it merge.
+git push -u origin release/v0.4.1
+gh pr create --title "release: v0.4.1" --fill
 
-# 6. Tag main's real tip, now that the release commit is on it.
+# 5. Merge it (squash), then tag main's real tip.
 git switch main && git pull
 make release-tag
 
-# 7. Publish. Pushes the tag, which fires release.yml.
+# 6. Publish. Pushes the tag, which fires release.yml.
 make release-push
 ```
 
-`make sonar` runs the identical scan CI runs, reading the same
-`sonar-project.properties`, so the two cannot disagree. It publishes its results
-to SonarCloud and **refuses to run anywhere but `main`** — on a feature branch
-it would overwrite main's analysis with unmerged code. Pull requests get their
-own PR-mode scan from `pr-verify.yml`.
+That is the whole procedure. There is **no local Sonar step** — the release PR
+in step 4 is gated on the `sonar` check, so a red quality gate blocks the merge
+before a tag exists at all, and `release.yml` scans once more at tag time. You
+get the gate twice without running it yourself.
+
+`make sonar` still exists as a local fallback, but it is **not part of this
+recipe**, and on Apple Silicon it is close to unusable: the scanner image is
+amd64-only, so it runs under emulation, and its JGit blame pass over a
+bind-mounted tree takes minutes where native `git blame` over the same files
+takes about one second. Reach for it only to reproduce a CI Sonar failure
+locally, and expect to wait. It analyses `main` and refuses to run anywhere
+else — on a feature branch it would overwrite main's analysis with unmerged
+code.
 
 `make release-patch|minor|major` no longer exist. They bumped, committed *and*
 tagged in one shot on `main`, which cannot work when `main` is PR-only. They now
@@ -211,10 +214,11 @@ version bump. Confirm with `make plan-resource-groups` if you want to see it.
 
 `.github/workflows/release.yml` runs on any pushed tag matching `v*.*.*`:
 
-(`pr-verify.yml` runs the same `fmt`, `validate` and Sonar checks on the pull
-request, so by the time a tag exists this should all be a formality. It is
+(`pr-verify.yml` already ran the same `fmt`, `validate` and Sonar checks on the
+release PR, so by the time a tag exists this should be a formality. It is
 repeated here because a tag can be pushed for a commit whose PR checks passed
-weeks earlier.)
+weeks earlier — and because this is the last gate before something is published
+under your name.)
 
 1. Fails if `v$(cat VERSION)` does not equal the tag name.
 2. Fails if `CHANGELOG.md` has no section for that version.
@@ -229,8 +233,13 @@ touch the estate; applying is always something you do deliberately from your
 workstation with `make apply`. The one secret it does carry is `SONAR_TOKEN`,
 an organization Actions secret that reaches sonarcloud.io and nothing else.
 
-**If the gate fails, the tag is already pushed.** Step 5 runs after the tag
+**If the gate fails here, the tag is already pushed.** Step 5 runs after the tag
 exists, so a red gate leaves a tag with no GitHub Release behind it. Do not
 delete or move the tag — fix the findings and cut the next patch release, per
-"Undoing a release" above. `make sonar` before step 4 of the recipe is how you
-avoid being in that position.
+"Undoing a release" above.
+
+That should now be rare: the release PR was gated on the same Sonar check, so
+for the gate to be red here, something has to have changed between the merge and
+the tag. It is not impossible — the gate is evaluated against SonarCloud's
+current state, and a quality-profile change or a new-code-period roll can turn
+it red with no commit involved.

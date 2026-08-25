@@ -21,6 +21,27 @@ here.
 
 ### Changed
 
+- **`make sonar` dropped from the release recipe.** It existed because
+  `release.yml` fires on a tag that is already pushed, so a red quality gate
+  cost a whole patch release and there was no earlier gate. v0.4.0 removed that
+  premise: `main` is PR-only and `pr-verify.yml` runs the same scan in PR mode,
+  so the gate blocks the merge before a tag exists, and `release.yml` scans
+  again at tag time. The recipe in `RELEASING.md` is now six steps with no
+  local Sonar step.
+
+  The target remains as a fallback for reproducing a CI Sonar failure locally,
+  and its documentation now says what it costs: on Apple Silicon the scanner
+  image is amd64-only and its SCM publisher blames through JGit rather than the
+  git CLI, measured at **minutes** for ~144 files where native `git blame` over
+  the same files takes about a second — and worse now that `main` carries merge
+  commits for JGit to walk both parents of. `SCM blame is in progress..` means
+  it is working, not hung.
+
+  Also corrects a claim in the `sonar` recipe's comment: the `GIT_CONFIG_*`
+  `safe.directory` trio fixes the *dubious ownership* failure, which is a hard
+  stop with no blame progress at all, but it does not make the step fast. Those
+  are two different symptoms and the comment conflated them.
+
 ### Fixed
 
 ## [0.4.0] - 2026-08-25
