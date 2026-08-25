@@ -19,6 +19,14 @@ here.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.4.1] - 2026-08-25
+
+### Added
+
 - **README.md gained a "Working on this project" section** — the end-to-end
   steps for both flows, "starting new work" and "cutting a release", as
   numbered command sequences with the non-obvious parts called out: branch
