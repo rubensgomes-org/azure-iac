@@ -402,6 +402,19 @@ the per-module commands by hand.
   signal — code at the new release, Azure still labelled with the old one —
   not a bug. It clears on the next `make apply`. Tag changes are in-place
   updates in `azurerm`; a version bump never recreates a resource.
+- **"Not authorized or project not found ... check the `SONAR_TOKEN`" from the
+  release workflow is usually NOT a token problem.** `release.yml` fires on a
+  tag push, so `GITHUB_REF` is `refs/tags/vX.Y.Z`; the scanner auto-detects
+  GitHub Actions and submits the analysis as a SHORT-lived branch of that name.
+  The submit succeeds, then the gate lookup
+  (`api/qualitygates/project_status?analysisId=...`) 403s, because short-lived
+  branch gate status is not readable on this plan — and the scanner reports
+  that as a credentials error. `sonar.branch.name=main` in
+  `sonar-project.properties` pins it; do not remove it. Diagnose this class of
+  failure by reading the DEBUG log for the `api/ce/submit` URL and checking
+  whether `characteristic=branch=` says anything other than `main`, and by
+  hitting `api/qualitygates/project_status?analysisId=<id>` anonymously — if it
+  403s without a token, no token change will fix it.
 - **`make sonar` hanging at "SCM Publisher N source files to be analyzed" is a
   git ownership problem, not a slow scan.** The scanner container runs as uid
   1000 while the bind-mounted tree belongs to the host user, so git rejects the

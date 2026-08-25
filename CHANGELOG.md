@@ -23,6 +23,31 @@ here.
 
 ### Fixed
 
+- **`sonar.branch.name=main` pinned in `sonar-project.properties`.** Without it
+  the v0.3.0 release run failed at the quality-gate step and published nothing.
+  `release.yml` is triggered by a tag push, so `GITHUB_REF` is
+  `refs/tags/vX.Y.Z`; the scanner auto-detects GitHub Actions, converts that
+  ref into a branch, and submits the analysis as a SHORT-lived branch named
+  `refs/tags/v0.3.0`. The submit succeeds, and the subsequent
+  `api/qualitygates/project_status?analysisId=...` returns 403 because
+  short-lived branch gate status is not readable on this plan. The scanner
+  reports that as *"Not authorized or project not found ... check the
+  'SONAR_TOKEN' environment variable"*, which points at a token problem that
+  does not exist — the 403 reproduces anonymously, and `api/ce/task` in the
+  same run returned 200. It also left a junk `refs/tags/v0.3.0` short-lived
+  branch in the SonarCloud project.
+
+  This is why a local `make sonar` passed while CI failed on identical config:
+  locally there is no CI auto-detection, so the analysis goes to `main`.
+
+  Pinning lives in the properties file rather than the workflow because this
+  repo has no branch/PR flow — work lands on `main` and a release is a tagged
+  commit on `main` — so the tag always points at main's tip, and it keeps
+  scanner config in the single place CI and `make sonar` both read.
+
+  **v0.3.0 remains tagged with no GitHub Release behind it.** Per RELEASING.md
+  a published tag is not moved, so this ships as v0.3.1.
+
 ## [0.3.0] - 2026-08-25
 
 ### Added
