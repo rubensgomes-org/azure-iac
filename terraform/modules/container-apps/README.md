@@ -85,8 +85,8 @@ Once real images land, override per-app in
 
 ```hcl
 apps_image_map = {
-  api    = "acrdev1234.azurecr.io/api:1.2.3"
-  worker = "acrdev1234.azurecr.io/worker:1.2.3"
+  api    = "rubensdevacr.azurecr.io/api:1.2.3"
+  worker = "rubensdevacr.azurecr.io/worker:1.2.3"
 }
 target_port = 8080   # Spring Boot default
 ```

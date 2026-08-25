@@ -35,28 +35,32 @@ locals {
 }
 
 # -----------------------------------------------------------------------------
-# Random suffix (global uniqueness + soft-delete-safe reprovision)
-# -----------------------------------------------------------------------------
-# ACR names must be alphanumeric ONLY (no dashes, no underscores), 5-50
-# chars, and globally unique. Basic SKU has no soft-delete concept, so the
-# random is purely for collision avoidance across tenants. `keepers` locks
-# the suffix to `env` — a rename regenerates.
-resource "random_id" "suffix" {
-  byte_length = 2 # 4 lowercase hex chars
-
-  keepers = {
-    env = var.env
-  }
-}
-
-# -----------------------------------------------------------------------------
 # Azure Container Registry
 # -----------------------------------------------------------------------------
-# Name pattern: acr<env><random> (e.g. "acrdeva7f2"). Total length with a
-# 10-char env cap + "acr" + 4-char random = ≤ 17 chars, well under the
-# 50-char ceiling.
+# The name is supplied by the caller via `var.acr_name` — it is NOT derived
+# from `env` and carries no random suffix. Dev uses "rubensdevacr", set in
+# `terraform/envs/dev/06-acr/terraform.tfvars`.
+#
+# Why an explicit name instead of the `acr<env><random>` pattern the rest of
+# the estate uses (kv-, st-, sb-, log-, psql-)? The registry name is the one
+# name humans and CI type constantly — it is baked into every image tag, every
+# `docker push`, every `az acr` invocation, and every `apps_image_map` entry.
+# A random suffix makes it unmemorable and, worse, makes it CHANGE on
+# destroy+recreate, silently invalidating every hardcoded reference.
+#
+# The trade-off accepted here: ACR names are globally unique across every
+# Azure tenant, so a fixed name can be taken by someone else. There is no
+# random suffix to fall back on — apply fails fast with an availability error
+# rather than quietly landing on a different name. Check with
+# `az acr check-name -n <name>` before adding a new env.
+#
+# Constraints enforced by `var.acr_name`'s validation: 5-50 chars,
+# alphanumeric ONLY (no dashes, no underscores).
+#
+# Basic SKU has no soft-delete concept, so a destroyed name is released
+# immediately and the SAME name is reusable on the next apply.
 resource "azurerm_container_registry" "this" {
-  name                = "acr${var.env}${random_id.suffix.hex}"
+  name                = var.acr_name
   location            = var.location
   resource_group_name = var.resource_group_name
 

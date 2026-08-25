@@ -135,7 +135,7 @@ jobs:
       # Fetches the Terraform code in terraform/bootstrap-backend.
       # -----------------------------------------------------------------------
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # -----------------------------------------------------------------------
       # Step 2: SAFEGUARD - Validate actor + typed confirmation + target fields
@@ -231,7 +231,7 @@ jobs:
       #   - We explicitly set auth-type=SERVICE_PRINCIPAL.
       # -----------------------------------------------------------------------
       - name: Azure Login (Service Principal Secret)
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           auth-type: SERVICE_PRINCIPAL
           creds: >-
@@ -254,7 +254,7 @@ jobs:
       #   - terraform_wrapper=false keeps logs simpler/cleaner.
       # -----------------------------------------------------------------------
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.15.8"
           terraform_wrapper: false

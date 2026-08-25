@@ -91,7 +91,7 @@ jobs:
       # Step 1: Checkout repository content
       # -----------------------------------------------------------------------
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # -----------------------------------------------------------------------
       # Step 1.5: Verify required secrets are present (fail fast)
@@ -125,7 +125,7 @@ jobs:
       #   - Passing client-secret as a direct input is NOT supported in v2.
       # -----------------------------------------------------------------------
       - name: Azure Login (Service Principal Secret)
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           auth-type: SERVICE_PRINCIPAL
           creds: >-
@@ -146,7 +146,7 @@ jobs:
       #     same build.
       # -----------------------------------------------------------------------
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.15.8"
           terraform_wrapper: false

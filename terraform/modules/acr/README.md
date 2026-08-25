@@ -11,15 +11,15 @@ this module has no `backend` block.
 
 | Type | Name | Notes |
 |------|------|-------|
-| `random_id` | `suffix` | 4-hex-char suffix; keyed on `env`. |
-| `azurerm_container_registry` | `acr<env><random>` | SKU `Basic`, `admin_enabled = false`, public network enabled. |
+| `azurerm_container_registry` | `var.acr_name` (dev: `rubensdevacr`) | SKU `Basic`, `admin_enabled = false`, public network enabled. |
 | `azurerm_role_assignment` | `AcrPull` for UAMI | Role `AcrPull` at registry scope. |
 
 ## Inputs
 
 | Name | Type | Required | Notes |
 |------|------|----------|-------|
-| `env` | `string` | yes | Baked into name and random keeper. `^[a-z][a-z0-9]{1,9}$`. |
+| `acr_name` | `string` | yes | Explicit registry name. `^[a-zA-Z0-9]{5,50}$`, globally unique across Azure. Dev: `rubensdevacr`. |
+| `env` | `string` | yes | Not part of the registry name; kept for tag/convention parity. `^[a-z][a-z0-9]{1,9}$`. |
 | `location` | `string` | yes | Azure region. Must match the RG's location. |
 | `resource_group_name` | `string` | yes | Caller passes `rg-<env>-platform` (from module 01). |
 | `uami_principal_id` | `string` | yes | `principal_id` of the shared UAMI (from module 04). |

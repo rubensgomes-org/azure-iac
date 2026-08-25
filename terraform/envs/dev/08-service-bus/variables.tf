@@ -56,3 +56,9 @@ variable "pg_entra_admin_group_object_id" {
   type        = string
   default     = null
 }
+
+variable "pg_entra_admin_group_name" {
+  description = "Entra group display name for PG admin. Not used here; consumed by 09-postgresql."
+  type        = string
+  default     = null
+}

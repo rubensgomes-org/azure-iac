@@ -1,0 +1,276 @@
+# =============================================================================
+# Provision the app-hosting prerequisites (ACR and its dependencies)
+#
+# Purpose:
+#   Brings modules 01, 04 and 06 to their desired state, in dependency order,
+#   so that a container registry exists and is writable before an application
+#   pipeline tries to push an image to it:
+#
+#       01-resource-groups     -> 5 RGs, including rg-dev-platform
+#       04-managed-identities  -> id-dev-app, in rg-dev-platform
+#       06-acr                 -> rubensdevacr, plus the AcrPull role grant
+#
+#   Every recipe here is a `make` target from the repo-root Makefile. Nothing
+#   is reimplemented: the workflow exports the ARM_* credentials the Makefile
+#   header documents as its contract, and then runs the same targets a
+#   maintainer runs by hand.
+#
+# Trigger:
+#   workflow_call     — the intended path. An application repository declares
+#                       this as a job and gates its deploy on it with `needs:`.
+#                       The first consumer is rubensgomes-org/spring-blueprint.
+#   workflow_dispatch — manual, for exercising the path standalone from the
+#                       Actions tab without a caller.
+#
+# Authentication:
+#   Service Principal + client secret, read from ORGANIZATION-level Actions
+#   secrets on rubensgomes-org (AZURE_CLIENT_ID / AZURE_CLIENT_SECRET /
+#   AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID), shared with this repository and
+#   with each calling repository.
+#
+#   This job is deliberately NOT bound to a GitHub Environment, unlike
+#   terraform-bootstrap-apply.yml. Two reasons:
+#
+#     1. Organization secrets are not Environment secrets. A job with no
+#        `environment:` resolves them fine.
+#     2. For a REUSABLE workflow the `environment:` key is resolved in the
+#        CALLER's repository, not this one. Binding "AZURE" here would silently
+#        require every caller to define an environment of that name.
+#
+#   Adding an approval gate later means creating the environment in each
+#   calling repo, on purpose — not inheriting one by copy-paste.
+#
+#   Callers must pass the four secrets explicitly (see `secrets:` below).
+#   `secrets: inherit` also works but hides which credentials cross the repo
+#   boundary, which is the wrong default for an SP with subscription-wide
+#   write access.
+#
+# Notes:
+#   - THE `plan-*` TARGETS GATE NOTHING. `apply-<name>` does not consume the
+#     tfplan file that `plan-<name>` writes -- it re-plans internally under
+#     -auto-approve. The plan steps below exist so the intended change is
+#     visible in the log, and for no other reason. Do not read a clean plan
+#     step as a guarantee about the apply step that follows it.
+#   - `plan-<name>` and `apply-<name>` each already depend on `init-<name>`,
+#     so naming all three targets re-runs `terraform init -reconfigure` three
+#     times. It is idempotent and cheap (provider plugins are cached), and
+#     naming them explicitly keeps these lines matching the documented
+#     sequence in PROVISION_ACR.md.
+#   - terraform_version must satisfy the `required_version = "~> 1.15"`
+#     declared in every versions.tf in the repo. All four workflows in this
+#     directory pin the same build; bump them together.
+#   - terraform_wrapper is false. The wrapper intercepts stdout, which would
+#     break the `terraform output -raw` calls that produce this workflow's
+#     outputs.
+# =============================================================================
+
+name: Provision ACR (reusable)
+
+on:
+  # -------------------------------------------------------------------------
+  # Reusable entry point. Callers supply the credentials; this repository
+  # supplies the Terraform.
+  # -------------------------------------------------------------------------
+  workflow_call:
+    inputs:
+      environment_name:
+        description: 'Estate environment to provision. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
+        type: string
+        required: false
+        default: dev
+
+    outputs:
+      acr_name:
+        description: 'Registry name, e.g. rubensdevacr. Use with `az acr login --name`.'
+        value: ${{ jobs.provision.outputs.acr_name }}
+      acr_login_server:
+        description: 'Registry login server, e.g. rubensdevacr.azurecr.io. Use as the image reference prefix.'
+        value: ${{ jobs.provision.outputs.acr_login_server }}
+
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_CLIENT_SECRET:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+
+  # -------------------------------------------------------------------------
+  # Manual entry point, for running this without a caller.
+  # -------------------------------------------------------------------------
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: 'Estate environment to provision'
+        type: string
+        required: false
+        default: dev
+
+# Reads the repository. Creates no commits, tags or releases.
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    name: provision
+    runs-on: ubuntu-latest
+
+    # Three init/plan/apply cycles against Azure. The ceiling stops a hung
+    # apply -- a Terraform state lease held by another run, say -- from
+    # burning hours.
+    timeout-minutes: 30
+
+    # Serialise runs per environment so two applies never race for the same
+    # state blob.
+    #
+    # LIMITATION, and it matters: concurrency groups are scoped to the
+    # repository that OWNS THE RUN. When this workflow is called from another
+    # repository, the group is evaluated in the CALLER's namespace, so it does
+    # NOT serialise against this repo's own runs of the same modules. A real
+    # collision is contained by the azurerm backend's blob lease -- the second
+    # run FAILS with a lock error rather than corrupting state. That is the
+    # accepted failure mode. Never paper over it with -lock=false.
+    concurrency:
+      group: provision-acr-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    outputs:
+      acr_name: ${{ steps.acr_outputs.outputs.acr_name }}
+      acr_login_server: ${{ steps.acr_outputs.outputs.acr_login_server }}
+
+    env:
+      # The Makefile header states the contract: these four must be exported
+      # in the shell. Declared at JOB level so every `make` step below
+      # inherits them -- the recipes read the ambient environment and take no
+      # arguments for credentials.
+      #
+      # backend.hcl sets use_azuread_auth = false, so this same SP also
+      # authenticates the state blob data plane, not just the ARM control
+      # plane.
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Tells Terraform it is running in CI: no interactive prompts, and
+      # output tuned for a log rather than a terminal.
+      TF_IN_AUTOMATION: "true"
+
+      # Single source of truth for the module roots, so the outputs step and
+      # the make steps cannot drift apart.
+      ENV_DIR: terraform/envs/${{ inputs.environment_name }}
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Checkout repository content
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # -----------------------------------------------------------------------
+      # Step 2: Verify required secrets are present (fail fast)
+      #
+      # Why:
+      #   If a caller forgets a `secrets:` entry, or the organization secret is
+      #   not shared with the calling repository, the values above resolve to
+      #   EMPTY STRINGS. Terraform would then fail deep inside `init` with an
+      #   opaque authentication error. Fail here instead, with a message that
+      #   names the cause.
+      #
+      # Security:
+      #   Only the NAME of a missing variable is printed. Never the value.
+      # -----------------------------------------------------------------------
+      - name: Verify required secrets are present (no output)
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Check the organization Actions secrets on rubensgomes-org and"
+            echo "confirm they are shared with the calling repository."
+          fi
+          exit $missing
+
+      # -----------------------------------------------------------------------
+      # Step 3: Install Terraform on the runner
+      #
+      # Notes:
+      #   - The Makefile shells out to `terraform`; it does not install it.
+      #   - `make` itself is preinstalled on ubuntu-latest.
+      # -----------------------------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+
+      # -----------------------------------------------------------------------
+      # Step 4: Module 01 -- the resource groups
+      #
+      # Creates/confirms the 5 RGs, including rg-dev-platform, which modules 04
+      # and 06 place their resources into. Must run first.
+      # -----------------------------------------------------------------------
+      - name: Module 01 - resource groups
+        shell: bash
+        run: |
+          make ENV="${{ inputs.environment_name }}" \
+            init-resource-groups plan-resource-groups apply-resource-groups
+
+      # -----------------------------------------------------------------------
+      # Step 5: Module 04 -- the shared user-assigned managed identity
+      #
+      # Creates id-dev-app in rg-dev-platform. Module 06 grants AcrPull to this
+      # principal, so it must exist before the registry module runs.
+      # -----------------------------------------------------------------------
+      - name: Module 04 - managed identities
+        shell: bash
+        run: |
+          make ENV="${{ inputs.environment_name }}" \
+            init-managed-identities plan-managed-identities apply-managed-identities
+
+      # -----------------------------------------------------------------------
+      # Step 6: Module 06 -- the container registry
+      #
+      # Creates the registry and the AcrPull role assignment for the UAMI from
+      # step 5. This is the step the calling pipeline actually depends on.
+      # -----------------------------------------------------------------------
+      - name: Module 06 - container registry
+        shell: bash
+        run: |
+          make ENV="${{ inputs.environment_name }}" \
+            init-acr plan-acr apply-acr
+
+      # -----------------------------------------------------------------------
+      # Step 7: Publish the registry coordinates as workflow outputs
+      #
+      # Why:
+      #   So callers reference the registry by output rather than hardcoding
+      #   "rubensdevacr.azurecr.io" in an application repository. If the ACR is
+      #   ever renamed in terraform.tfvars, callers follow automatically
+      #   instead of failing at `docker push` with a stale hostname.
+      #
+      # Notes:
+      #   - No `terraform init` needed: step 6 initialised this directory in
+      #     the runner workspace.
+      #   - -raw so the value has no surrounding quotes and can be used
+      #     directly in an image reference.
+      # -----------------------------------------------------------------------
+      - name: Publish ACR outputs
+        id: acr_outputs
+        shell: bash
+        working-directory: ${{ env.ENV_DIR }}/06-acr
+        run: |
+          set -euo pipefail
+          acr_name="$(terraform output -raw acr_name)"
+          acr_login_server="$(terraform output -raw acr_login_server)"
+          echo "acr_name=${acr_name}"                 >> "$GITHUB_OUTPUT"
+          echo "acr_login_server=${acr_login_server}" >> "$GITHUB_OUTPUT"
+          echo "Registry ready: ${acr_login_server}"

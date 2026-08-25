@@ -8,10 +8,31 @@
 # per-environment knob.
 # -----------------------------------------------------------------------------
 
+variable "acr_name" {
+  description = <<-EOT
+    Registry name. Explicit and required — this module does NOT derive it
+    from `env` and appends no random suffix, because the registry name is
+    typed constantly (image tags, `docker push`, `az acr`, `apps_image_map`)
+    and must stay stable across destroy+recreate.
+
+    ACR names are GLOBALLY unique across every Azure tenant and allow
+    alphanumeric characters ONLY — no dashes, no underscores, 5-50 chars.
+    Verify availability with `az acr check-name -n <name>` before setting a
+    new one. Dev uses "rubensdevacr" (set in the root's terraform.tfvars).
+  EOT
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9]{5,50}$", var.acr_name))
+    error_message = "acr_name must be 5-50 alphanumeric characters — no dashes, underscores, or other punctuation."
+  }
+}
+
 variable "env" {
   description = <<-EOT
-    Environment name (e.g. "dev", "prod"). Baked into the registry name
-    (`acr<env><random>`) and drives the random-suffix keeper.
+    Environment name (e.g. "dev", "prod"). No longer part of the registry
+    name (see `acr_name`) — retained because the caller passes it for tag
+    and convention parity with every other module.
   EOT
   type        = string
 

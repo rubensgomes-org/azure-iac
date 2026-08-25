@@ -27,7 +27,7 @@ blob storage to store the state files of Terraform configurations.
     # ARM_SUBSCRIPTION_ID=<SECRET_INFO>
     ```
 
-2. Ensure the storage_account_id (e.g., TF_STORAGE_ACCOUNT) is available:
+2. Ensure the storage_account_id (e.g., TF_STORAGE_ACCOUNT) name is available:
 
     ```bash
     az login
@@ -35,7 +35,7 @@ blob storage to store the state files of Terraform configurations.
     az storage account check-name  \
       --name ${TF_STORAGE_ACCOUNT} \
       --query nameAvailable -o tsv
-    # returns true if available; false, otherwise.
+    # if false it means that this storage account is already provisioned
     ```
 
 ### Chicken-and-egg workflow

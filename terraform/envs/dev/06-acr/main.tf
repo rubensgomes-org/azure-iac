@@ -44,6 +44,7 @@ data "terraform_remote_state" "managed_identities" {
 module "acr" {
   source = "../../../modules/acr"
 
+  acr_name            = var.acr_name
   env                 = var.env
   location            = var.location
   resource_group_name = data.terraform_remote_state.resource_groups.outputs.rg_platform_name

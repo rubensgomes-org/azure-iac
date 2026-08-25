@@ -23,43 +23,90 @@ here.
 
 ### Fixed
 
-## [0.1.1] - 2026-08-01
+## [0.0.1] - 2026-08-24
+
+Baseline for the first release. The repository was recreated from scratch, so
+there is no preceding tag or history to diff against — this section describes
+what the estate *is*, not what changed.
 
 ### Added
 
-### Changed
+**Terraform estate**
 
-### Fixed
+- Twelve module roots under `terraform/envs/dev/` (`01-resource-groups`
+  through `12-monitoring`), each owning its own state key in the shared
+  azurerm backend, with the numeric prefix encoding dependency order.
+- Twelve matching reusable child modules under `terraform/modules/`. No
+  state, no backend blocks — provider configuration belongs to the caller.
+- `terraform/bootstrap-backend/` — the state backend itself (`rg-tfstate`,
+  `sttfstaterubens01`, and the `tfstate` container), whose own state lives in
+  the container it provisions.
+- `terraform/envs/dev/env.tfvars` and `backend.hcl` — shared per-environment
+  inputs and backend configuration, passed at `init`/`plan` time.
 
-- Bootstrap workflows pinned `terraform_version: "1.14.3"`, which does not
-  satisfy the `required_version = "~> 1.15"` declared in every `versions.tf`
-  in the repo. Both `terraform-bootstrap-apply.yml` and
-  `terraform-bootstrap-destroy.yml` now pin `1.15.8`, matching `release.yml`.
-  As written they would have failed `terraform init`.
+**Azure resources provisioned**
 
-## [0.1.0] - 2026-08-01
+- Five lifecycle-aligned resource groups (`platform`, `network`, `data`,
+  `app`, `observability`), a VNet with delegated subnets, Log Analytics and
+  Application Insights, a shared User-Assigned Managed Identity, Key Vault,
+  Container Registry, Storage, Service Bus, PostgreSQL Flexible Server, a
+  Container App Environment, Container Apps, and diagnostic settings. APIM is
+  deferred to a second iteration.
+- Passwordless runtime authentication for every application through a single
+  shared UAMI, across PostgreSQL, Blob Storage, Service Bus, Key Vault, and
+  ACR. No connection strings, no registry admin user, no application secrets.
 
-Baseline release. Summarises the state of the repo at the point release
-tooling was introduced; it is not a reconstruction of the preceding 45
-commits.
+**Naming**
 
-### Added
+- The container registry is named **explicitly** (`rubensdevacr` in dev) via
+  the `acr_name` input on `modules/acr`, set in
+  `terraform/envs/dev/06-acr/terraform.tfvars`. It deliberately departs from
+  the `<random>`-suffixed convention used by `kv-`, `st-`, `sb-`, `log-`, and
+  `psql-`: the registry name is typed constantly — image tags, `docker push`,
+  `az acr`, `apps_image_map` — so it must be memorable and must survive a
+  destroy+recreate. Trade-off: ACR names are globally unique across Azure, so
+  a new environment must verify availability with `az acr check-name` before
+  setting one; there is no random suffix to fall back on.
 
-- Twelve Terraform module roots under `terraform/envs/dev/`
-  (`01-resource-groups` through `12-monitoring`), each with its own state key
-  in the shared azurerm backend, and twelve matching reusable child modules
-  under `terraform/modules/`.
-- `terraform/bootstrap-backend/` — the state backend (`rg-tfstate`,
-  `sttfstaterubens01`, `tfstate` container) plus the two manual GitHub
-  workflows that apply and destroy it.
-- Passwordless runtime authentication for all applications via a single shared
-  User-Assigned Managed Identity across PostgreSQL, Blob Storage, Service Bus,
-  Key Vault, and ACR.
+**Automation**
+
 - Root `Makefile` — per-module `init`/`plan`/`apply`/`destroy` targets,
-  whole-estate `apply`/`destroy`/`reprovision`, `purge-orphans`, `fmt`,
-  `validate`.
-- `docs/PROVISIONING_PLAN.md` — the authoritative plan, including §15 complete
-  teardown and §16 release and versioning.
-- Release tooling: `VERSION`, this changelog, `RELEASING.md`, the
-  `make release-*` targets, and the `release.yml` tag-push workflow.
-- A computed `release` tag on every Azure resource, sourced from `VERSION`.
+  whole-estate `apply`/`destroy`/`reprovision`, plus `purge-orphans`, `fmt`,
+  and `validate`. Per-module targets deliberately do no dependency
+  resolution; ordering lives in the whole-estate loops.
+- `.github/workflows/provision-acr.yml` — reusable workflow (`workflow_call`
+  + `workflow_dispatch`) that applies modules 01 → 04 → 06 through the
+  Makefile and publishes `acr_name` / `acr_login_server` as outputs, so an
+  application pipeline can gate its image push on the registry existing.
+  First consumer: `rubensgomes-org/spring-blueprint`.
+- `.github/workflows/terraform-bootstrap-apply.yml` and
+  `terraform-bootstrap-destroy.yml` — manual (`workflow_dispatch`) lifecycle
+  for the state backend, bound to the `AZURE` GitHub Environment, sharing the
+  `.github/actions/import-state` composite action.
+- All four workflows pin `terraform_version: "1.15.8"` and
+  `terraform_wrapper: false`. The pin must satisfy the
+  `required_version = "~> 1.15"` declared in every `versions.tf`; the wrapper
+  is disabled because it intercepts stdout and would break
+  `terraform output -raw`.
+
+**Release tooling**
+
+- `VERSION`, this changelog, `RELEASING.md`, the `make release-*` targets, and
+  `.github/workflows/release.yml`, which fires on `v*.*.*` and refuses to
+  publish unless the tag, `VERSION`, and a `CHANGELOG.md` section all agree.
+  It holds no Azure credentials and deploys nothing.
+- A computed `release` tag on every Azure resource, read from `VERSION` on
+  disk by each module root's `locals.tf` rather than passed as `-var`, so a
+  bare `terraform apply` stamps the same value as `make apply`.
+
+**Documentation**
+
+- `docs/PROVISIONING_PLAN.md` — the authoritative plan: dependency order, RG
+  partitioning, naming conventions, the passwordless auth model, §15 complete
+  teardown, and §16 release and versioning.
+- `PROVISION_ACR.md` — standalone runbook for provisioning and destroying
+  only the ACR (modules 01 → 04 → 06), covering the Make commands,
+  verification, image push, cost, and the safety notes that apply when
+  `apply-`/`destroy-` targets run under `-auto-approve`.
+- `CLAUDE.md`, `README.md`, `terraform/INITIAL_SETUP.md`, and a README in
+  every module and module root.

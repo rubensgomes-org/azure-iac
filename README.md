@@ -6,6 +6,12 @@ infrastructure resources (e.g., resource group, storage account, networking,
 app configuration, container registry, container app, blob storage, service
 bus, and database) in Azure Cloud.
 
+## AI-Assisted Development
+
+This project was developed primarily using AI-assisted code generation. All
+generated content was reviewed, tested, and refined by human contributors. See
+the LICENSE file for additional information regarding AI-generated content.
+
 ## Microsoft Links
 
 - [Microsoft Accounts](https://account.microsoft.com/)
@@ -36,7 +42,7 @@ Microservice application requirements:
 
 - Java 25
 - Spring Boot 4.1.x+
-- Spring Cloud Azure SDK 7.3.x+
+- Spring Cloud Azure SDK 7.4.x+
 - PostgreSQL 18.x+
 
 At a minimum the following Azure infrastructure requirements:
@@ -84,6 +90,65 @@ See [§15 of the provisioning plan](./docs/PROVISIONING_PLAN.md) for the full
 procedure: verification commands, what legitimately survives, how to remove the
 state backend itself, and the failure modes that can make a destroy silently do
 nothing.
+
+## GitHub Actions
+
+Four workflows live in [`.github/workflows/`](./.github/workflows/). Three of
+them authenticate to Azure with the same `terraform-sp` Service Principal used
+locally; `release.yml` deliberately holds no Azure credentials.
+
+| Workflow | Trigger | What it does |
+| --- | --- | --- |
+| [`provision-acr.yml`](./.github/workflows/provision-acr.yml) | `workflow_call`, `workflow_dispatch` | Applies modules 01 → 04 → 06 so a registry exists and is writable. Publishes `acr_name` / `acr_login_server` outputs. |
+| [`terraform-bootstrap-apply.yml`](./.github/workflows/terraform-bootstrap-apply.yml) | `workflow_dispatch` | Creates/updates the state backend (`rg-tfstate`, `sttfstaterubens01`, `tfstate`). |
+| [`terraform-bootstrap-destroy.yml`](./.github/workflows/terraform-bootstrap-destroy.yml) | `workflow_dispatch` | Tears the state backend down. |
+| [`release.yml`](./.github/workflows/release.yml) | tag `v*.*.*` | Validates the tag against `VERSION` + `CHANGELOG.md`, publishes a GitHub Release. |
+
+### Provisioning the ACR from an application pipeline
+
+`provision-acr.yml` is a **reusable** workflow. An application repository calls
+it and gates its image push on the result, so the registry hostname is never
+hardcoded on the application side:
+
+```yaml
+jobs:
+  provision-acr:
+    uses: rubensgomes-org/azure-iac/.github/workflows/provision-acr.yml@main
+    with:
+      environment_name: dev          # optional; defaults to dev
+    secrets:
+      AZURE_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  push-image:
+    needs: provision-acr
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/login@v3
+        with:
+          auth-type: SERVICE_PRINCIPAL
+          creds: >-
+            {"clientId":"${{ secrets.AZURE_CLIENT_ID }}",
+             "clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}",
+             "tenantId":"${{ secrets.AZURE_TENANT_ID }}",
+             "subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}"}
+      - run: |
+          az acr login --name "${{ needs.provision-acr.outputs.acr_name }}"
+          docker build -t "${{ needs.provision-acr.outputs.acr_login_server }}/api:${{ github.sha }}" .
+          docker push  "${{ needs.provision-acr.outputs.acr_login_server }}/api:${{ github.sha }}"
+```
+
+The four secrets are organization-level Actions secrets on `rubensgomes-org`
+and must be **shared with the calling repository**. Pass them explicitly
+rather than using `secrets: inherit` — this SP has subscription-wide write
+access, and the explicit list is the only record of which credentials cross a
+repo boundary.
+
+Running the same thing by hand, plus cost, teardown, and the safety notes, is
+covered in [PROVISION_ACR.md](./PROVISION_ACR.md).
 
 ## Releases
 

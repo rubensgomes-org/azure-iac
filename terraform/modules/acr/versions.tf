@@ -22,13 +22,8 @@ terraform {
       version = "~> 4.80"
     }
 
-    # `random_id` produces a 4-hex-char suffix baked into the registry
-    # name. ACR names are GLOBALLY unique (across every Azure tenant) and
-    # must be alphanumeric-only — random makes collision-safe naming
-    # trivial and lets a destroy+recreate land on a fresh name.
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.6"
-    }
+    # No `random` provider. Unlike kv-/st-/sb-/log-/psql-, this module takes
+    # an EXPLICIT registry name via `var.acr_name` rather than generating a
+    # random suffix — see the naming rationale in main.tf.
   }
 }

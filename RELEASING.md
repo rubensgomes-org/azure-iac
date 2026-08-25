@@ -2,24 +2,24 @@
 
 How a release is cut in this repo, and what the version number means.
 
-Releases are **manual and explicit**. You decide the bump level; nothing
-infers it from commit messages. There is no branch/PR flow — work lands on
+Releases are **manual and explicit**. You decide the bump level; nothing infers
+it from commit messages. There is no branch/PR flow — work lands on
 `main`, and a release is a tagged commit on `main`.
 
 ## The moving parts
 
-| Thing | Role |
-|---|---|
-| `VERSION` | Single source of truth. One line, bare `MAJOR.MINOR.PATCH`, no `v`. |
-| Git tag | `v<VERSION>` — annotated, created on the release commit. |
-| `CHANGELOG.md` | Keep a Changelog. `[Unreleased]` accumulates; the release renames it. |
-| `release` resource tag | Every Azure resource carries `release = <VERSION>`, read from `VERSION` by Terraform. |
+| Thing                           | Role                                                                                          |
+|---------------------------------|-----------------------------------------------------------------------------------------------|
+| `VERSION`                       | Single source of truth. One line, bare `MAJOR.MINOR.PATCH`, no `v`.                           |
+| Git tag                         | `v<VERSION>` — annotated, created on the release commit.                                      |
+| `CHANGELOG.md`                  | Keep a Changelog. `[Unreleased]` accumulates; the release renames it.                         |
+| `release` resource tag          | Every Azure resource carries `release = <VERSION>`, read from `VERSION` by Terraform.         |
 | `.github/workflows/release.yml` | Fires on the tag push: gates on consistency + `fmt` + `validate`, publishes a GitHub Release. |
 
 ## What MAJOR / MINOR / PATCH mean here
 
-"Breaking change" means something different for infrastructure than it does
-for a library. The question is not *does the API change* but *what does
+"Breaking change" means something different for infrastructure than it does for
+a library. The question is not *does the API change* but *what does
 `terraform plan` do to resources that already exist*.
 
 ### MAJOR — existing infrastructure is destroyed or renamed
@@ -65,8 +65,8 @@ Boot images in module 11) and D2 (Application Insights wiring). Under `0.x`,
 MINOR absorbs breaking changes; the rules above apply as written from `1.0.0`
 onward.
 
-**`1.0.0` is cut when a full `make apply` from zero brings up all twelve
-modules with real application images and verifies clean.**
+**`1.0.0` is cut when a full `make apply` from zero brings up all twelve modules
+with real application images and verifies clean.**
 
 ## Cutting a release
 
@@ -91,8 +91,14 @@ make release-push
 ```
 
 `make release-tag` is the one-off variant: it tags the current `VERSION`
-without bumping, which is how the initial `v0.1.0` was cut. It requires
-`CHANGELOG.md` to already contain a section for that version.
+without bumping. It requires `CHANGELOG.md` to already contain a section for
+that version, so it is not the path to the first release — `[Unreleased]` has
+no version heading yet. Use `make release-<level>` for that.
+
+**No release has been cut yet.** The repository was recreated from scratch, so
+`git tag -l` is empty, `VERSION` is `0.0.1`, and `CHANGELOG.md` holds only
+`[Unreleased]`. The first tag will be produced by a `make release-<level>`
+bump off `0.0.1`.
 
 ### Preflight checks
 
@@ -101,8 +107,8 @@ without bumping, which is how the initial `v0.1.0` was cut. It requires
 - a missing or malformed `VERSION` (must be `N.N.N`);
 - a dirty working tree — staged or unstaged;
 - being on a branch other than `main`;
-- `HEAD` being behind `origin/main` (fetch failures are a warning, not an
-  error, so the targets still work offline);
+- `HEAD` being behind `origin/main` (fetch failures are a warning, not an error,
+  so the targets still work offline);
 - an empty `[Unreleased]` section (bump targets only);
 - a tag for the target version already existing.
 
@@ -129,8 +135,8 @@ locals {
 }
 ```
 
-and merges `release = local.release` into the shared tag map, so every
-resource in the estate records which release provisioned it:
+and merges `release = local.release` into the shared tag map, so every resource
+in the estate records which release provisioned it:
 
 ```bash
 az group show -n rg-dev-app --query tags

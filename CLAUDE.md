@@ -22,27 +22,60 @@ state backend, and the two ways a destroy can silently do nothing).
 
 Always read that file before making infra decisions.
 
-## Project status (as of 2026-07-26)
+## Project status (as of 2026-08-24)
 
 **Paused — estate is feature-complete in code.** All 12 modules
 (01-resource-groups through 12-monitoring) are implemented and have been
-applied and verified against Azure. The root `Makefile` is in place;
-`make validate` was last run clean across every module root.
+applied and verified against Azure at least once. The root `Makefile` is in
+place; `make validate` was last run clean across every module root.
 
-**Currently applied: all modules except 11-container-apps.**
-`make destroy-container-apps` was run on 2026-07-26 — the
-`container-apps/terraform.tfstate` key is empty and `rg-dev-app` holds only
-`cae-dev` (module 10). Everything else is live and untouched; module 12's
-diagnostic settings target KV/ACR/Storage/Service Bus/PG, not the apps, so
-nothing downstream was affected. Restore with `make apply-container-apps`
-alone — all of 11's upstreams (01, 04, 06, 07, 08, 09, 10) are still up.
+**Currently applied: module 01-resource-groups ONLY. Everything else is
+torn down.** Verified against Azure on 2026-08-24: the five RGs
+(`rg-dev-platform`, `-network`, `-data`, `-app`, `-observability`) exist and
+are all **empty** — `az resource list -g <rg>` returns nothing for every one
+of them. In the tfstate container only `resource-groups/terraform.tfstate`
+is populated (~10 KB); every other module's state key is an empty
+few-hundred-byte shell.
+
+Nothing is running, so the estate currently costs $0/month — RGs and the
+state Storage Account are free at this scale.
+
+Quick way to re-check this claim rather than trusting the note:
+
+```bash
+az group list --query "[].name" -o tsv
+az resource list -g rg-dev-platform -o tsv          # empty => nothing applied
+az storage blob list --account-name sttfstaterubens01 \
+  --container-name tfstate --auth-mode key \
+  --query "[].{name:name,size:properties.contentLength}" -o table
+```
+
+A state blob under ~500 bytes is an empty shell (serial + lineage, no
+resources). Note `--auth-mode key`: the interactive user account holds no
+`Storage Blob Data *` role, so `--auth-mode login` fails on that container.
+
+**Rebuilding from here** is `make apply` from repo root (01 is already up and
+will no-op), or module-by-module in numeric order. Each module's upstreams
+must be applied first — a root whose `data.terraform_remote_state` points at
+an empty state key fails at plan with *Unsupported attribute*, not with a
+useful message. Minimum chains worth knowing:
+
+- ACR only: `make apply-managed-identities && make apply-acr` (06 needs 04's
+  UAMI for the `AcrPull` grant, and 01's platform RG). ~$5.07/month, all of
+  it the Basic registry unit.
+- Container Apps: 01, 04, 06, 07, 08, 09, 10, then 11.
 
 When resuming, read `docs/PROVISIONING_PLAN.md` → **Deferred work** (right
 after the Progress section) for the outstanding items:
 
 - **D1**: swap the placeholder container image in module 11 once real
   Spring Boot images are pushed to ACR (app-work blocked). With 11
-  destroyed this is now just an apply with `apps_image_map` set.
+  destroyed this is an apply with `apps_image_map` set — but note the
+  registry no longer exists either, so ACR has to be reprovisioned and the
+  images repushed first. The registry name is now FIXED at `rubensdevacr`
+  (set in `terraform/envs/dev/06-acr/terraform.tfvars`), so it survives a
+  destroy+recreate and is safe to hardcode in image tags — that was the
+  point of dropping the old `acr<env><random>` scheme.
 - **D2**: wire `APPLICATIONINSIGHTS_CONNECTION_STRING` into container
   apps (depends on D1).
 - **D3**: §12a — PG data-plane bootstrap Container Apps Job (replaces
@@ -59,7 +92,7 @@ Every release is a `MAJOR.MINOR.PATCH` git tag on `main`. Read
 **`RELEASING.md`** before touching anything release-related;
 `docs/PROVISIONING_PLAN.md` §16 has the design rationale.
 
-- Repo-root **`VERSION`** (bare `0.1.0`, no `v`) is the single source of
+- Repo-root **`VERSION`** (bare `0.0.1`, no `v`) is the single source of
   truth. The tag is `v$(cat VERSION)`; the `CHANGELOG.md` heading and the
   `release` tag on every Azure resource both derive from it.
 - Semver is **infra-impact based**: MAJOR = `plan` destroys/recreates or
@@ -70,18 +103,72 @@ Every release is a `MAJOR.MINOR.PATCH` git tag on `main`. Read
   `VERSION`, rolls `[Unreleased]` into a dated section, commits, and creates
   the annotated tag — **locally**. `make release-push` is the separate,
   network-touching, non-undoable step. `make release-tag` tags the current
-  `VERSION` without bumping (how `v0.1.0` was cut).
+  `VERSION` without bumping. **No release has been cut yet** — the repo was
+  recreated fresh, so `git tag -l` is empty and `CHANGELOG.md` holds only
+  `[Unreleased]`. `v0.0.1` will be the first tag.
 - Every module root has a `locals.tf` reading `VERSION` off disk
   (`trimspace(file("${path.root}/../../../../VERSION"))`) and merges
   `release = local.release` into `var.tags`. Read from disk, not passed as
   `-var`, so a bare `terraform apply` typed by hand stamps the same value.
 - `.github/workflows/release.yml` fires on `v*.*.*`: checks tag ==
   `VERSION` == a `CHANGELOG.md` section, runs `fmt -check` + `make validate`,
-  publishes a GitHub Release. It holds **no Azure credentials** — keep it
-  that way.
+  publishes a GitHub Release. **`release.yml` specifically holds no Azure
+  credentials — keep it that way.** Other workflows in this repo do hold
+  them; see the CI section below.
+
+## CI — GitHub Actions
+
+Four workflows, two credential models. All Azure-touching workflows get
+`ARM_*` from GitHub secrets holding the same `terraform-sp` Service Principal
+documented under Auth model.
+
+| Workflow | Trigger | Touches Azure | Secret source |
+| --- | --- | --- | --- |
+| `release.yml` | tag `v*.*.*` | **no** | — |
+| `provision-acr.yml` | `workflow_call` + `workflow_dispatch` | yes | **org**-level Actions secrets |
+| `terraform-bootstrap-apply.yml` | `workflow_dispatch` | yes | **Environment** `AZURE` |
+| `terraform-bootstrap-destroy.yml` | `workflow_dispatch` | yes | **Environment** `AZURE` |
+
+**`provision-acr.yml` is a reusable workflow** — the CI equivalent of
+`PROVISION_ACR.md`. It runs `make init/plan/apply` for modules 01, 04, and 06
+in order and publishes `acr_name` / `acr_login_server` as workflow outputs, so
+an application repo can gate its image push on it with `needs:`. First
+consumer: `rubensgomes-org/spring-blueprint`.
+
+Things to know before editing it:
+
+- It reimplements nothing — it exports `ARM_*` and calls repo-root `make`
+  targets, passing `ENV=` through from the `environment_name` input. Keep it
+  that way: fix the Makefile, not the workflow.
+- It is deliberately **not** bound to a GitHub Environment. For a reusable
+  workflow, `environment:` resolves in the *caller's* repo, so binding
+  `AZURE` here would silently force every caller to define one. The bootstrap
+  workflows are not reusable, so they can and do bind it.
+- Its `plan-*` steps **gate nothing** — `apply-<name>` re-plans internally
+  under `-auto-approve` and never reads the `tfplan` that `plan-<name>` wrote.
+  They exist for log visibility only.
+- `concurrency` is evaluated in the repo that owns the run, so a caller's run
+  does not serialise against this repo's own. The azurerm blob lease is the
+  real guard — a collision fails with a lock error. Never add `-lock=false`.
+
+`.github/actions/import-state/` is a composite action used only by the
+bootstrap workflows. Its premise ("Terraform is using the local backend") is
+false — `terraform/bootstrap-backend/backend.tf` hardcodes an azurerm backend
+— so its three imports always no-op via their `terraform state show` guards.
+Each import swallows failure with `|| WARN … continuing anyway`, so if a guard
+ever stopped holding, a failed import would fall through to planning a
+*create* of a resource that already exists.
+
+All four workflows pin `terraform_version: "1.15.8"` and
+`terraform_wrapper: false` (the wrapper intercepts stdout and would break
+`terraform output -raw`). Bump the pin in all four together.
 
 ## Repo layout (high level)
 
+- `.github/workflows/` — four workflows; see the CI section above.
+- `.github/actions/import-state/` — composite action, bootstrap workflows only.
+- `PROVISION_ACR.md` — standalone runbook for provisioning/destroying just the
+  ACR (modules 01 → 04 → 06), by hand or via `provision-acr.yml`.
 - `terraform/bootstrap-backend/` — the state backend module. Already
   provisioned (`rg-tfstate`, `sttfstaterubens01`, `tfstate` container).
   Do not touch unless re-bootstrapping.

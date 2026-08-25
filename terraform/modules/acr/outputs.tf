@@ -11,7 +11,7 @@ output "acr_id" {
 }
 
 output "acr_name" {
-  description = "Registry name (`acr<env><random>`). Consumed by CI/CD for `docker login` and by `az acr` commands."
+  description = "Registry name (explicit, from `var.acr_name`; `rubensdevacr` in dev). Consumed by CI/CD for `docker login` and by `az acr` commands."
   value       = azurerm_container_registry.this.name
 }
 

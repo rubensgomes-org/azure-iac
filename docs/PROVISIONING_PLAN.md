@@ -121,7 +121,7 @@ isolation when there's appetite. In rough priority order:
 ### D1. Wire real Java / Spring Boot images into module 11 (app work)
 
 Blocked on the Spring Boot 4.1.x microservices being built and pushed
-to `acrdev<random>`. Module 11 is currently destroyed (2026-07-26); when
+to `rubensdevacr`. Module 11 is currently destroyed (2026-07-26); when
 it was last up it ran `mcr.microsoft.com/k8se/quickstart:latest` on port
 80 as a placeholder. Because the apps are already down, wiring real
 images is a fresh apply, not a replace — no need to destroy first.
@@ -129,7 +129,7 @@ images is a fresh apply, not a replace — no need to destroy first.
 When images exist:
 1. In `terraform/envs/dev/11-container-apps/terraform.tfvars`, uncomment
    and set `apps_image_map` (map: app-name → full ACR image reference,
-   e.g. `acrdevXXXX.azurecr.io/api:1.0.0`) and `target_port` (Spring
+   e.g. `rubensdevacr.azurecr.io/api:1.0.0`) and `target_port` (Spring
    Boot default `8080`).
 2. `make apply-container-apps`.
 
@@ -343,7 +343,7 @@ LA-optional).
 | Log Analytics Workspace        | `log-<env>-<random>`                    | `log-dev-a7f2`       |
 | User-Assigned Managed Identity | `id-<env>-app` (single shared identity) | `id-dev-app`         |
 | Key Vault                      | `kv-<env>-<prefix>-<random>`            | `kv-dev-rubens-a7f2` |
-| Azure Container Registry       | `acr<env><random>` (no dashes)          | `acrdeva7f2`         |
+| Azure Container Registry       | explicit, per-env (no dashes)           | `rubensdevacr`       |
 | Storage Account                | `st<env><purpose><random>` (no dashes)  | `stdevappa7f2`       |
 | Service Bus Namespace          | `sb-<env>-<purpose>-<random>`           | `sb-dev-msg-a7f2`    |
 | PostgreSQL Flexible Server     | `psql-<env>-<random>`                   | `psql-dev-a7f2`      |

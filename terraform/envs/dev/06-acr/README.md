@@ -16,6 +16,7 @@ Wraps [`../../../modules/acr/`](../../../modules/acr/README.md).
 - `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`
   exported in the current shell.
 - `../env.tfvars` populated with `env`, `location`, `tags`.
+- `./terraform.tfvars` populated with `acr_name` (dev: `rubensdevacr`).
 
 ## Provision
 
@@ -83,15 +84,20 @@ fail (or, worse, succeed and break running apps).
 
 ## Reprovision
 
-Same commands as **Provision**. The `random_id` suffix is keyed on `env`,
-so the same env reprovisioning lands on a fresh name (`acrdev<newhex>`).
+Same commands as **Provision**, and the registry comes back with the SAME
+name — `acr_name` is a fixed input (`rubensdevacr` in dev), not a generated
+one. Basic SKU has no soft-delete, so the name is released on destroy and
+immediately reusable. Image *contents* are not recoverable; only the name is.
 
 See [`docs/PROVISIONING_PLAN.md`](../../../../docs/PROVISIONING_PLAN.md) §8
 for the reprovision shortcut.
 
 ## Notes
 
-- No `terraform.tfvars` values needed. Scaffolding consistency only.
+- `terraform.tfvars` holds `acr_name`. It lives there rather than in
+  `../env.tfvars` because the registry name is one module's concern, not a
+  value shared by all twelve roots. Changing it renames the registry, which
+  azurerm implements as destroy-and-recreate — every image is lost.
 - SKU (`Basic`), `admin_enabled = false`, and public-network posture are
   hard-coded in the child module (`modules/acr/main.tf`). Change there if
   you need to upgrade to Premium or add a private endpoint.

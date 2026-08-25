@@ -3,6 +3,25 @@
 This file describes pre-requisite configuration steps required to allow
 Terraform to authenticate and create resources in Microsoft Azure Cloud.
 
+## Installing Azure CLI
+
+You must have the Microsoft Azure CLI tool installed at your local machine. Here
+is how it was installed in a macOS:
+
+```shell
+brew install azure-cli
+```
+
+## Installing Terraform
+
+You must have the Hashcor Terraform CLI tool installed at your local machine. 
+Here is how it was installed in a macOS:
+
+```shell
+brew tap hashicorp/tap
+brew install hashicorp/tap/terraform
+```
+
 ## Microsoft Account and Azure Subscription
 
 A Microsoft Account is required to sign up for an Azure Account. And a
@@ -40,8 +59,13 @@ same applies to several other providers as well.
   Basically the following commands is telling Azure that the subscription
   intends to use the below providers when running `Terraform`
 
+- The following establishes an Azure session using  `Login as a User`:
+
    ```shell
+   # Login as a User (NOT Service Principal)
    az login --tenant '<ARM_TENANT_ID>'
+   # Confirm the User as the type of login
+   az account show --query user
    az account set --subscription "${ARM_SUBSCRIPTION_ID}"
    # ACR:
    az provider register --verbose --namespace Microsoft.ContainerRegistry
@@ -81,11 +105,11 @@ it.
 
 ### Create Azure Service Principal
 
-1. Login to Azure from the browser
+1. Login as a User to Azure from the browser
 2. select the subscription at the CLI prompt
 
     ```shell
-    # login from the browser / select subscription
+    # login as a User from the browser / select subscription
     az login --tenant '<ARM_TENANT_ID>'
     # display azure account info
     az account show
@@ -143,14 +167,19 @@ it.
       -o table
     ```
 
-2. Test sign in using the service principal;
+2. Test Login using the service principal;
 
    ```shell
+   # Login as an SP (Service Principal)
    az login --service-principal \
    --username "${ARM_CLIENT_ID}" \
    --password "${ARM_CLIENT_SECRET}" \
    --tenant "${ARM_TENANT_ID}" \
    --allow-no-subscriptions
+   # Confirm the ServicePrincipal as the type of login
+   az account show --query user
+   # To display the AZURE_CLIENT_ID
+   az account show --query user.name -o tsv
    ```
 
 ## SetUp CLI Environment Variables

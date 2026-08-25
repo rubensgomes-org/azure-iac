@@ -139,8 +139,8 @@ to real images:
 
    ```hcl
    apps_image_map = {
-     api    = "acrdev1234.azurecr.io/api:1.0.0"
-     worker = "acrdev1234.azurecr.io/worker:1.0.0"
+     api    = "rubensdevacr.azurecr.io/api:1.0.0"
+     worker = "rubensdevacr.azurecr.io/worker:1.0.0"
    }
    target_port = 8080   # Spring Boot default; 80 for the placeholder
    ```

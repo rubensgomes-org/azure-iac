@@ -11,6 +11,14 @@
 
 # ---- Consumed by this module -----------------------------------------------
 
+# Registry name. Sourced from THIS module's terraform.tfvars, not from
+# ../env.tfvars — it is a per-module, per-env value, and env.tfvars is shared
+# by all twelve roots. See ./terraform.tfvars.
+variable "acr_name" {
+  description = "Explicit registry name (dev: \"rubensdevacr\"). Alphanumeric only, 5-50 chars, globally unique across Azure. Sourced from ./terraform.tfvars."
+  type        = string
+}
+
 variable "env" {
   description = "Environment name. Sourced from ../env.tfvars."
   type        = string
@@ -43,6 +51,12 @@ variable "apps" {
 
 variable "pg_entra_admin_group_object_id" {
   description = "Entra group object ID for PG admin. Not used here; consumed by 09-postgresql."
+  type        = string
+  default     = null
+}
+
+variable "pg_entra_admin_group_name" {
+  description = "Entra group display name for PG admin. Not used here; consumed by 09-postgresql."
   type        = string
   default     = null
 }
