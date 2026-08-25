@@ -93,10 +93,11 @@ nothing.
 
 ## GitHub Actions
 
-Five workflows live in [`.github/workflows/`](./.github/workflows/). Four of
+Six workflows live in [`.github/workflows/`](./.github/workflows/). Four of
 them authenticate to Azure with the same `terraform-sp` Service Principal used
-locally; `release.yml` deliberately holds no Azure credentials (its only secret
-is `SONAR_TOKEN`, which reaches sonarcloud.io and nothing else).
+locally; `release.yml` and `pr-verify.yml` deliberately hold no Azure
+credentials (their only secret is `SONAR_TOKEN`, which reaches sonarcloud.io and
+nothing else).
 
 | Workflow | Shows in Actions as | Trigger | What it does |
 | --- | --- | --- | --- |
@@ -104,6 +105,7 @@ is `SONAR_TOKEN`, which reaches sonarcloud.io and nothing else).
 | [`acr-destroy.yml`](./.github/workflows/acr-destroy.yml) | **ACR Destroy (reusable)** | `workflow_call`, `workflow_dispatch` | Destroys module 06 only — the registry and every image in it. Resource groups (01) and the shared UAMI (04) are left standing. Actor-restricted and type-to-confirm guarded on both triggers. |
 | [`tf-bootstrap-create.yml`](./.github/workflows/tf-bootstrap-create.yml) | **TF Bootstrap Create** | `workflow_dispatch` | Creates/updates the state backend (`rg-tfstate`, `sttfstaterubens01`, `tfstate`). |
 | [`tf-bootstrap-destroy.yml`](./.github/workflows/tf-bootstrap-destroy.yml) | **TF Bootstrap Destroy** | `workflow_dispatch` | Tears the state backend down. |
+| [`pr-verify.yml`](./.github/workflows/pr-verify.yml) | **PR Verify** | `pull_request` → main | Three required checks on every PR: `terraform`, `workflows`, `sonar`. See Branching. |
 | [`release.yml`](./.github/workflows/release.yml) | **Release (tag push)** | tag `v*.*.*` | Validates the tag against `VERSION` + `CHANGELOG.md`, runs `fmt`/`validate` and the SonarCloud quality gate, publishes a GitHub Release. |
 
 The middle column is the `name:` each workflow declares — that is the label in
@@ -220,6 +222,11 @@ exported). Use it before cutting a tag: the workflow fires on a tag that has
 already been pushed, and a published tag is never moved, so a red gate found in
 CI costs a whole patch release.
 
+Pull requests are scanned in PR mode by `pr-verify.yml`, and the tag build is
+scanned as `main` by `release.yml`. The branch name is therefore passed by each
+caller rather than pinned in `sonar-project.properties` — pinning it would make
+every PR analysis overwrite main's.
+
 Accepted findings are suppressed in `sonar-project.properties` with
 `sonar.issue.ignore.multicriteria`, never marked "Accepted" in the SonarCloud
 UI — an exemption that lives in the repo is greppable, reviewable in a diff, and
@@ -235,6 +242,43 @@ repo:
 - `SONAR_TOKEN` is an organization Actions secret on `rubensgomes-org`, shared
   with this repository.
 
+## Branching
+
+`main` is protected and **PR-only**. Nothing is pushed to it directly — every
+change, releases included, goes through a pull request whose checks pass.
+
+```bash
+git switch main && git pull
+git switch -c feat/<short-name>
+# ... work, commit ...
+git push -u origin feat/<short-name>
+gh pr create --fill
+# ... checks go green, then squash-merge ...
+```
+
+Merges are **squash only**, and the branch is deleted automatically. That keeps
+`main` linear — one commit per PR — which is what makes tagging a release
+straightforward.
+
+Every PR is gated by [`pr-verify.yml`](./.github/workflows/pr-verify.yml), which
+runs three independent checks:
+
+| Check | What it does |
+| --- | --- |
+| `terraform` | `terraform fmt -check` and `make validate` across all twelve module roots |
+| `workflows` | Every workflow file parses, and no GitHub expression is interpolated inside a `run:` body (see below) |
+| `sonar` | SonarCloud analysis in PR mode — findings decorate the diff, and a red quality gate blocks the merge |
+
+No approval is required, because a solo maintainer cannot approve their own PR;
+the checks are the gate. The PR requirement itself is what stops an accidental
+push to `main`.
+
+**A note on that `workflows` check.** A `${{ ... }}` expression written inside a
+`run:` body is substituted as raw text before the shell parses it, so a crafted
+input can execute on the runner. Bind it to an `env:` key and reference `"$VAR"`
+instead. This repo had nine such findings, all in the guards protecting its two
+destroy workflows; the check exists so they do not come back.
+
 ## Releases
 
 Every release is a `MAJOR.MINOR.PATCH` git tag on `main`. The repo-root
@@ -246,12 +290,22 @@ Releases are manual — you choose the bump level:
 
 ```bash
 make release-check     # preflight; shows what each bump would produce
-make release-minor     # bump, roll CHANGELOG.md, commit, tag — all LOCAL
-make release-push      # push main + the tag; fires .github/workflows/release.yml
+git switch -c release/v0.4.0
+make release-prep-minor   # bump, roll CHANGELOG.md, commit — no tag yet
+git push -u origin release/v0.4.0 && gh pr create --fill
+# ... merge the release PR ...
+git switch main && git pull
+make release-tag          # tag main's real tip
+make release-push         # push the tag; fires .github/workflows/release.yml
 ```
 
-Nothing leaves your machine until `release-push`, so a mistake is a
-`git tag -d` and a `git reset --hard HEAD~1` away.
+The tag is created **after** the merge on purpose: a squash-merge rewrites the
+commit SHA, so a locally created tag would point at a commit that never reaches
+`main`.
+
+Nothing is published until `release-push`. Before the release PR merges a
+mistake is just a closed PR; after it merges but before the push, it is a
+`git tag -d` away. See [RELEASING.md](./RELEASING.md) → Undoing a release.
 
 What MAJOR / MINOR / PATCH mean for infrastructure — the question is what
 `terraform plan` does to an already-applied estate, not what an API looks

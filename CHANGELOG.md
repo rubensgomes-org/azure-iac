@@ -19,7 +19,59 @@ here.
 
 ### Added
 
+- **`.github/workflows/pr-verify.yml`** — the gate on every pull request into
+  `main`, and what branch protection's required checks point at. Until now the
+  repo had **no CI on a branch at all**: `fmt -check`, `make validate` and the
+  Sonar gate ran only at tag time, inside `release.yml`, long after the point
+  where feedback is useful. Three deliberately separate jobs, so one can be
+  added to or dropped from the required list without un-gating the others:
+  - `terraform` — `terraform fmt -check -recursive` and `make validate`.
+  - `workflows` — every workflow and composite action parses as YAML, and no
+    GitHub `${{ }}` expression appears inside a `run:` body (Sonar
+    `githubactions:S7630`). The second check is instant, needs no token, and
+    works on a fork, which is why it is worth duplicating what Sonar catches.
+  - `sonar` — SonarCloud analysis in **PR mode**, decorating the diff. Passes
+    no branch name; the action detects the pull request itself.
+  It holds no Azure credentials, like `release.yml`.
+- **`.github/pull_request_template.md`** — checklist led by the `CHANGELOG.md`
+  `[Unreleased]` entry, since a release refuses to cut without one and that
+  entry is easiest to write while the change is fresh.
+- `make release-prep-patch|minor|major` — bump `VERSION`, roll the changelog,
+  commit. **No tag.** Runs from a `release/*` branch.
+
 ### Changed
+
+- **`main` is now PR-only.** Every commit, releases included, reaches it
+  through a pull request whose checks pass. Direct pushes are rejected.
+- **Releases are now two phases.** A `release/vX.Y.Z` PR carries the `VERSION`
+  bump and changelog roll; the tag is placed on `main` *after* that PR merges,
+  by `make release-tag`. This ordering is required, not stylistic: squash-merge
+  rewrites the commit SHA, so a tag created before the merge would point at a
+  commit `main` never sees. `make release-tag` is consequently promoted from
+  escape hatch to the second half of every release.
+- `make release-patch|minor|major` **removed.** They bumped, committed and
+  tagged in one shot on `main`, which cannot work when `main` is PR-only. They
+  now fail with a pointer to the new recipe rather than leaving an unpushable
+  tag behind.
+- `RELEASE_PRECHECK`'s branch assertion is parameterised: `release-prep-*`
+  requires a `release/*` branch, everything else still requires `main`. It also
+  now prints the branch it actually found instead of the literal `branch=main`.
+- **`sonar.branch.name=main` removed from `sonar-project.properties`.** Added
+  only hours earlier to fix the v0.3.0 tag-analysed-as-a-short-lived-branch
+  failure, it becomes actively harmful under a PR flow: a global pin would make
+  every PR analysis submit the PR's code **as `main`**, overwriting main's
+  analysis and handing main a quality gate result for code nobody merged. The
+  branch is now supplied per caller — nothing from `pr-verify.yml`,
+  `-Dsonar.branch.name=main` from `release.yml` and from `make sonar`. This is
+  the one sanctioned exception to that file's "no scanner arguments in the
+  workflow" rule, and the file now documents it as such.
+- `make sonar` **refuses to run off `main`** and passes the branch explicitly.
+  On a feature branch it would publish that branch's code as main's analysis.
+- `README.md` gained a Branching section; `RELEASING.md`'s recipe and its
+  "Undoing a release" section were rewritten around the two phases (what you
+  can undo now depends on whether the release PR has merged). `CLAUDE.md`,
+  `docs/PROVISIONING_PLAN.md` §16 and `docs/PROJECT_SUMMARY.md` updated. The
+  Terraform CLI pin is now a **six**-workflow invariant.
 
 ### Fixed
 

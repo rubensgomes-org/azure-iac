@@ -88,6 +88,10 @@ handles one at a time.
 
 ## Release process
 
+`main` is protected and **PR-only** — every commit, releases included, reaches
+it through a pull request gated by `pr-verify.yml`. Never commit to `main` or
+push to it directly; `git push origin main` is rejected.
+
 Every release is a `MAJOR.MINOR.PATCH` git tag on `main`. Read
 **`RELEASING.md`** before touching anything release-related;
 `docs/PROVISIONING_PLAN.md` §16 has the design rationale.
@@ -99,11 +103,17 @@ Every release is a `MAJOR.MINOR.PATCH` git tag on `main`. Read
   renames an existing resource; MINOR = additive; PATCH = in-place only.
   Project stays at `0.x` until D1/D2 close and a full `make apply` from zero
   verifies clean.
-- Bumps are **manual and explicit**: `make release-patch|minor|major` writes
-  `VERSION`, rolls `[Unreleased]` into a dated section, commits, and creates
-  the annotated tag — **locally**. `make release-push` is the separate,
-  network-touching, non-undoable step. `make release-tag` tags the current
-  `VERSION` without bumping. Released so far: `v0.0.1` … `v0.2.0`, all of it
+- Bumps are **manual and explicit**, and now split in two because `main` is
+  PR-only. `make release-prep-patch|minor|major` runs **from a `release/*`
+  branch**: it writes `VERSION`, rolls `[Unreleased]` into a dated section, and
+  commits — **no tag**. The PR merges, then `make release-tag` on `main` places
+  the tag on main's real tip, and `make release-push` publishes it.
+  Tagging after the merge is required, not stylistic: squash-merge rewrites the
+  SHA, so a locally created tag would point at a commit `main` never sees.
+  `make release-patch|minor|major` no longer exist and fail with a pointer to
+  the new recipe. `make release-tag` tags the current
+  `VERSION` without bumping — and under the PR-only model it is the **second
+  half of every release**, not an escape hatch. All releases so far have been
   CI, Makefile, and documentation work — **no release to date has changed a
   Terraform resource**, so no release has moved the estate. `make version` is
   the authoritative current value; do not trust this line after a bump.
@@ -126,12 +136,21 @@ Every release is a `MAJOR.MINOR.PATCH` git tag on `main`. Read
 
 ## CI — GitHub Actions
 
-Five workflows, two credential models. All Azure-touching workflows get
+Six workflows, two credential models. All Azure-touching workflows get
 `ARM_*` from GitHub secrets holding the same `terraform-sp` Service Principal
 documented under Auth model.
 
+**`pr-verify.yml` is the gate on every PR into `main`** and the thing branch
+protection's required checks point at. Three deliberately separate jobs —
+`terraform` (`fmt -check` + `make validate`), `workflows` (every workflow file
+parses; no GitHub expression inside a `run:` body), `sonar` (PR-mode analysis).
+Separate jobs mean separate check names, so one can be added to or dropped from
+the required list without un-gating the others. It holds no Azure credentials
+and must stay that way.
+
 | Workflow | Actions-tab name | Trigger | Touches Azure | Secret source |
 | --- | --- | --- | --- | --- |
+| `pr-verify.yml` | PR Verify | `pull_request` → main | **no** | **org**-level `SONAR_TOKEN` (not Azure) |
 | `release.yml` | Release (tag push) | tag `v*.*.*` | **no** | **org**-level `SONAR_TOKEN` (not Azure) |
 | `acr-create.yml` | ACR Create (reusable) | `workflow_call` + `workflow_dispatch` | yes | **org**-level Actions secrets |
 | `acr-destroy.yml` | ACR Destroy (reusable) | `workflow_call` + `workflow_dispatch` | yes | **Environment** `AZURE` (caller-resolved on `workflow_call`) |
@@ -274,13 +293,16 @@ pass no arguments, so CI and local cannot drift. Things that will bite:
   the next `make release-<level>` aborts in `release-check` for a reason that
   looks unrelated.
 
-All five workflows pin `terraform_version: "1.15.8"` and
+All six workflows pin `terraform_version: "1.15.8"` and
 `terraform_wrapper: false` (the wrapper intercepts stdout and would break
-`terraform output -raw`). Bump the pin in all five together.
+`terraform output -raw`). Bump the pin in all six together.
 
 ## Repo layout (high level)
 
-- `.github/workflows/` — five workflows; see the CI section above.
+- `.github/workflows/` — six workflows; see the CI section above.
+- `.github/pull_request_template.md` — checklist; its first item is the
+  `CHANGELOG.md` `[Unreleased]` entry, because a release refuses to cut without
+  one.
 - `.github/actions/import-state/` — composite action, bootstrap workflows only.
 - `PROVISION_ACR.md` — standalone runbook for provisioning/destroying just the
   ACR (modules 01 → 04 → 06), by hand or via `acr-create.yml` /
@@ -397,7 +419,7 @@ the per-module commands by hand.
   idempotent and resumable — fix the module, re-run `make destroy`.
 - **A `VERSION` bump makes every module show a pending tag diff**. Each module
   root stamps `release = local.release` (read from `VERSION`) into `var.tags`,
-  so right after `make release-minor`, `terraform plan` reports a `~ tags`
+  so right after `make release-prep-minor`, `terraform plan` reports a `~ tags`
   update on every resource in all twelve modules. That is the intended drift
   signal — code at the new release, Azure still labelled with the old one —
   not a bug. It clears on the next `make apply`. Tag changes are in-place
@@ -409,12 +431,22 @@ the per-module commands by hand.
   The submit succeeds, then the gate lookup
   (`api/qualitygates/project_status?analysisId=...`) 403s, because short-lived
   branch gate status is not readable on this plan — and the scanner reports
-  that as a credentials error. `sonar.branch.name=main` in
-  `sonar-project.properties` pins it; do not remove it. Diagnose this class of
+  that as a credentials error. `release.yml` passes
+  `args: -Dsonar.branch.name=main` to prevent it. Diagnose this class of
   failure by reading the DEBUG log for the `api/ce/submit` URL and checking
   whether `characteristic=branch=` says anything other than `main`, and by
   hitting `api/qualitygates/project_status?analysisId=<id>` anonymously — if it
   403s without a token, no token change will fix it.
+- **`sonar.branch.name` must NOT be pinned in `sonar-project.properties`.** It
+  was, until the repo went PR-only. A global pin makes every `pr-verify.yml`
+  analysis submit the PR's code as `main`, overwriting main's analysis and
+  giving main a gate result for code nobody merged. The branch is now supplied
+  per caller — nothing from `pr-verify.yml` (the action auto-detects the PR),
+  `-Dsonar.branch.name=main` from `release.yml` and from `make sonar`. This is
+  the one sanctioned exception to that file's "no scanner arguments in the
+  workflow" rule, and the file says so.
+- **`make sonar` refuses to run off `main`**, for the same reason. Feature
+  branches are analysed by `pr-verify.yml` on the pull request.
 - **`make sonar` hanging at "SCM Publisher N source files to be analyzed" is a
   git ownership problem, not a slow scan.** The scanner container runs as uid
   1000 while the bind-mounted tree belongs to the host user, so git rejects the

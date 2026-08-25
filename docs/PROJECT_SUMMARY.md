@@ -61,10 +61,11 @@ all apps (acceptable for a playground).
 - `docs/PROVISIONING_PLAN.md` — the master plan (naming conventions, per-module
   command reference §13, passwordless wiring §12)
 - `Makefile` — whole-estate + per-module `apply`/`destroy`/`reprovision`
-- `.github/workflows/` — five workflows: `acr-create.yml` / `acr-destroy.yml`
+- `.github/workflows/` — six workflows: `acr-create.yml` / `acr-destroy.yml`
   (both `workflow_call` + `workflow_dispatch`), `tf-bootstrap-create.yml` /
-  `tf-bootstrap-destroy.yml`, and `release.yml`. All but `release.yml` touch
-  Azure; each one shells out to repo-root `make` targets. See README.md
+  `tf-bootstrap-destroy.yml`, `release.yml`, and `pr-verify.yml`. Only the four
+  Azure-touching ones hold credentials; `release.yml` and `pr-verify.yml` do
+  not. Each shells out to repo-root `make` targets. See README.md
 - `PROVISION_ACR.md` — standalone runbook for standing up just the ACR
   (modules 01 → 04 → 06) and tearing it back down
 - `RELEASING.md` — what MAJOR/MINOR/PATCH mean here and how a tag is cut
@@ -110,9 +111,15 @@ in numeric order — a module whose upstreams are not applied fails at plan with
 make apply-acr` (~$5.07/month); Container Apps needs 01, 04, 06, 07, 08, 09,
 10, then 11. PROVISIONING_PLAN.md → Progress has the detail.
 
+**Branching.** `main` is protected and PR-only: work happens on a feature
+branch, reaches `main` through a squash-merged pull request, and every PR is
+gated by `pr-verify.yml` (`terraform`, `workflows`, `sonar`).
+
 **Releases.** Tagged `v<VERSION>` off `main`; `VERSION` at the repo root is the
 source of truth and every Azure resource carries a matching `release` tag.
-Semver here is infra-impact based — see `RELEASING.md`.
+Semver here is infra-impact based — see `RELEASING.md`. A release is a
+`release/vX.Y.Z` PR that bumps `VERSION` and rolls the changelog, then a tag
+placed on `main` after it merges.
 
 **Deferred / outstanding work:**
 

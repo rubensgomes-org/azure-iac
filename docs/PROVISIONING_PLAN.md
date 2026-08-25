@@ -1399,6 +1399,12 @@ full policy and the step-by-step procedure live in **`RELEASING.md`** at the
 repo root; this section records the design so the plan stays the single place
 that explains *why*.
 
+`main` is protected and PR-only, so a release is two phases: a *release PR*
+carrying the `VERSION` bump and the changelog roll, then a tag placed on `main`
+after that PR merges. The tag must come second — squash-merge rewrites the
+commit SHA, so a tag created before the merge would point at a commit that
+never lands on `main`.
+
 **Source of truth.** The repo-root `VERSION` file holds a bare
 `MAJOR.MINOR.PATCH` (no `v`). Everything else derives from it:
 
@@ -1426,7 +1432,7 @@ outstanding — MINOR absorbs breaking changes. `1.0.0` is cut when a full
 `make apply` from zero brings up all twelve modules with real application
 images and verifies clean (D1 and D2 closed).
 
-**Trigger is manual and explicit.** `make release-patch|minor|major` picks the
+**Trigger is manual and explicit.** `make release-prep-patch|minor|major` picks the
 level; nothing is inferred from commit messages, because the commit history
 here is intentionally informal and would make an inferred bump untrustworthy.
 The bump targets write `VERSION`, roll `[Unreleased]` into a dated version
@@ -1482,19 +1488,26 @@ recording:
 
 - The gate runs *after* the tag is pushed. A red gate therefore leaves a tag
   with no GitHub Release; per §16 a published tag is never moved, so the
-  remedy is the next patch release. `make sonar` before tagging avoids it.
+  remedy is the next patch release. `make sonar` before tagging avoids it —
+  as does `pr-verify.yml`, which runs the same gate in PR mode on the way in,
+  so by tag time a red gate should mean something changed since the merge.
+- The branch name is passed per caller, not pinned in
+  `sonar-project.properties`: `release.yml` sends
+  `-Dsonar.branch.name=main`, `pr-verify.yml` sends nothing and lets the
+  action detect the PR. Pinning it globally would make every PR analysis
+  overwrite main's.
 - `sonar.exclusions` must keep covering `**/.terraform/**`. `make validate`
   runs first and leaves a `.terraform/modules/` copy of every local module's
   `.tf` files; without the exclusion `sonar.sources=.` indexes both copies.
 
-**Terraform CLI pin in CI.** All five workflows in `.github/workflows/`
-(`release.yml`, `acr-create.yml`, `acr-destroy.yml`,
+**Terraform CLI pin in CI.** All six workflows in `.github/workflows/`
+(`pr-verify.yml`, `release.yml`, `acr-create.yml`, `acr-destroy.yml`,
 `tf-bootstrap-create.yml`, `tf-bootstrap-destroy.yml`) pin
 `terraform_version: "1.15.8"`, which is the minimum needed to satisfy the
 `required_version = "~> 1.15"` declared in every `versions.tf` in the repo —
 roots, child modules, and `bootstrap-backend/`. The two bootstrap workflows
 originally pinned `1.14.3`, which does *not* satisfy that constraint; they
-would have failed `terraform init`. Bump all five together. They also all set
+would have failed `terraform init`. Bump all six together. They also all set
 `terraform_wrapper: false`, because the wrapper intercepts stdout and would
 break `terraform output -raw`.
 
