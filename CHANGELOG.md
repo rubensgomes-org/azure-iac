@@ -19,6 +19,14 @@ here.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.1.0] - 2026-08-24
+
+### Added
+
 - `.github/workflows/destroy-acr.yml` (**Destroy ACR (manual)**) — manual,
   type-to-confirm workflow that destroys module 06 and nothing else: the
   container registry and every repository, tag, and manifest inside it. The
