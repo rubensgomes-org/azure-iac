@@ -21,6 +21,14 @@ here.
 
 ### Changed
 
+### Fixed
+
+## [0.0.3] - 2026-08-24
+
+### Added
+
+### Changed
+
 - Workflow display names shortened for the Actions sidebar:
   `terraform-bootstrap-apply.yml` is now **TF Bootstrap Create** (was
   "Terraform Bootstrap Backend - APPLY (manual)") and
