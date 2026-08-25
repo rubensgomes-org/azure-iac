@@ -41,11 +41,12 @@ on:
   pull_request:
     branches: [main]
 
+# Workflow-level default: read-only, for every job. The one job that needs more
+# raises it for itself -- see the `sonar` job's own `permissions:` block. Keep
+# write scopes out of here: a workflow-level grant hands the token to jobs that
+# have no use for it, including any job added later.
 permissions:
-  # Read the code. `pull-requests: write` is for SonarCloud's PR decoration --
-  # the inline findings it posts onto the diff. Nothing here writes contents.
   contents: read
-  pull-requests: write
 
 concurrency:
   # Keyed on the PR, so a force-push supersedes its own in-flight run. Unlike
@@ -198,6 +199,16 @@ jobs:
     name: sonar
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    # Scoped to THIS job, not the workflow. `pull-requests: write` is what lets
+    # SonarCloud decorate the diff with inline findings; the terraform and
+    # workflows jobs have no business holding it.
+    #
+    # A job-level block REPLACES the workflow default rather than adding to it,
+    # so `contents: read` has to be restated here or the checkout loses it.
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       # -----------------------------------------------------------------------
