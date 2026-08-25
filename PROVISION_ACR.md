@@ -344,7 +344,7 @@ make destroy-managed-identities   # optional — the UAMI. Reverse numeric order
 `make destroy-acr` alone stops all billing; the UAMI is free, so leaving it in
 place costs nothing and saves a step next time.
 
-From CI, the equivalent is the **Destroy ACR (manual)** workflow
+From CI, the equivalent is the **ACR Destroy (manual)** workflow
 (`.github/workflows/destroy-acr.yml`), run from the Actions tab. It destroys
 module 06 only — resource groups and the managed identity are left standing,
 and a guard step aborts the run if the destroy plan says otherwise. It asks you

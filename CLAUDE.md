@@ -125,8 +125,8 @@ documented under Auth model.
 | Workflow | Actions-tab name | Trigger | Touches Azure | Secret source |
 | --- | --- | --- | --- | --- |
 | `release.yml` | Release (tag push) | tag `v*.*.*` | **no** | — |
-| `provision-acr.yml` | Provision ACR (reusable) | `workflow_call` + `workflow_dispatch` | yes | **org**-level Actions secrets |
-| `destroy-acr.yml` | Destroy ACR (manual) | `workflow_dispatch` | yes | **Environment** `AZURE` |
+| `provision-acr.yml` | ACR Create (reusable) | `workflow_call` + `workflow_dispatch` | yes | **org**-level Actions secrets |
+| `destroy-acr.yml` | ACR Destroy (manual) | `workflow_dispatch` | yes | **Environment** `AZURE` |
 | `terraform-bootstrap-apply.yml` | TF Bootstrap Create | `workflow_dispatch` | yes | **Environment** `AZURE` |
 | `terraform-bootstrap-destroy.yml` | TF Bootstrap Destroy | `workflow_dispatch` | yes | **Environment** `AZURE` |
 

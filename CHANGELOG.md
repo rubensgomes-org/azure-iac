@@ -21,6 +21,12 @@ here.
 
 ### Changed
 
+- Both ACR workflows renamed in the Actions sidebar so they sort together:
+  `provision-acr.yml` is now **ACR Create (reusable)** (was "Provision ACR
+  (reusable)") and `destroy-acr.yml` is now **ACR Destroy (manual)** (was
+  "Destroy ACR (manual)", shipped in 0.1.0). Filenames and behaviour are
+  unchanged; nothing in the repo keys off a workflow's `name:`.
+
 ### Fixed
 
 ## [0.1.0] - 2026-08-24

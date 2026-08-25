@@ -60,7 +60,7 @@
 #     break `terraform output -raw`.
 # =============================================================================
 
-name: Destroy ACR (manual)
+name: ACR Destroy (manual)
 
 on:
   workflow_dispatch:

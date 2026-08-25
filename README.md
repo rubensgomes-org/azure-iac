@@ -99,8 +99,8 @@ locally; `release.yml` deliberately holds no Azure credentials.
 
 | Workflow | Shows in Actions as | Trigger | What it does |
 | --- | --- | --- | --- |
-| [`provision-acr.yml`](./.github/workflows/provision-acr.yml) | **Provision ACR (reusable)** | `workflow_call`, `workflow_dispatch` | Applies modules 01 → 04 → 06 so a registry exists and is writable. Publishes `acr_name` / `acr_login_server` outputs. |
-| [`destroy-acr.yml`](./.github/workflows/destroy-acr.yml) | **Destroy ACR (manual)** | `workflow_dispatch` | Destroys module 06 only — the registry and every image in it. Resource groups (01) and the shared UAMI (04) are left standing. Type-to-confirm guarded. |
+| [`provision-acr.yml`](./.github/workflows/provision-acr.yml) | **ACR Create (reusable)** | `workflow_call`, `workflow_dispatch` | Applies modules 01 → 04 → 06 so a registry exists and is writable. Publishes `acr_name` / `acr_login_server` outputs. |
+| [`destroy-acr.yml`](./.github/workflows/destroy-acr.yml) | **ACR Destroy (manual)** | `workflow_dispatch` | Destroys module 06 only — the registry and every image in it. Resource groups (01) and the shared UAMI (04) are left standing. Type-to-confirm guarded. |
 | [`terraform-bootstrap-apply.yml`](./.github/workflows/terraform-bootstrap-apply.yml) | **TF Bootstrap Create** | `workflow_dispatch` | Creates/updates the state backend (`rg-tfstate`, `sttfstaterubens01`, `tfstate`). |
 | [`terraform-bootstrap-destroy.yml`](./.github/workflows/terraform-bootstrap-destroy.yml) | **TF Bootstrap Destroy** | `workflow_dispatch` | Tears the state backend down. |
 | [`release.yml`](./.github/workflows/release.yml) | **Release (tag push)** | tag `v*.*.*` | Validates the tag against `VERSION` + `CHANGELOG.md`, publishes a GitHub Release. |
