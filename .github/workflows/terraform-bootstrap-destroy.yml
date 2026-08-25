@@ -32,7 +32,7 @@
 #     auth you must use the "creds" JSON object.
 # =============================================================================
 
-name: Destroy TF Bootstrap (manual)
+name: TF Bootstrap Destroy
 
 # -----------------------------------------------------------------------------
 # Manual trigger ONLY, with safeguard inputs.

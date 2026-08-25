@@ -30,7 +30,7 @@
 #     auth you must use the "creds" JSON object.
 # =============================================================================
 
-name: Provision TF Bootstrap (manual)
+name: TF Bootstrap Create
 
 on:
   workflow_dispatch: {}  # manual trigger only
