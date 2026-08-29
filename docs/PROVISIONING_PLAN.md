@@ -32,29 +32,30 @@ eventually automate provision / destroy / reprovision end-to-end.
   and granted `CONNECT`/schema privileges on every app DB (fanned out via
   `for_each = toset(var.apps)`).
 
-## Progress (as of 2026-08-24)
+## Progress (as of 2026-08-29)
 
 Modules **01 through 12 are fully implemented, and all have been applied
 and verified against Azure at least once** — the estate is
 feature-complete in code.
 
-**Currently applied in Azure: module 01 ONLY. Everything else is torn
-down.** Verified 2026-08-24: the five resource groups
-(`rg-dev-platform`, `-network`, `-data`, `-app`, `-observability`)
-exist and are all empty — `az resource list -g <rg>` returns nothing
-for any of them. In the `tfstate` container only
-`resource-groups/terraform.tfstate` is populated (~10 KB); every other
-module's state key is an empty few-hundred-byte shell (serial +
-lineage, no resources).
+**Currently applied in Azure: NOTHING. The estate is at zero.** Verified
+2026-08-29: none of the five `rg-dev-*` resource groups exist —
+`az group list` returns only `rg-tfstate` plus the Azure-created
+`NetworkWatcherRG` and `DefaultResourceGroup-EUS`. Every one of the
+twelve module state keys is an empty few-hundred-byte shell (serial +
+lineage, `resources: 0`); `bootstrap/backend.tfstate` is the only
+populated state in the container.
 
-The estate therefore costs $0/month at present: resource groups and the
-state Storage Account are free at this scale.
+(Until 2026-08-24 module 01 was still up. It has since been destroyed,
+so the five resource groups are gone rather than merely empty.)
+
+The estate therefore costs $0/month at present: the state Storage
+Account is free at this scale.
 
 Re-check rather than trusting this note — a status line ages badly:
 
 ```bash
-az group list --query "[].name" -o tsv
-az resource list -g rg-dev-platform -o tsv          # empty => nothing applied
+az group list --query "[].name" -o tsv              # no rg-dev-* => nothing applied
 az storage blob list --account-name sttfstaterubens01 \
   --container-name tfstate --auth-mode key \
   --query "[].{name:name,size:properties.contentLength}" -o table
@@ -64,12 +65,23 @@ az storage blob list --account-name sttfstaterubens01 \
 `Storage Blob Data *` role, so `--auth-mode login` fails on that
 container.
 
-**Rebuilding** is `make apply` from the repo root (01 no-ops), or
-module-by-module in numeric order. Each module's upstreams must be
-applied first — a root whose `data.terraform_remote_state` points at an
-empty state key fails at plan with *Unsupported attribute*, which is
-not a useful message. Two chains worth knowing: ACR alone is
-`make apply-managed-identities && make apply-acr` (~$5.07/month, all of
+**Region: `centralus`** for the whole estate, moved from `eastus` in
+v0.4.2. A single `location` in `terraform/envs/dev/env.tfvars` drives
+all twelve modules and there are no per-module overrides — module 09's
+`eastus2` pin is gone, because `centralus` is not offer-restricted for
+PG Flexible Server on this subscription the way `eastus` is. The state
+backend stays in `eastus` deliberately; see §15. Before moving the
+estate again, read the ForceNew warning in `env.tfvars` and check the
+candidate region with
+`az postgres flexible-server list-skus --location <region>`.
+
+**Rebuilding** is `make apply` from the repo root, or module-by-module
+in numeric order. Nothing is up, so module 01 builds from scratch too.
+Each module's upstreams must be applied first — a root whose
+`data.terraform_remote_state` points at an empty state key fails at plan
+with *Unsupported attribute*, which is not a useful message. Two chains
+worth knowing: ACR alone is `make apply-resource-groups &&
+make apply-managed-identities && make apply-acr` (~$5.07/month, all of
 it the Basic registry unit); Container Apps needs 01, 04, 06, 07, 08,
 09, 10, then 11.
 
@@ -1260,11 +1272,20 @@ check the new region with `az postgres flexible-server list-skus --location
 <region>` before committing to it; a restricted region brings the two-region
 split (and this caveat) straight back.
 
+**The state backend is the one deliberate exception.** `rg-tfstate` and
+`sttfstaterubens01` remain in `eastus` and did not move with the estate. That is
+not drift: the azurerm backend addresses state by resource group + storage
+account + container name, and `envs/dev/backend.hcl` has no region field at all,
+so a state blob's location is independent of where the resources it tracks live.
+Relocating it would mean a new globally-unique storage account name (Azure cannot
+move a storage account between regions) and a migration of every state blob,
+for no benefit. Leave it.
+
 **What legitimately survives, and why.** None of these are leaks:
 
 | Survivor | Why |
 |---|---|
-| `rg-tfstate` + `sttfstaterubens01` + `tfstate` container | The state backend. Not managed by modules 01-12 — see the optional step below. |
+| `rg-tfstate` + `sttfstaterubens01` + `tfstate` container | The state backend, in `eastus` by design (see the region note above). Not managed by modules 01-12 — see the optional step below. |
 | `NetworkWatcherRG` | Auto-created by Azure per-region, not by this repo. |
 | `ME_cae-dev_rg-dev-app_centralus` | Azure-managed infra RG for the Container App Environment. Removed automatically when module 10 destroys the CAE — never delete it by hand. |
 | Service Principal, PG Entra admin group | Created manually per `INITIAL_SETUP.md`. Delete by hand if you want a truly clean tenant. |

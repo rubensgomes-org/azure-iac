@@ -65,11 +65,16 @@ here.
 
 ### Fixed
 
-- **`CLAUDE.md` project status was stale.** It claimed module
-  01-resource-groups was still applied; it has since been destroyed and the
-  estate is at zero. Corrected against a live check, and the module-01
-  assumption removed from the "ACR only" rebuild chain, which now starts with
-  `make apply-resource-groups`.
+- **Project status was stale in three places.** `CLAUDE.md`,
+  `docs/PROVISIONING_PLAN.md` → Progress, and `docs/PROJECT_SUMMARY.md` →
+  Status all claimed module 01-resource-groups was still applied with its five
+  resource groups sitting empty. It has since been destroyed: the estate is at
+  zero and the resource groups are gone, not empty. All three corrected against
+  a live check and re-dated, and the module-01 assumption removed from the "ACR
+  only" rebuild chain in each, which now starts with
+  `make apply-resource-groups`. Each now also states the estate region and the
+  backend's deliberate `eastus` exception, so the next reader does not have to
+  infer either.
 
 ## [0.4.1] - 2026-08-25
 
