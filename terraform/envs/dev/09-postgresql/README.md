@@ -287,33 +287,38 @@ Message: "Subscriptions are restricted from provisioning in location
 
 Per-subscription + per-service restriction. Common on free / trial /
 MSDN / CSP subscriptions — every other module (RGs, VNet, KV, ACR,
-Storage, Service Bus) provisions to `eastus` without issue; PG Flex
-alone is gated.
+Storage, Service Bus) provisions to the restricted region without
+issue; PG Flex alone is gated.
 
-Fix: land PG Flex in a nearby unrestricted region without moving the
-rest of the estate. `terraform.tfvars` in this root already carries a
-`location = "eastus2"` override for this reason. The parent RG
-`rg-dev-data` stays in `eastus` — Azure allows an RG to hold resources
-in a different region.
+**You should not hit this today.** The estate is `centralus`, which is
+not restricted for this subscription. The error above quotes `eastus`
+because that is where the estate lived until v0.4.2, and it is the
+reason this root used to carry a `location = "eastus2"` override. That
+override has been removed — PG Flex now inherits `centralus` from the
+shared `../env.tfvars` like everything else.
 
-Confirm a candidate region actually accepts PG Flex for this
-subscription before editing:
+It becomes relevant again the moment you move the estate. Check the
+candidate region BEFORE editing `env.tfvars`:
 
 ```bash
-az postgres flexible-server list-skus --location eastus2 -o table | head -3
-# Non-empty output = region works. Error output = try eastus2 → centralus →
-# westus2 → westus3 → southcentralus.
+az postgres flexible-server list-skus --location <region> -o json \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d[0].get("reason") or "no restriction")'
+# "no restriction"                        = region works
+# "Provisioning is restricted in this..." = pick another
 ```
 
-To swap regions, change the one line in
-[`terraform.tfvars`](terraform.tfvars) and re-plan.
+If the new region is restricted, the cheapest fix is what this root did
+before: reinstate a single `location = "<nearest-unrestricted>"` line in
+[`terraform.tfvars`](terraform.tfvars) to move PG Flex alone. The parent
+RG `rg-dev-data` follows `env.tfvars` — Azure allows an RG to hold
+resources in a different region.
 
 ### `InvalidResourceLocation` 409 after a failed create
 
 ```
 409 Conflict — InvalidResourceLocation: The resource 'psql-dev-<hex>'
-already exists in location 'eastus' in resource group 'rg-dev-data'.
-A resource with the same name cannot be created in location 'eastus2'.
+already exists in location '<old-region>' in resource group 'rg-dev-data'.
+A resource with the same name cannot be created in location '<new-region>'.
 ```
 
 Happens when the previous apply failed mid-create (e.g. from the
@@ -420,11 +425,12 @@ unescaped.
   are hard-coded in the child module (`modules/postgresql/main.tf`).
   Change there if you need a bigger tier, HA, or the eventual VNet-only
   migration.
-- **Region override.** `terraform.tfvars` pins PG Flex to `eastus2`
-  because this subscription is offer-restricted from PG Flex in
-  `eastus` (the shared env.tfvars value). See Troubleshooting →
-  `LocationIsOfferRestricted` for the rationale and how to swap
-  regions.
+- **No region override** (removed in v0.4.2). PG Flex inherits
+  `centralus` from the shared env.tfvars along with every other module.
+  It used to pin `eastus2`, because the subscription is offer-restricted
+  from PG Flex in the then-current `eastus`; `centralus` is not
+  restricted, so the split is gone. See Troubleshooting →
+  `LocationIsOfferRestricted` before moving the estate again.
 - The runner's public IP is fetched fresh on every plan via
   `https://api.ipify.org`. Applying from a different location updates
   the firewall rule (a small diff every time you roam).

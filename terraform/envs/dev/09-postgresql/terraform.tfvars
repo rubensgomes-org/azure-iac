@@ -11,31 +11,33 @@
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# Region override — PG Flex only
+# Region — NO override (removed in v0.4.2)
 # -----------------------------------------------------------------------------
-# The shared env.tfvars pins the estate to `eastus`, but this subscription
-# is offer-restricted from provisioning PostgreSQL Flexible Server there:
+# PG Flex now inherits `location` from the shared ../env.tfvars along with every
+# other module. There is deliberately no `location =` line in this file.
+#
+# History, so the absence does not read as an accident: this subscription is
+# offer-restricted from provisioning PostgreSQL Flexible Server in `eastus` —
 #
 #   Status:  LocationIsOfferRestricted
 #   Message: Subscriptions are restricted from provisioning in location
 #            'eastus'. Try again in a different location.
 #            See https://aka.ms/postgres-request-quota-increase
 #
-# Restriction is per-subscription + per-service (PG Flex only) — every
-# other module (RGs, VNet, KV, ACR, Storage, Service Bus) provisions to
-# `eastus` without issue. Cheapest workaround: land PG Flex in the nearest
-# unrestricted region. `eastus2` is geographically adjacent (~2-5 ms
-# runtime latency to Container Apps in eastus, negligible for a
-# playground).
+# — so while the estate lived in `eastus` this file pinned PG to `eastus2`. The
+# restriction is per-subscription AND per-service: it hit PG Flex only, never the
+# RGs, VNet, KV, ACR, Storage, or Service Bus. Moving the estate to `centralus`
+# was exactly the exit condition that override documented, because `centralus` is
+# NOT restricted. Verified before the move:
 #
-# The parent RG `rg-dev-data` stays in `eastus`; Azure allows an RG to
-# hold resources in a different region. `var.location` is consumed by
-# the server, firewall rules, and per-app databases in the child module,
-# so setting it here moves ALL PG resources in one go.
+#   az postgres flexible-server list-skus --location centralus
+#     -> no restriction; Standard_B1ms available, zones [1,2,3], 32768 MB
+#     (compare `--location eastus`, which still reports the restriction above)
 #
-# Revisit if:
-#   - Microsoft lifts the restriction (unlikely for playground subs).
-#   - A quota exception is granted via the aka.ms link above.
-#   - You migrate the estate off `eastus` — then move this back to the
-#     shared env.tfvars value.
-location = "eastus2"
+# If you point env.tfvars at a new region, re-run that command FIRST. If the new
+# region is restricted, reinstate a `location = "<nearest-unrestricted>"` line
+# here — `var.location` is consumed by the server, its firewall rules, and every
+# per-app database in the child module, so one line moves all PG resources
+# together. The parent RG `rg-dev-data` follows env.tfvars either way; Azure
+# permits an RG to hold resources from another region.
+# -----------------------------------------------------------------------------

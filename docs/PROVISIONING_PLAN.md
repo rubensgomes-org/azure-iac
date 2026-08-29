@@ -306,7 +306,7 @@ Every `envs/dev/<NN-module>/` root gets these files (mirroring
 
 ```hcl
 env      = "dev"
-location = "eastus"
+location = "centralus"
 prefix   = "rg"
 
 # One PG database per app in this list. All apps share ONE UAMI (id-dev-app);
@@ -1250,10 +1250,15 @@ whatever the truth was. It is also unnecessary — module 09 names the server
 server's retained name. The recovery counterpart, if you ever need a dropped
 server back, is `az postgres flexible-server revive-dropped`.
 
-**Region caveat:** module 09 pins `location = "eastus2"` in its own
-`terraform.tfvars`, overriding the `eastus` in `env.tfvars`. That is deliberate,
-not drift. Any teardown check scoped by region needs `--location eastus2` for
-PostgreSQL while everything else is `eastus`.
+**Region: single, no caveat.** The whole estate is `centralus` (`env.tfvars`),
+PostgreSQL included, so any teardown check scoped by region uses one value. This
+was not always true — until v0.4.2 module 09 pinned `location = "eastus2"` in its
+own `terraform.tfvars`, because the subscription is offer-restricted from
+provisioning PG Flexible Server in the then-current `eastus`. `centralus` carries
+no such restriction, so the override is gone. If you ever move the estate again,
+check the new region with `az postgres flexible-server list-skus --location
+<region>` before committing to it; a restricted region brings the two-region
+split (and this caveat) straight back.
 
 **What legitimately survives, and why.** None of these are leaks:
 
@@ -1261,7 +1266,7 @@ PostgreSQL while everything else is `eastus`.
 |---|---|
 | `rg-tfstate` + `sttfstaterubens01` + `tfstate` container | The state backend. Not managed by modules 01-12 — see the optional step below. |
 | `NetworkWatcherRG` | Auto-created by Azure per-region, not by this repo. |
-| `ME_cae-dev_rg-dev-app_eastus` | Azure-managed infra RG for the Container App Environment. Removed automatically when module 10 destroys the CAE — never delete it by hand. |
+| `ME_cae-dev_rg-dev-app_centralus` | Azure-managed infra RG for the Container App Environment. Removed automatically when module 10 destroys the CAE — never delete it by hand. |
 | Service Principal, PG Entra admin group | Created manually per `INITIAL_SETUP.md`. Delete by hand if you want a truly clean tenant. |
 | PostgreSQL server name (up to 7 days) | Flexible Server has no purge command. Blocks reprovisioning under the same name; not a billable resource. |
 

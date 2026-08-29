@@ -415,11 +415,13 @@ cd terraform/envs/dev/06-acr && terraform plan -destroy \
 
 ## 8. Cost
 
-Figures pulled from the Azure retail pricing API for `eastus` (the region set
-in `terraform/envs/dev/env.tfvars`). Verify current numbers with:
+Figures pulled from the Azure retail pricing API for `centralus` (the region set
+in `terraform/envs/dev/env.tfvars`). Re-checked against the live API when the
+estate moved off `eastus` in v0.4.2 — ACR registry-unit rates are **identical**
+in both regions, so the table below did not change. Verify current numbers with:
 
 ```bash
-curl -s "https://prices.azure.com/api/retail/prices?\$filter=serviceName%20eq%20'Container%20Registry'%20and%20armRegionName%20eq%20'eastus'"
+curl -s "https://prices.azure.com/api/retail/prices?\$filter=serviceName%20eq%20'Container%20Registry'%20and%20armRegionName%20eq%20'centralus'"
 ```
 
 ### An empty registry costs exactly the same as a full one
