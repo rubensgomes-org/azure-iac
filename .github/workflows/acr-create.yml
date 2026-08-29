@@ -62,7 +62,7 @@
 #     naming them explicitly keeps these lines matching the documented
 #     sequence in PROVISION_ACR.md.
 #   - terraform_version must satisfy the `required_version = "~> 1.15"`
-#     declared in every versions.tf in the repo. All five workflows in this
+#     declared in every versions.tf in the repo. All six workflows in this
 #     directory pin the same build; bump them together.
 #   - The teardown counterpart is acr-destroy.yml, which is reusable too but
 #     destroys module 06 only and is guarded by an actor allowlist, a typed

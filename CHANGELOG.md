@@ -23,6 +23,16 @@ here.
 
 ### Fixed
 
+- **Corrected workflow counts that the `pr-verify.yml` → `main-verify.yml`
+  rename left stale.** `acr-create.yml` and `docs/PROVISIONING_PLAN.md` both
+  said "five workflows"; there are six. `release.yml`'s timeout comment claimed
+  "the other four workflows in this directory carry" one — only three do — so
+  the count is dropped rather than corrected, since it rots on every rename.
+
+- **`RELEASING.md` no longer illustrates the `release` tag drift with `0.1.0`
+  / `0.2.0`**, versions the repo left behind at v0.2.0. The two consequences are
+  now stated without hardcoded numbers.
+
 ## [0.4.3] - 2026-08-29
 
 ### Added

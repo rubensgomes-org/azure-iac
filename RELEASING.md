@@ -174,12 +174,13 @@ Two consequences worth internalising:
 
 1. **A version bump immediately puts the estate "behind".** Right after
    `make release-minor`, `terraform plan` shows a pending `~ tags` update on
-   every resource in all twelve modules. That diff is the intended signal:
-   the code is at 0.2.0, Azure is still labelled 0.1.0. It clears on the next
-   `make apply`.
+   every resource in all twelve modules. That diff is the intended signal —
+   the code is at the new release, Azure is still labelled with the previous
+   one. It clears on the next `make apply`.
 2. **The stamp records the release, not the commit.** Applying uncommitted
    work-in-progress labels the resources with the last release number. If you
-   want the estate to say `0.2.0`, cut `0.2.0` first, then apply.
+   want the estate to carry a given version, cut that release first, then
+   apply.
 
 Tag changes are in-place updates in `azurerm` — no resource is replaced by a
 version bump. Confirm with `make plan-resource-groups` if you want to see it.

@@ -71,7 +71,7 @@ jobs:
     # No ceiling existed here before the Sonar gate landed. Step 7 blocks
     # waiting on SonarCloud to finish computing the gate, which is exactly the
     # kind of step that can hang, so give the job the same kind of ceiling the
-    # other four workflows in this directory carry.
+    # other workflows in this directory carry.
     timeout-minutes: 20
 
     env:

@@ -518,7 +518,7 @@ Root `Makefile` with per-module targets (`make apply-networking`,
 `make destroy`, `make reprovision`) that iterate `envs/dev/[0-9][0-9]-*` in
 forward order for apply and reverse for destroy. Uses the same
 `-backend-config` + `-var-file` invocations. GitHub Actions reuses the same
-`make` targets rather than reimplementing them — see the five workflows in
+`make` targets rather than reimplementing them — see the six workflows in
 `.github/workflows/`, described in README.md and CLAUDE.md. `acr-create.yml`
 is the worked example: it exports `ARM_*` and calls
 `make init/plan/apply-<name>` for modules 01, 04 and 06 in order. When a
