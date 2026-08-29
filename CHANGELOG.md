@@ -21,6 +21,14 @@ here.
 
 ### Changed
 
+### Fixed
+
+## [0.4.2] - 2026-08-29
+
+### Added
+
+### Changed
+
 - **Estate region moved from `eastus` to `centralus`.** One line —
   `location` in `terraform/envs/dev/env.tfvars` — drives all 12 modules.
   No resource name in this repo embeds the region, so nothing is renamed.
