@@ -149,26 +149,38 @@ with no relevant change does not re-run. Full rationale in
 after the Makefile landed — every root passes `terraform validate` with
 no cloud calls.
 
-## Deferred work (project paused 2026-07-15)
+## Deferred work (project paused 2026-07-15, estate at zero since 2026-08-29)
 
 Everything below is optional or blocked on non-IaC work. The estate is
-fully provisioned in code and self-contained; pick any item up in
-isolation when there's appetite. In rough priority order:
+fully implemented in code and self-contained; pick any item up in
+isolation when there's appetite. Note that **nothing is applied** (see
+Progress above), so every item here starts with reprovisioning its
+upstreams. In rough priority order:
 
 ### D1. Wire real Java / Spring Boot images into module 11 (app work)
 
 Blocked on the Spring Boot 4.1.x microservices being built and pushed
-to `rubensdevacr`. Module 11 is currently destroyed (2026-07-26); when
-it was last up it ran `mcr.microsoft.com/k8se/quickstart:latest` on port
-80 as a placeholder. Because the apps are already down, wiring real
-images is a fresh apply, not a replace — no need to destroy first.
+to `rubensdevacr`. When module 11 was last up it ran
+`mcr.microsoft.com/k8se/quickstart:latest` on port 80 as a placeholder.
+Nothing is applied now, so this is a fresh apply rather than a replace —
+but that also means the registry the images have to be pushed to does
+not exist yet. The name is FIXED at `rubensdevacr`
+(`envs/dev/06-acr/terraform.tfvars`), so it survives a destroy/recreate
+and is safe to hardcode in image tags; that was the point of dropping
+the old `acr<env><random>` scheme.
 
 When images exist:
-1. In `terraform/envs/dev/11-container-apps/terraform.tfvars`, uncomment
+1. Reprovision ACR and push: `make apply-resource-groups &&
+   make apply-managed-identities && make apply-acr`, then push the
+   images to `rubensdevacr.azurecr.io`.
+2. In `terraform/envs/dev/11-container-apps/terraform.tfvars`, uncomment
    and set `apps_image_map` (map: app-name → full ACR image reference,
    e.g. `rubensdevacr.azurecr.io/api:1.0.0`) and `target_port` (Spring
    Boot default `8080`).
-2. `make apply-container-apps`.
+3. Apply module 11's remaining upstreams (07, 08, 09, 10 — or just
+   `make apply` from the repo root), then `make apply-container-apps`.
+   A bare `make apply-container-apps` fails at plan with *Unsupported
+   attribute* while any upstream state key is empty.
 
 See `terraform/envs/dev/11-container-apps/README.md` → "Swapping the
 placeholder image" for the full checklist.

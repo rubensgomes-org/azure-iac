@@ -12,13 +12,32 @@ account.
 Wraps [
 `../../../modules/container-apps/`](../../../modules/container-apps/README.md).
 
-**Status as of the last work session (2026-07-26): destroyed, not
-currently applied.** `make destroy-container-apps` was run — the
-`container-apps/terraform.tfstate` key is empty and `rg-dev-app` holds
-only `cae-dev` (module 10). Every upstream module listed under
-Prerequisites is still applied, so `make apply-container-apps` on its
-own brings the apps back. Container App names carry no soft-delete
-window, so nothing had to be purged.
+**Status (verified against Azure 2026-08-29): destroyed, and so is
+everything it depends on.** The `container-apps/terraform.tfstate` key is
+an empty shell, and `rg-dev-app` no longer exists — `cae-dev` went with
+it when module 10 was destroyed.
+
+**`make apply-container-apps` on its own will NOT work.** All seven
+prerequisites below are down; this root reads every one of them through
+`data.terraform_remote_state`, and against an empty state key the plan
+fails with *Unsupported attribute* rather than a useful message. Apply
+the chain in order first:
+
+```bash
+make apply-resource-groups        # 01
+make apply-managed-identities     # 04
+make apply-acr                    # 06
+make apply-storage                # 07
+make apply-service-bus            # 08
+make apply-postgresql             # 09  (plus its manual Cloud Shell bootstrap)
+make apply-container-app-environment  # 10
+make apply-container-apps         # 11
+```
+
+or just `make apply` from the repo root, which walks 01 → 12.
+
+Container App names carry no soft-delete window, so nothing had to be
+purged on the way down.
 
 ## Prerequisites
 

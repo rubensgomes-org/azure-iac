@@ -171,11 +171,13 @@ make apply-acr                   # creates rubensdevacr + AcrPull grant
 
 ### Why module 01 is in the list
 
-Module 01 is normally already applied, and running it again is a **safe
-no-op** — `terraform apply` is idempotent, and empty resource groups are free.
-Including it here means the sequence works from *any* starting state without
-you first having to check what is standing. `make plan-resource-groups` tells
-you which case you are in: `No changes` means the RGs are already correct.
+Module 01 may or may not be up — as of 2026-08-29 the estate is at zero, so
+the common case is currently **5 to add**. Either way running it is safe:
+`terraform apply` is idempotent, and empty resource groups are free, so if the
+RGs already exist this is a no-op. Including it here means the sequence works
+from *any* starting state without you first having to check what is standing.
+`make plan-resource-groups` tells you which case you are in: `No changes` means
+the RGs are already correct.
 
 Both downstream modules read `rg_platform_name` from module 01's remote state,
 so if the RGs are missing, module 04 fails at plan time with *Unsupported

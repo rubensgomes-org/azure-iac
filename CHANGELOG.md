@@ -76,6 +76,34 @@ here.
   backend's deliberate `eastus` exception, so the next reader does not have to
   infer either.
 
+- **Two module READMEs described an estate that no longer exists**, in ways
+  that would have sent a reader down a failing path:
+  - `11-container-apps/README.md` claimed "every upstream module listed under
+    Prerequisites is still applied, so `make apply-container-apps` on its own
+    brings the apps back". All seven upstreams are destroyed; that command now
+    fails at plan with *Unsupported attribute*. Replaced with the ordered
+    apply chain.
+  - `09-postgresql/README.md` opened with a "mid-flight state" resume block
+    saying the server, admin binding, firewall rules, and databases were
+    applied and the next plan would show "1 to destroy". Nothing is applied and
+    there is no state to reconcile. Rewritten around the real starting point;
+    the `run_bootstrap = false` gate and the Cloud Shell data-plane step are
+    unchanged and still required. Also replaced a hardcoded
+    `psql-dev-1f91...` FQDN with the `<hex>` placeholder — `random_id.suffix`
+    regenerates on a fresh apply, so that value can never be correct again.
+
+- **`docs/PROVISIONING_PLAN.md` → Deferred work / D1** still reasoned from
+  "only module 11 is down". D1 now notes that ACR must be reprovisioned before
+  images can be pushed at all, and that a bare `make apply-container-apps`
+  cannot work until the upstream chain is applied.
+
+- **`12-monitoring/README.md`** said the estate was "feature-complete pending
+  Makefile automation". That automation landed some releases ago.
+
+- **`PROVISION_ACR.md`** said module 01 "is normally already applied" and that
+  re-running it is a no-op. With the estate at zero the common case is 5-to-add;
+  the sentence now covers both and keeps the idempotence point.
+
 ## [0.4.1] - 2026-08-25
 
 ### Added

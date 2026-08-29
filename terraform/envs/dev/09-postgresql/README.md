@@ -9,46 +9,48 @@ AAD-authenticated PG role with per-DB grants. State lives in
 
 Wraps [`../../../modules/postgresql/`](../../../modules/postgresql/README.md).
 
-## Resume — pick up here (mid-flight state)
+## Resume — pick up here
 
-**Status as of the last work session:** infrastructure applied (server,
-admin binding, firewall rules, per-app databases) but the data-plane
-bootstrap has NOT run. The in-line `null_resource.pg_bootstrap` is
-gated OFF (`run_bootstrap = false`) because this runner's ISP blocks
-outbound TCP 5432 to Azure PG — Terraform can't complete the psql
-step from here.
+**Status (verified against Azure 2026-08-29): destroyed, along with the
+rest of the estate.** `postgresql/terraform.tfstate` is an empty shell
+(`resources: 0`), and `rg-dev-data` itself no longer exists. There is no
+server, admin binding, firewall rule, or database, and nothing in state
+to reconcile.
 
-**Next 3 actions to close out module 09:**
+**Upstreams are down too**, which is the part that bites first. This root
+reads modules 01 and 04 through `data.terraform_remote_state`; against
+their empty state keys a plan fails with *Unsupported attribute* rather
+than anything self-explanatory. Bring module 09 back with:
 
-1. **Reconcile Terraform state** — the previously-tainted null_resource
-   still lives in state; the `run_bootstrap = false` gate means the
-   next plan destroys it (no-op, just removes the state entry):
+```bash
+make apply-resource-groups      # 01 — rg-dev-data and friends
+make apply-managed-identities   # 04 — the shared UAMI this module registers in PG
+make apply-postgresql           # 09
+```
 
-   ```bash
-   cd terraform/envs/dev/09-postgresql
-   terraform plan  -var-file=../env.tfvars -var-file=terraform.tfvars -out=tfplan
-   terraform apply tfplan
-   # Expect: 1 to destroy, 0 to add, 0 to change.
-   ```
+Expect a create-only plan: the server, two firewall rules, the Entra
+admin binding, and one database per entry in `apps`. The server name is
+`psql-dev-<hex>` from `random_id.suffix`, which regenerates on a fresh
+apply — so it will NOT be the name any earlier run used.
 
-2. **Run the data-plane bootstrap ONCE from Azure Cloud Shell** — see
-   the [Data-plane bootstrap (Cloud Shell)](#data-plane-bootstrap-cloud-shell)
-   section below. Grab the FQDN first:
+**Then run the data-plane bootstrap once, by hand.** The in-line
+`null_resource.pg_bootstrap` is gated OFF (`run_bootstrap = false`)
+because this runner's ISP blocks outbound TCP 5432 to Azure PG, so
+Terraform cannot complete the psql step from here. That gate is still in
+place and still correct. Grab the FQDN:
 
-   ```bash
-   terraform output -raw pg_fqdn
-   ```
+```bash
+terraform output -raw pg_fqdn
+```
 
-   Then open https://shell.azure.com, verify group membership, and run
-   the SQL block. Takes <10 seconds. Idempotent.
+then follow [Data-plane bootstrap (Cloud Shell)](#data-plane-bootstrap-cloud-shell)
+below — open https://shell.azure.com, verify group membership, run the
+SQL block. Takes <10 seconds, and it is idempotent. §12a of
+[`docs/PROVISIONING_PLAN.md`](../../../../docs/PROVISIONING_PLAN.md)
+describes the Container Apps Job that is meant to replace this manual
+step (deferred item D3).
 
-3. **Move on to module 10** (Container App Environment). The Job-based
-   refactor described in
-   [`docs/PROVISIONING_PLAN.md`](../../../../docs/PROVISIONING_PLAN.md)
-   §12a can slot in after modules 10 + 11 land.
-
-Everything below this section is the full module reference — the three
-actions above are the fastest path to a working module 09.
+Everything below this section is the full module reference.
 
 ## Prerequisites
 
@@ -157,8 +159,9 @@ Then run the bootstrap:
 ```bash
 # ---- pull values from Terraform outputs on your local machine and paste
 # ---- them here, since Cloud Shell has no access to your tfstate
-# PG_FQDN="psql-dev-<hex>.postgres.database.azure.com"
-PG_FQDN="psql-dev-1f91.postgres.database.azure.com"
+# Replace <hex> with the suffix from `terraform output -raw pg_fqdn`. It is
+# regenerated on every fresh apply, so do not reuse one from an earlier run.
+PG_FQDN="psql-dev-<hex>.postgres.database.azure.com"
 ADMIN_GROUP="az-dev-pg-admins"
 UAMI_NAME="id-dev-app"
 APPS=(api worker)   # must match var.apps in env.tfvars
