@@ -18,7 +18,7 @@ output "cae_name" {
 }
 
 output "cae_default_domain" {
-  description = "Default DNS suffix Azure assigns to apps in this environment (e.g. `<random>.eastus.azurecontainerapps.io`). App FQDNs land at `<app-name>.<cae_default_domain>`. Used by module 11 outputs and any doc that publishes URLs."
+  description = "Default DNS suffix Azure assigns to apps in this environment (e.g. `<random>.centralus.azurecontainerapps.io`). App FQDNs land at `<app-name>.<cae_default_domain>`. Used by module 11 outputs and any doc that publishes URLs."
   value       = azurerm_container_app_environment.this.default_domain
 }
 

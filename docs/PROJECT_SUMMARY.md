@@ -84,30 +84,39 @@ export ARM_TENANT_ID=<tenant-id>
 export ARM_SUBSCRIPTION_ID=<subscription-id>
 ```
 
-## Status (paused, estate state verified 2026-08-24)
+## Status (paused, estate state verified 2026-08-29)
 
 **Feature-complete in code.** All 12 modules are implemented, and all have been
 applied and verified against Azure at least once; `make validate` passes across
 every root. The user runs all `terraform` / `make` commands manually.
 
-**Live in Azure right now: module 01 only — everything else is torn down.**
-The five resource groups exist and are all empty (`az resource list -g <rg>`
-returns nothing for any of them), and in the `tfstate` container only
-`resource-groups/terraform.tfstate` is populated; every other module's state
-key is an empty few-hundred-byte shell. Nothing is running, so the estate
-currently costs **$0/month** — resource groups and the state Storage Account
-are free at this scale.
+**Live in Azure right now: nothing — the estate is at zero.** None of the five
+`rg-dev-*` resource groups exist; `az group list` returns only `rg-tfstate`
+plus Azure's own `NetworkWatcherRG` and `DefaultResourceGroup-EUS`. All twelve
+module state keys are empty few-hundred-byte shells (`resources: 0`), and
+`bootstrap/backend.tfstate` is the only populated state. Nothing is running, so
+the estate currently costs **$0/month** — the state Storage Account is free at
+this scale. (Module 01 was still up as of 2026-08-24; it has since been
+destroyed.)
 
 Verify rather than trust that line; it ages every time something is applied:
 
 ```bash
-az group list --query "[].name" -o tsv
-az resource list -g rg-dev-platform -o tsv    # empty => nothing applied
+az group list --query "[].name" -o tsv    # no rg-dev-* => nothing applied
 ```
 
-Rebuild with `make apply` from the repo root (01 no-ops), or module-by-module
-in numeric order — a module whose upstreams are not applied fails at plan with
-*Unsupported attribute*. ACR alone is `make apply-managed-identities &&
+**Region: `centralus`**, moved from `eastus` in v0.4.2. One `location` in
+`terraform/envs/dev/env.tfvars` drives all twelve modules, with no per-module
+overrides — module 09's old `eastus2` pin is gone now that the estate sits in a
+region where PG Flexible Server is not offer-restricted. The Terraform state
+backend deliberately stays in `eastus`: the azurerm backend addresses state by
+resource group + storage account + container name and has no region field, so
+its location is independent of the resources it tracks.
+
+Rebuild with `make apply` from the repo root, or module-by-module in numeric
+order — a module whose upstreams are not applied fails at plan with
+*Unsupported attribute*. Nothing is up, so 01 builds from scratch too: ACR
+alone is `make apply-resource-groups && make apply-managed-identities &&
 make apply-acr` (~$5.07/month); Container Apps needs 01, 04, 06, 07, 08, 09,
 10, then 11. PROVISIONING_PLAN.md → Progress has the detail.
 

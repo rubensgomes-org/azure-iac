@@ -7,9 +7,10 @@ ACR, Storage blob subresource, Service Bus, PostgreSQL) all sinking
 into the same LAW. State lives in `tfstate/monitoring/terraform.tfstate`
 on the bootstrap storage account.
 
-This is the last module in the dependency chain — with it applied, the
-estate is feature-complete pending Makefile automation (§10 of the
-master plan).
+This is the last module in the dependency chain; once it applies, the
+estate is complete. (§10's Makefile automation, which this line used to
+say was still pending, has since landed — `make apply` / `make destroy`
+drive the whole estate.)
 
 Wraps [`../../../modules/monitoring/`](../../../modules/monitoring/README.md).
 

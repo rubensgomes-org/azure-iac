@@ -171,11 +171,13 @@ make apply-acr                   # creates rubensdevacr + AcrPull grant
 
 ### Why module 01 is in the list
 
-Module 01 is normally already applied, and running it again is a **safe
-no-op** — `terraform apply` is idempotent, and empty resource groups are free.
-Including it here means the sequence works from *any* starting state without
-you first having to check what is standing. `make plan-resource-groups` tells
-you which case you are in: `No changes` means the RGs are already correct.
+Module 01 may or may not be up — as of 2026-08-29 the estate is at zero, so
+the common case is currently **5 to add**. Either way running it is safe:
+`terraform apply` is idempotent, and empty resource groups are free, so if the
+RGs already exist this is a no-op. Including it here means the sequence works
+from *any* starting state without you first having to check what is standing.
+`make plan-resource-groups` tells you which case you are in: `No changes` means
+the RGs are already correct.
 
 Both downstream modules read `rg_platform_name` from module 01's remote state,
 so if the RGs are missing, module 04 fails at plan time with *Unsupported
@@ -415,11 +417,13 @@ cd terraform/envs/dev/06-acr && terraform plan -destroy \
 
 ## 8. Cost
 
-Figures pulled from the Azure retail pricing API for `eastus` (the region set
-in `terraform/envs/dev/env.tfvars`). Verify current numbers with:
+Figures pulled from the Azure retail pricing API for `centralus` (the region set
+in `terraform/envs/dev/env.tfvars`). Re-checked against the live API when the
+estate moved off `eastus` in v0.4.2 — ACR registry-unit rates are **identical**
+in both regions, so the table below did not change. Verify current numbers with:
 
 ```bash
-curl -s "https://prices.azure.com/api/retail/prices?\$filter=serviceName%20eq%20'Container%20Registry'%20and%20armRegionName%20eq%20'eastus'"
+curl -s "https://prices.azure.com/api/retail/prices?\$filter=serviceName%20eq%20'Container%20Registry'%20and%20armRegionName%20eq%20'centralus'"
 ```
 
 ### An empty registry costs exactly the same as a full one

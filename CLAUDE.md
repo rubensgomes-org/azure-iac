@@ -22,29 +22,30 @@ state backend, and the two ways a destroy can silently do nothing).
 
 Always read that file before making infra decisions.
 
-## Project status (as of 2026-08-24)
+## Project status (as of 2026-08-29)
 
 **Paused — estate is feature-complete in code.** All 12 modules
 (01-resource-groups through 12-monitoring) are implemented and have been
 applied and verified against Azure at least once. The root `Makefile` is in
 place; `make validate` was last run clean across every module root.
 
-**Currently applied: module 01-resource-groups ONLY. Everything else is
-torn down.** Verified against Azure on 2026-08-24: the five RGs
-(`rg-dev-platform`, `-network`, `-data`, `-app`, `-observability`) exist and
-are all **empty** — `az resource list -g <rg>` returns nothing for every one
-of them. In the tfstate container only `resource-groups/terraform.tfstate`
-is populated (~10 KB); every other module's state key is an empty
-few-hundred-byte shell.
+**Currently applied: NOTHING. The estate is at zero.** Verified against Azure
+on 2026-08-29: none of the five `rg-dev-*` RGs exist — `az group list` returns
+only `rg-tfstate`, `NetworkWatcherRG`, and `DefaultResourceGroup-EUS` (the last
+two are Azure-created, not ours). All 12 module state blobs decode to
+`resources: 0, outputs: 0`; they are post-destroy shells holding only serial
+and lineage. `bootstrap/backend.tfstate` is the only populated state.
 
-Nothing is running, so the estate currently costs $0/month — RGs and the
-state Storage Account are free at this scale.
+(An earlier note here claimed module 01 was still applied. It was, as of
+2026-08-24; it has since been destroyed.)
+
+Nothing is running, so the estate currently costs $0/month — the state Storage
+Account is free at this scale.
 
 Quick way to re-check this claim rather than trusting the note:
 
 ```bash
-az group list --query "[].name" -o tsv
-az resource list -g rg-dev-platform -o tsv          # empty => nothing applied
+az group list --query "[].name" -o tsv              # no rg-dev-* => nothing applied
 az storage blob list --account-name sttfstaterubens01 \
   --container-name tfstate --auth-mode key \
   --query "[].{name:name,size:properties.contentLength}" -o table
@@ -54,15 +55,31 @@ A state blob under ~500 bytes is an empty shell (serial + lineage, no
 resources). Note `--auth-mode key`: the interactive user account holds no
 `Storage Blob Data *` role, so `--auth-mode login` fails on that container.
 
-**Rebuilding from here** is `make apply` from repo root (01 is already up and
-will no-op), or module-by-module in numeric order. Each module's upstreams
-must be applied first — a root whose `data.terraform_remote_state` points at
-an empty state key fails at plan with *Unsupported attribute*, not with a
-useful message. Minimum chains worth knowing:
+**Region: `centralus`** (moved from `eastus` in v0.4.2). One value in
+`terraform/envs/dev/env.tfvars` drives all 12 modules; there are no per-module
+region overrides any more. Two things that follow from that:
 
-- ACR only: `make apply-managed-identities && make apply-acr` (06 needs 04's
-  UAMI for the `AcrPull` grant, and 01's platform RG). ~$5.07/month, all of
-  it the Basic registry unit.
+- Module 09 no longer pins `eastus2`. That override existed because the
+  subscription is offer-restricted from provisioning PG Flexible Server in
+  `eastus`; `centralus` is not restricted (verified via
+  `az postgres flexible-server list-skus`). Check any future region the same
+  way before editing `env.tfvars`.
+- **The state backend stays in `eastus`, deliberately.** `rg-tfstate` /
+  `sttfstaterubens01` are in `eastus` and `backend.hcl` has no region field —
+  the azurerm backend addresses state by RG + account + container name, so a
+  state blob's region is independent of where the resources it tracks live.
+  Do not "fix" this.
+
+**Rebuilding from here** is `make apply` from repo root, or module-by-module in
+numeric order. Nothing is up, so 01 builds from scratch too. Each module's
+upstreams must be applied first — a root whose `data.terraform_remote_state`
+points at an empty state key fails at plan with *Unsupported attribute*, not
+with a useful message. Minimum chains worth knowing:
+
+- ACR only: `make apply-resource-groups && make apply-managed-identities &&
+  make apply-acr` (06 needs 01's platform RG and 04's UAMI for the `AcrPull`
+  grant). 01 is no longer pre-applied, so it is part of the chain now.
+  ~$5.07/month, all of it the Basic registry unit.
 - Container Apps: 01, 04, 06, 07, 08, 09, 10, then 11.
 
 When resuming, read `docs/PROVISIONING_PLAN.md` → **Deferred work** (right

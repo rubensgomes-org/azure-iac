@@ -46,7 +46,7 @@ static IP.
 az containerapp env show -g rg-dev-app -n cae-dev \
   --query "{name:name, state:properties.provisioningState, defaultDomain:properties.defaultDomain, staticIp:properties.staticIp}" \
   -o table
-# Expect state=Succeeded, defaultDomain=<random>.eastus.azurecontainerapps.io.
+# Expect state=Succeeded, defaultDomain=<random>.centralus.azurecontainerapps.io.
 
 # VNet integration wired to snet-dev-app
 az containerapp env show -g rg-dev-app -n cae-dev \
@@ -62,7 +62,7 @@ az containerapp env show -g rg-dev-app -n cae-dev \
 Sanity outputs from Terraform:
 
 ```bash
-terraform output cae_default_domain   # <random>.eastus.azurecontainerapps.io
+terraform output cae_default_domain   # <random>.centralus.azurecontainerapps.io
 terraform output cae_static_ip_address # public IP for external ingress
 ```
 

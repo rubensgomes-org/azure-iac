@@ -2,9 +2,9 @@
 
 A playground project to demonstrate the use of IaC (e.g. Terraform) and CICD
 pipelines (e.g., GitHub Actions Workflow)  to plan/create/destroy several
-infrastructure resources (e.g., resource group, storage account, networking,
-app configuration, container registry, container app, blob storage, service
-bus, and database) in Azure Cloud.
+infrastructure resources (e.g., resource group, storage account, networking, app
+configuration, container registry, container app, blob storage, service bus, and
+database) in Azure Cloud.
 
 **Making a change?** Start at
 [Working on this project](#working-on-this-project) — `main` is protected, so
@@ -71,8 +71,8 @@ below.
 
 ### Bootstrap Terraform Backend Module (bootstrap-backend)
 
-This steps is done only once. It creates the following base resources
-required by Terraform:
+This steps is done only once. It creates the following base resources required
+by Terraform:
 
 - Terraform Resource group
 - Terraform Storage account
@@ -97,20 +97,20 @@ nothing.
 
 ## GitHub Actions
 
-Six workflows live in [`.github/workflows/`](./.github/workflows/). Four of
-them authenticate to Azure with the same `terraform-sp` Service Principal used
+Six workflows live in [`.github/workflows/`](./.github/workflows/). Four of them
+authenticate to Azure with the same `terraform-sp` Service Principal used
 locally; `release.yml` and `pr-verify.yml` deliberately hold no Azure
 credentials (their only secret is `SONAR_TOKEN`, which reaches sonarcloud.io and
 nothing else).
 
-| Workflow | Shows in Actions as | Trigger | What it does |
-| --- | --- | --- | --- |
-| [`acr-create.yml`](./.github/workflows/acr-create.yml) | **ACR Create (reusable)** | `workflow_call`, `workflow_dispatch` | Applies modules 01 → 04 → 06 so a registry exists and is writable. Publishes `acr_name` / `acr_login_server` outputs. |
-| [`acr-destroy.yml`](./.github/workflows/acr-destroy.yml) | **ACR Destroy (reusable)** | `workflow_call`, `workflow_dispatch` | Destroys module 06 only — the registry and every image in it. Resource groups (01) and the shared UAMI (04) are left standing. Actor-restricted and type-to-confirm guarded on both triggers. |
-| [`tf-bootstrap-create.yml`](./.github/workflows/tf-bootstrap-create.yml) | **TF Bootstrap Create** | `workflow_dispatch` | Creates/updates the state backend (`rg-tfstate`, `sttfstaterubens01`, `tfstate`). |
-| [`tf-bootstrap-destroy.yml`](./.github/workflows/tf-bootstrap-destroy.yml) | **TF Bootstrap Destroy** | `workflow_dispatch` | Tears the state backend down. |
-| [`pr-verify.yml`](./.github/workflows/pr-verify.yml) | **PR Verify** | `pull_request` → main | Three required checks on every PR: `terraform`, `workflows`, `sonar`. See Branching. |
-| [`release.yml`](./.github/workflows/release.yml) | **Release (tag push)** | tag `v*.*.*` | Validates the tag against `VERSION` + `CHANGELOG.md`, runs `fmt`/`validate` and the SonarCloud quality gate, publishes a GitHub Release. |
+| Workflow                                                                   | Shows in Actions as        | Trigger                              | What it does                                                                                                                                                                                  |
+|----------------------------------------------------------------------------|----------------------------|--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`acr-create.yml`](./.github/workflows/acr-create.yml)                     | **ACR Create (reusable)**  | `workflow_call`, `workflow_dispatch` | Applies modules 01 → 04 → 06 so a registry exists and is writable. Publishes `acr_name` / `acr_login_server` outputs.                                                                         |
+| [`acr-destroy.yml`](./.github/workflows/acr-destroy.yml)                   | **ACR Destroy (reusable)** | `workflow_call`, `workflow_dispatch` | Destroys module 06 only — the registry and every image in it. Resource groups (01) and the shared UAMI (04) are left standing. Actor-restricted and type-to-confirm guarded on both triggers. |
+| [`tf-bootstrap-create.yml`](./.github/workflows/tf-bootstrap-create.yml)   | **TF Bootstrap Create**    | `workflow_dispatch`                  | Creates/updates the state backend (`rg-tfstate`, `sttfstaterubens01`, `tfstate`).                                                                                                             |
+| [`tf-bootstrap-destroy.yml`](./.github/workflows/tf-bootstrap-destroy.yml) | **TF Bootstrap Destroy**   | `workflow_dispatch`                  | Tears the state backend down.                                                                                                                                                                 |
+| [`pr-verify.yml`](./.github/workflows/pr-verify.yml)                       | **PR Verify**              | `pull_request` → main                | Three required checks on every PR: `terraform`, `workflows`, `sonar`. See Branching.                                                                                                          |
+| [`release.yml`](./.github/workflows/release.yml)                           | **Release (tag push)**     | tag `v*.*.*`                         | Validates the tag against `VERSION` + `CHANGELOG.md`, runs `fmt`/`validate` and the SonarCloud quality gate, publishes a GitHub Release.                                                      |
 
 The middle column is the `name:` each workflow declares — that is the label in
 the repository's **Actions** sidebar, which is where you start the manual ones.
@@ -136,8 +136,8 @@ reviewers to it.
 
 ### Provisioning the ACR from an application pipeline
 
-`acr-create.yml` is a **reusable** workflow. An application repository calls
-it and gates its image push on the result, so the registry hostname is never
+`acr-create.yml` is a **reusable** workflow. An application repository calls it
+and gates its image push on the result, so the registry hostname is never
 hardcoded on the application side:
 
 ```yaml
@@ -147,9 +147,9 @@ jobs:
     with:
       environment_name: dev          # optional; defaults to dev
     secrets:
-      AZURE_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   push-image:
@@ -172,17 +172,16 @@ jobs:
 ```
 
 The four secrets are organization-level Actions secrets on `rubensgomes-org`
-and must be **shared with the calling repository**. Pass them explicitly
-rather than using `secrets: inherit` — this SP has subscription-wide write
-access, and the explicit list is the only record of which credentials cross a
-repo boundary.
+and must be **shared with the calling repository**. Pass them explicitly rather
+than using `secrets: inherit` — this SP has subscription-wide write access, and
+the explicit list is the only record of which credentials cross a repo boundary.
 
 ### Destroying the ACR from another pipeline
 
 `acr-destroy.yml` is reusable too, for a pipeline that stands an estate up and
-tears it back down. The caller must repeat the registry name in full — there
-are no defaults on `acr_name` or `confirm` on this path, so a `uses:` line
-cannot delete a registry by accident:
+tears it back down. The caller must repeat the registry name in full — there are
+no defaults on `acr_name` or `confirm` on this path, so a `uses:` line cannot
+delete a registry by accident:
 
 ```yaml
 jobs:
@@ -193,9 +192,9 @@ jobs:
       acr_name: rubensdevacr                # required; no default
       confirm: DESTROY ACR rubensdevacr     # required; must match exactly
     secrets:
-      AZURE_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 ```
 
@@ -333,7 +332,8 @@ make release-push
 
 **The tag is created after the merge, and that ordering is load-bearing.** A
 squash-merge rewrites the commit SHA, so a tag made before merging would point
-at a commit `main` never sees. You do not have to remember this: `release-prep-*`
+at a commit `main` never sees. You do not have to remember this:
+`release-prep-*`
 refuses to run anywhere but a `release/*` branch, and `release-tag` refuses to
 run anywhere but `main`.
 
@@ -359,11 +359,11 @@ straightforward.
 Every PR is gated by [`pr-verify.yml`](./.github/workflows/pr-verify.yml), which
 runs three independent checks:
 
-| Check | What it does |
-| --- | --- |
-| `terraform` | `terraform fmt -check` and `make validate` across all twelve module roots |
+| Check       | What it does                                                                                          |
+|-------------|-------------------------------------------------------------------------------------------------------|
+| `terraform` | `terraform fmt -check` and `make validate` across all twelve module roots                             |
 | `workflows` | Every workflow file parses, and no GitHub expression is interpolated inside a `run:` body (see below) |
-| `sonar` | SonarCloud analysis in PR mode — findings decorate the diff, and a red quality gate blocks the merge |
+| `sonar`     | SonarCloud analysis in PR mode — findings decorate the diff, and a red quality gate blocks the merge  |
 
 No approval is required, because a solo maintainer cannot approve their own PR;
 the checks are the gate. The PR requirement itself is what stops an accidental
@@ -378,9 +378,9 @@ destroy workflows; the check exists so they do not come back.
 ## Releases
 
 Every release is a `MAJOR.MINOR.PATCH` git tag on `main`. The repo-root
-`VERSION` file is the source of truth; the tag is `v<VERSION>`, and every
-Azure resource in the estate carries a matching `release` tag so you can tell
-from the portal which release provisioned it.
+`VERSION` file is the source of truth; the tag is `v<VERSION>`, and every Azure
+resource in the estate carries a matching `release` tag so you can tell from the
+portal which release provisioned it.
 
 Releases are manual — you choose the bump level. The commands are in
 [Cutting a release](#cutting-a-release); this section is what they mean.
@@ -390,8 +390,8 @@ mistake is just a closed PR; after it merges but before the push, it is a
 `git tag -d` away. See [RELEASING.md](./RELEASING.md) → Undoing a release.
 
 What MAJOR / MINOR / PATCH mean for infrastructure — the question is what
-`terraform plan` does to an already-applied estate, not what an API looks
-like — plus the full procedure and the undo path are in
+`terraform plan` does to an already-applied estate, not what an API looks like —
+plus the full procedure and the undo path are in
 [RELEASING.md](./RELEASING.md). The design rationale is
 [§16 of the provisioning plan](./docs/PROVISIONING_PLAN.md).
 

@@ -20,7 +20,19 @@ env = "dev"
 
 # Azure region where every module in this env deploys. Single-region on purpose;
 # multi-region is out of scope for this playground.
-location = "eastus"
+#
+# Moved from `eastus` to `centralus` in v0.4.2. Two things to know before
+# changing it again:
+#   - `location` is ForceNew on every azurerm resource, and no resource name in
+#     this repo embeds the region, so on an APPLIED estate `terraform plan` shows
+#     `-/+ destroy and then create` on everything with no name diff to warn you.
+#     Combined with `make apply`'s `-auto-approve`, that turns a routine apply
+#     into a full teardown. Always `make plan-<module>` first.
+#   - PostgreSQL Flexible Server is offer-restricted in `eastus` on this
+#     subscription. Any future region must be checked with
+#     `az postgres flexible-server list-skus --location <region>` before it is
+#     set here — see 09-postgresql/terraform.tfvars.
+location = "centralus"
 
 # Short organisation / owner token that anchors globally-unique names.
 # Example: Key Vault name pattern is `kv-<env>-<prefix>-<random>` → `kv-dev-rubens-a7f2`.

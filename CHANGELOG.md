@@ -21,7 +21,88 @@ here.
 
 ### Changed
 
+- **Estate region moved from `eastus` to `centralus`.** One line —
+  `location` in `terraform/envs/dev/env.tfvars` — drives all 12 modules.
+  No resource name in this repo embeds the region, so nothing is renamed.
+
+  **Read this before applying on a live estate.** This release is PATCH
+  because it was applied against an EMPTY estate (nothing in `envs/dev` was
+  provisioned at the time), so `terraform plan` was create-only and no
+  resource churned. That is a fact about the estate, not about the change.
+  On an already-applied estate the same edit is MAJOR-shaped: `location` is
+  ForceNew on every `azurerm` resource, so `plan` shows
+  `-/+ destroy and then create` on everything — and because no name changes,
+  there is no name diff to warn you. `make apply` runs `-auto-approve`.
+  Always `make plan-<module>` first.
+
+- **Removed the module 09 PostgreSQL `eastus2` region override.** PG Flex now
+  inherits `centralus` from the shared `env.tfvars` like every other module,
+  ending the two-region split. The override existed only because this
+  subscription is offer-restricted from provisioning PG Flexible Server in
+  `eastus` (`LocationIsOfferRestricted`); `centralus` carries no such
+  restriction — verified against
+  `az postgres flexible-server list-skus --location centralus`, which reports
+  no restriction and offers `Standard_B1ms`, zones `[1,2,3]`, and 32768 MB
+  storage. Check any future region the same way *before* editing
+  `env.tfvars`; a restricted one brings the override back.
+
+- **The Terraform state backend deliberately stays in `eastus`.**
+  `rg-tfstate` / `sttfstaterubens01` were not moved and
+  `terraform/envs/dev/backend.hcl` was not touched. The azurerm backend
+  addresses state by resource group + storage account + container name and has
+  no region field at all, so a state blob's region is independent of where the
+  resources it tracks live. Moving it would have meant a new globally-unique
+  storage account name and a migration of 13 state blobs, for no benefit.
+
+- **Docs re-anchored on the new region**: `docs/PROVISIONING_PLAN.md` §15's
+  "Region caveat" is now "Region: single, no caveat"; the module 09 README's
+  `LocationIsOfferRestricted` / `InvalidResourceLocation` troubleshooting keeps
+  the failure modes but no longer describes an override that exists; Key Vault
+  purge and Container Apps default-domain examples updated. ACR cost figures in
+  `PROVISION_ACR.md` were re-fetched from the Azure retail pricing API rather
+  than assumed — registry-unit rates are identical in `eastus` and `centralus`,
+  so the table is unchanged and now says so.
+
 ### Fixed
+
+- **Project status was stale in three places.** `CLAUDE.md`,
+  `docs/PROVISIONING_PLAN.md` → Progress, and `docs/PROJECT_SUMMARY.md` →
+  Status all claimed module 01-resource-groups was still applied with its five
+  resource groups sitting empty. It has since been destroyed: the estate is at
+  zero and the resource groups are gone, not empty. All three corrected against
+  a live check and re-dated, and the module-01 assumption removed from the "ACR
+  only" rebuild chain in each, which now starts with
+  `make apply-resource-groups`. Each now also states the estate region and the
+  backend's deliberate `eastus` exception, so the next reader does not have to
+  infer either.
+
+- **Two module READMEs described an estate that no longer exists**, in ways
+  that would have sent a reader down a failing path:
+  - `11-container-apps/README.md` claimed "every upstream module listed under
+    Prerequisites is still applied, so `make apply-container-apps` on its own
+    brings the apps back". All seven upstreams are destroyed; that command now
+    fails at plan with *Unsupported attribute*. Replaced with the ordered
+    apply chain.
+  - `09-postgresql/README.md` opened with a "mid-flight state" resume block
+    saying the server, admin binding, firewall rules, and databases were
+    applied and the next plan would show "1 to destroy". Nothing is applied and
+    there is no state to reconcile. Rewritten around the real starting point;
+    the `run_bootstrap = false` gate and the Cloud Shell data-plane step are
+    unchanged and still required. Also replaced a hardcoded
+    `psql-dev-1f91...` FQDN with the `<hex>` placeholder — `random_id.suffix`
+    regenerates on a fresh apply, so that value can never be correct again.
+
+- **`docs/PROVISIONING_PLAN.md` → Deferred work / D1** still reasoned from
+  "only module 11 is down". D1 now notes that ACR must be reprovisioned before
+  images can be pushed at all, and that a bare `make apply-container-apps`
+  cannot work until the upstream chain is applied.
+
+- **`12-monitoring/README.md`** said the estate was "feature-complete pending
+  Makefile automation". That automation landed some releases ago.
+
+- **`PROVISION_ACR.md`** said module 01 "is normally already applied" and that
+  re-running it is a no-op. With the estate at zero the common case is 5-to-add;
+  the sentence now covers both and keeps the idempotence point.
 
 ## [0.4.1] - 2026-08-25
 

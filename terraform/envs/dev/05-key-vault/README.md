@@ -77,7 +77,7 @@ terraform destroy \
 # Post-destroy purge — required because we set purge_protection_enabled = false
 # and the vault sits in a 7-day soft-delete window after destroy. Purging lets
 # us reprovision immediately (with a new random suffix) or reuse the same name.
-az keyvault purge --name "$KV_NAME" --location eastus
+az keyvault purge --name "$KV_NAME" --location centralus
 ```
 
 **Order matters.** If the vault ever gets referenced by a downstream module
@@ -93,7 +93,7 @@ step above, `terraform apply` will fail on the same name (soft-delete
 tombstone). Options:
 
 1. Wait 7 days for the tombstone to expire, then reprovision.
-2. Run `az keyvault purge --name <old-name> --location eastus` first.
+2. Run `az keyvault purge --name <old-name> --location centralus` first.
 3. Ignore — the random suffix regenerates on reprovision, so the new name
    won't collide with the tombstone. This is the recommended path.
 
