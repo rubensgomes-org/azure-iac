@@ -711,8 +711,8 @@ is needed.
 3. **GitHub Actions workflow.** `pg-bootstrap.yml`. Trigger: `workflow_dispatch`
    + `push` on changes to `envs/dev/env.tfvars` (which is where `apps` lives).
    Steps: OIDC-federated `az login` → `az containerapp job start` → poll for
-   completion → propagate exit code. Failure surfaces on the PR / workflow
-   run, not in terraform.
+   completion → propagate exit code. Failure surfaces on the workflow run,
+   not in terraform.
 
 4. **Retirement of `null_resource.pg_bootstrap`.** Once D is in place, remove
    the `null_resource` and the `run_bootstrap` variable from
@@ -1437,11 +1437,15 @@ full policy and the step-by-step procedure live in **`RELEASING.md`** at the
 repo root; this section records the design so the plan stays the single place
 that explains *why*.
 
-`main` is protected and PR-only, so a release is two phases: a *release PR*
-carrying the `VERSION` bump and the changelog roll, then a tag placed on `main`
-after that PR merges. The tag must come second — squash-merge rewrites the
-commit SHA, so a tag created before the merge would point at a commit that
-never lands on `main`.
+The repo is **trunk-based**: `main` is the only branch, every change is
+committed straight to it, and a release is a bump commit plus a tag made in one
+local step and pushed in another. This is a reversal of the PR-only model the
+repo ran between v0.4.0 and v0.4.2, which forced a two-phase release — a
+*release PR*, then a tag after the merge — because squash-merge rewrote the
+commit SHA a locally created tag would have pointed at. With the release commit
+made directly on `main`, the SHA that is tagged is the SHA that is pushed, and
+the second phase has nothing left to do. The trade is that there is no
+pre-merge gate; see the static-analysis note below for what replaced it.
 
 **Source of truth.** The repo-root `VERSION` file holds a bare
 `MAJOR.MINOR.PATCH` (no `v`). Everything else derives from it:
@@ -1470,13 +1474,15 @@ outstanding — MINOR absorbs breaking changes. `1.0.0` is cut when a full
 `make apply` from zero brings up all twelve modules with real application
 images and verifies clean (D1 and D2 closed).
 
-**Trigger is manual and explicit.** `make release-prep-patch|minor|major` picks the
+**Trigger is manual and explicit.** `make release-patch|minor|major` picks the
 level; nothing is inferred from commit messages, because the commit history
 here is intentionally informal and would make an inferred bump untrustworthy.
 The bump targets write `VERSION`, roll `[Unreleased]` into a dated version
-section, commit, and create the annotated tag — all **locally**. `make
-release-push` is a separate, deliberate step; it is the only release target
-that touches the network, and the only one that is not undoable.
+section, commit, and create the annotated tag — all **locally**, and all from
+`main`, which the shared precheck enforces. `make release-push` is a separate,
+deliberate step; it pushes the branch and then the tag, is the only release
+target that touches the network, and is the only one that is not undoable.
+Before it runs, `git tag -d` plus `git reset --hard HEAD~1` reverses everything.
 
 **Why `VERSION` is read from disk by Terraform rather than passed as `-var`.**
 Each module root carries a `locals.tf` with:
@@ -1526,20 +1532,22 @@ recording:
 
 - The gate runs *after* the tag is pushed. A red gate therefore leaves a tag
   with no GitHub Release; per §16 a published tag is never moved, so the
-  remedy is the next patch release. `make sonar` before tagging avoids it —
-  as does `pr-verify.yml`, which runs the same gate in PR mode on the way in,
-  so by tag time a red gate should mean something changed since the merge.
-- The branch name is passed per caller, not pinned in
-  `sonar-project.properties`: `release.yml` sends
-  `-Dsonar.branch.name=main`, `pr-verify.yml` sends nothing and lets the
-  action detect the PR. Pinning it globally would make every PR analysis
-  overwrite main's.
+  remedy is the next patch release. `main-verify.yml` runs the same gate on
+  every push to `main`, so by tag time a red gate should mean something changed
+  since that run — most likely a quality-profile change or a new-code-period
+  roll, neither of which involves a commit.
+- `sonar.branch.name=main` is pinned in `sonar-project.properties` and no
+  caller passes a scanner argument. `main` is the only branch, so there is one
+  correct value, and the pin is what stops `release.yml` — which fires on a tag
+  ref — submitting the analysis as a short-lived branch whose gate lookup 403s
+  on this plan. The property was briefly removed under the PR-only model, when
+  a global pin would have made every PR analysis overwrite main's.
 - `sonar.exclusions` must keep covering `**/.terraform/**`. `make validate`
   runs first and leaves a `.terraform/modules/` copy of every local module's
   `.tf` files; without the exclusion `sonar.sources=.` indexes both copies.
 
 **Terraform CLI pin in CI.** All six workflows in `.github/workflows/`
-(`pr-verify.yml`, `release.yml`, `acr-create.yml`, `acr-destroy.yml`,
+(`main-verify.yml`, `release.yml`, `acr-create.yml`, `acr-destroy.yml`,
 `tf-bootstrap-create.yml`, `tf-bootstrap-destroy.yml`) pin
 `terraform_version: "1.15.8"`, which is the minimum needed to satisfy the
 `required_version = "~> 1.15"` declared in every `versions.tf` in the repo —

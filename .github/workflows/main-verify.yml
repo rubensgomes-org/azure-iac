@@ -1,32 +1,32 @@
 # =============================================================================
-# PR Verify
+# Main Verify
 #
 # Purpose:
-#   The gate on every pull request into main. main is PR-only (branch
-#   protection requires a pull request and requires these checks to pass), and
-#   this workflow is what those required checks point at. Before it existed the
-#   repo had no CI on a branch at all -- `fmt -check`, `make validate` and the
-#   Sonar gate only ran at tag time, inside release.yml, which is far too late
-#   to be useful feedback.
+#   The continuous check on main. This repo is trunk-based -- every change is
+#   committed straight to main, there are no feature branches and no pull
+#   requests -- so this workflow is what tells you a commit broke something.
+#   Before it existed, `fmt -check`, `make validate` and the Sonar gate only
+#   ran at tag time inside release.yml, which is far too late to be useful.
 #
 # Trigger:
-#   pull_request into main. Not `push`: a branch with no PR open is nobody's
-#   business but its author's, and running on both doubles every run for no
-#   gain. Not `pull_request_target`: that runs trusted, with secrets, against
-#   untrusted head code, which is the wrong default for a repo whose secrets
-#   include an Azure Service Principal.
+#   push to main. It runs AFTER the fact rather than blocking a merge, which is
+#   the trade the trunk-based model makes: no PR means no pre-merge gate, so
+#   the feedback loop is "push, then look at the run". Run `make fmt` and
+#   `make validate` locally first and it should never be a surprise.
+#
+#   It is deliberately NOT a required status check on main -- requiring a check
+#   that only fires ON a push would reject the push that triggers it.
 #
 # Relationship to release.yml:
-#   Same three checks, different moment. This one catches problems while they
-#   are still cheap to fix; release.yml re-runs them at tag time as the final
-#   gate before a GitHub Release is published. Neither replaces the other --
-#   a tag can be pushed for a commit whose PR checks were green weeks earlier.
+#   Same three checks, different moment. This one reports on every commit;
+#   release.yml re-runs them at tag time as the final gate before a GitHub
+#   Release is published. Neither replaces the other -- a tag can be pushed for
+#   a commit whose checks went green weeks earlier.
 #
 # Structure:
-#   THREE JOBS, NOT ONE, on purpose. They run in parallel, and more importantly
-#   each job is a separately named required status check, so `sonar` can be
-#   left out of the required list until PR-mode analysis is proven on this
-#   project without also un-gating the terraform checks.
+#   THREE JOBS, NOT ONE, on purpose. They run in parallel, and each reports as
+#   a separately named check, so a failure names the area rather than sending
+#   you into a single combined log.
 #
 # Notes:
 #   - terraform_version must satisfy the `required_version = "~> 1.15"`
@@ -35,10 +35,10 @@
 #   - terraform_wrapper is false, matching every other workflow here.
 # =============================================================================
 
-name: PR Verify
+name: Main Verify
 
 on:
-  pull_request:
+  push:
     branches: [main]
 
 # Workflow-level default: read-only, for every job. The one job that needs more
@@ -49,10 +49,11 @@ permissions:
   contents: read
 
 concurrency:
-  # Keyed on the PR, so a force-push supersedes its own in-flight run. Unlike
-  # the release and ACR workflows, cancelling here is safe and desirable: these
-  # jobs touch no Azure state and hold no locks.
-  group: pr-verify-${{ github.event.pull_request.number }}
+  # Keyed on the ref, so a rapid second push to main supersedes the run for the
+  # first. Unlike the release and ACR workflows, cancelling here is safe and
+  # desirable: these jobs touch no Azure state and hold no locks, and only the
+  # newest commit's result is interesting.
+  group: main-verify-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -187,28 +188,21 @@ jobs:
   # ---------------------------------------------------------------------------
   # Job 3: sonar
   #
-  # SonarCloud analysis in PULL REQUEST mode. The scan action reads the
-  # pull_request event and sets sonar.pullrequest.key / .branch / .base itself,
-  # so findings decorate this PR's diff and the gate reflects the PR, not main.
-  #
-  # Deliberately passes NO sonar.branch.name. That property used to be pinned
-  # to main in sonar-project.properties; pinning it here would submit the PR's
-  # code AS main and overwrite main's analysis. See that file's header.
+  # SonarCloud analysis of main. sonar.branch.name=main is pinned in
+  # sonar-project.properties -- main is the only branch this repo has -- so no
+  # scanner argument is passed here and CI cannot drift from `make sonar`.
   # ---------------------------------------------------------------------------
   sonar:
     name: sonar
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
-    # Scoped to THIS job, not the workflow. `pull-requests: write` is what lets
-    # SonarCloud decorate the diff with inline findings; the terraform and
-    # workflows jobs have no business holding it.
-    #
-    # A job-level block REPLACES the workflow default rather than adding to it,
-    # so `contents: read` has to be restated here or the checkout loses it.
+    # Scoped to THIS job so it is explicit, even though it matches the
+    # workflow default. A job-level block REPLACES that default rather than
+    # adding to it, so `contents: read` has to be stated here or the checkout
+    # loses it. No `pull-requests: write`: there is no PR diff to decorate.
     permissions:
       contents: read
-      pull-requests: write
 
     steps:
       # -----------------------------------------------------------------------
@@ -250,9 +244,9 @@ jobs:
       # Step 3: Scan
       #
       # sonar.qualitygate.wait=true in sonar-project.properties makes this
-      # blocking, so a PR that fails the gate fails this check.
+      # blocking, so a commit that fails the gate fails this check.
       # -----------------------------------------------------------------------
-      - name: SonarCloud scan (PR mode)
+      - name: SonarCloud scan (main)
         uses: SonarSource/sonarqube-scan-action@v8
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

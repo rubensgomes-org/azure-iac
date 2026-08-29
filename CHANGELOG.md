@@ -21,7 +21,42 @@ here.
 
 ### Changed
 
+- **Moved all development and maintenance to a single `main` branch.** The
+  repo is trunk-based again: `main` is the only branch, every change is
+  committed straight to it, and there are no feature branches, pull requests,
+  or branch protection. The PR-only model introduced in 0.4.0 bought review
+  that a single maintainer cannot supply, and cost a two-phase release.
+  `.github/pull_request_template.md` is deleted.
+
+- **`pr-verify.yml` → `main-verify.yml`, triggered by `push` to `main`.** Same
+  three jobs (`terraform`, `workflows`, `sonar`) and the same checks; the
+  concurrency key moves from the PR number to `github.ref`, and the `sonar`
+  job drops `pull-requests: write` since there is no diff to decorate. It
+  reports *after* the push and is deliberately not a required status check — a
+  check that only fires on a push cannot gate that push. `release.yml` still
+  re-runs all three at tag time, where a red gate genuinely blocks.
+
+- **`make release-patch|minor|major` restored as the whole release.** Each
+  bumps `VERSION`, rolls `[Unreleased]` into a dated section, commits *and*
+  creates the annotated tag, all locally; `make release-push` then pushes
+  `main` and the tag. `make release-prep-*` and the `RELEASE_BRANCH_MODE`
+  switch are removed — every release target now simply requires `main`. Until
+  `release-push`, `git tag -d v$(cat VERSION) && git reset --hard HEAD~1`
+  undoes a release completely, which the two-phase model could not offer once
+  the release PR had merged.
+
+- **`sonar.branch.name=main` pinned in `sonar-project.properties` again.** With
+  no pull requests there is one correct value, so all three callers
+  (`main-verify.yml`, `release.yml`, `make sonar`) now pass the scanner no
+  arguments at all and cannot drift. This restores the pre-0.4.0 arrangement
+  and removes the one sanctioned exception to that file's "no scanner
+  arguments in the workflow" rule. The pin remains load-bearing for
+  `release.yml`, which fires on a tag ref — see `[0.3.1]`.
+
 ### Fixed
+
+- `make sonar` no longer told you to open a pull request when run off `main`,
+  and `RELEASING.md` no longer claimed `VERSION` was `0.2.0`.
 
 ## [0.4.2] - 2026-08-29
 

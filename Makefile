@@ -338,28 +338,16 @@ if ! git diff --quiet || ! git diff --cached --quiet; then \
   exit 1; \
 fi; \
 _br=$$(git rev-parse --abbrev-ref HEAD); \
-case "$${RELEASE_BRANCH_MODE:-main}" in \
-  main) \
-    if [ "$$_br" != "main" ]; then \
-      echo "ERROR: this step runs from main, not '$$_br'." >&2; \
-      echo "  main only advances through a merged PR. Bump on a release/*" >&2; \
-      echo "  branch with 'make release-prep-<level>', merge the PR, then come" >&2; \
-      echo "  back to main and run 'make release-tag'. See RELEASING.md." >&2; \
-      exit 1; \
-    fi;; \
-  prep) \
-    case "$$_br" in \
-      release/*) ;; \
-      *) echo "ERROR: 'release-prep-<level>' runs from a release/* branch, not '$$_br'." >&2; \
-         echo "  git switch main && git pull && git switch -c release/vX.Y.Z" >&2; \
-         exit 1;; \
-    esac;; \
-  *) echo "ERROR: unknown RELEASE_BRANCH_MODE '$$RELEASE_BRANCH_MODE'." >&2; exit 1;; \
-esac; \
+if [ "$$_br" != "main" ]; then \
+  echo "ERROR: releases are cut from main, not '$$_br'." >&2; \
+  echo "  This repo is trunk-based: all work lands on main directly, and a" >&2; \
+  echo "  release is a bump + tag on main. See RELEASING.md." >&2; \
+  exit 1; \
+fi; \
 if git fetch --quiet origin main 2>/dev/null; then \
   if ! git merge-base --is-ancestor FETCH_HEAD HEAD; then \
     echo "ERROR: HEAD does not contain origin/main." >&2; \
-    echo "  Pull main (or rebase this release branch onto it) before releasing." >&2; \
+    echo "  Pull main before releasing." >&2; \
     exit 1; \
   fi; \
 else \
@@ -400,9 +388,8 @@ echo "=== TAGGED $$_tag ==="; \
 echo "  nothing has been pushed. Inspect with 'git show --stat HEAD', then:"; \
 echo "    make release-push     publish $$_tag (fires release.yml)"; \
 echo "  or undo with:"; \
-echo "    git tag -d $$_tag"; \
-echo "  (that is the whole undo: the release COMMIT is already on main via the"; \
-echo "   merged PR and is not yours to reset. Only the tag is local.)"
+echo "    git tag -d $$_tag && git reset --hard HEAD~1"; \
+echo "  (nothing has left this machine until 'make release-push'.)"
 endef
 
 # The bump itself. LEVEL (patch|minor|major) comes from the calling recipe.
@@ -433,15 +420,7 @@ awk -v ver="$$_new" -v day="$$(date +%F)" 'BEGIN{d=0} /^## \[Unreleased\]/ && !d
 mv CHANGELOG.md.tmp CHANGELOG.md; \
 git add VERSION CHANGELOG.md; \
 git commit -q -m "release: v$$_new"; \
-echo "=== PREPARED v$$_new (not tagged) ==="; \
-echo "  the tag is created AFTER the release PR merges, so it lands on main's"; \
-echo "  real commit rather than a local SHA that a squash-merge rewrites."; \
-echo ""; \
-echo "    git push -u origin $$(git rev-parse --abbrev-ref HEAD)"; \
-echo "    gh pr create --title \"release: v$$_new\" --fill"; \
-echo "    # merge the PR once checks are green, then:"; \
-echo "    git switch main && git pull"; \
-echo "    make release-tag && make release-push"
+$(RELEASE_TAG_BODY)
 endef
 
 .PHONY: version
@@ -462,36 +441,33 @@ release-check:
 	 echo "  release-minor  v$$_ma.$$((_mi + 1)).0   new resources or modules, additive plan"; \
 	 echo "  release-major  v$$((_ma + 1)).0.0   destroys/recreates or renames existing resources"
 
-# Bump VERSION + roll the changelog + commit. Does NOT tag -- see RELEASE_BUMP.
-# Runs from a release/* branch, because the commit reaches main through a PR
-# like every other commit.
-.PHONY: release-prep-patch
-release-prep-patch:
-	@RELEASE_BRANCH_MODE=prep; LEVEL=patch; $(RELEASE_BUMP)
+# The three release targets. Each bumps VERSION, rolls the changelog, commits
+# and creates the annotated tag -- all LOCALLY. `make release-push` is the
+# separate, deliberate step that publishes.
+#
+# One shot rather than the old prep/tag split: this repo is trunk-based, so the
+# release commit is made directly on main and its SHA is the SHA that gets
+# pushed. Nothing rewrites it between the tag and the push.
+.PHONY: release-patch
+release-patch:
+	@LEVEL=patch; $(RELEASE_BUMP)
 
-.PHONY: release-prep-minor
-release-prep-minor:
-	@RELEASE_BRANCH_MODE=prep; LEVEL=minor; $(RELEASE_BUMP)
+.PHONY: release-minor
+release-minor:
+	@LEVEL=minor; $(RELEASE_BUMP)
 
-.PHONY: release-prep-major
-release-prep-major:
-	@RELEASE_BRANCH_MODE=prep; LEVEL=major; $(RELEASE_BUMP)
-
-# Deprecated names. These used to bump, commit AND tag in one shot on main.
-# That cannot work now: main only advances through a PR, so a locally created
-# tag would point at a commit that the squash-merge rewrites. Fail loudly with
-# the replacement rather than leaving a target that produces an unpushable tag.
-.PHONY: release-patch release-minor release-major
-release-patch release-minor release-major:
-	@echo "ERROR: '$@' no longer exists -- main is PR-only now." >&2; 	 echo "  Use: git switch -c release/vX.Y.Z && make release-prep-$(subst release-,,$@)" >&2; 	 echo "  then open a PR, merge it, and run 'make release-tag' on main." >&2; 	 echo "  Full recipe: RELEASING.md -> Cutting a release." >&2; 	 exit 1
+.PHONY: release-major
+release-major:
+	@LEVEL=major; $(RELEASE_BUMP)
 
 # Tag the CURRENT VERSION without bumping it.
 #
-# This is now the SECOND HALF OF EVERY RELEASE, not an escape hatch: run it on
-# main after the release PR has merged, so the tag lands on the commit that is
-# actually on main. Requires the changelog to already carry a section for this
-# version -- which the merged release-prep commit provides -- so it cannot mint
-# a tag with no release notes behind it.
+# An escape hatch, not part of the normal recipe: it only helps when a bump
+# committed cleanly but the tag was lost or deleted before it was pushed.
+# Requires the changelog to already carry a section for this version, so it
+# cannot mint a tag with no release notes behind it -- which also means it
+# cannot be used to cut a NEW release ([Unreleased] carries no version
+# heading). Use release-<level> for that.
 .PHONY: release-tag
 release-tag:
 	@$(RELEASE_PRECHECK); \
@@ -505,12 +481,11 @@ release-tag:
 # Publishes. This is the only release target that talks to the network, and
 # the only one that is not undoable — release.yml fires on the tag.
 #
-# `git push origin main` is kept deliberately even though main is PR-only. When
-# the release PR has merged and you have pulled, it is a no-op ("Everything
-# up-to-date"). When it is REJECTED by branch protection, that is the correct
-# signal that you skipped the PR and are holding a tag on a commit main has
-# never seen -- better to fail here than to publish a release for code that was
-# never merged.
+# `git push origin main` comes FIRST and is load-bearing. The release commit
+# was made locally on main, so the branch must reach origin before the tag
+# does -- push the tag alone and release.yml fires against a commit nobody
+# else can see. Both pushes go in one target so the ordering cannot be got
+# wrong by hand.
 .PHONY: release-push
 release-push:
 	@_tag="$(RELEASE_TAG)"; \
@@ -549,9 +524,10 @@ validate:
 # It used to be: release.yml fires on a tag that is ALREADY pushed, and
 # RELEASING.md forbids moving a published tag, so a red gate discovered in CI
 # cost a whole patch release and there was no earlier gate. That reason is gone.
-# main is PR-only now and pr-verify.yml runs the same scan in PR mode, so the
-# gate blocks the merge before any tag exists, and release.yml scans again at
-# tag time. Reach for this only to reproduce a CI Sonar failure locally.
+# main-verify.yml runs the same scan on every push to main, so the gate has
+# already reported on the release commit by the time you tag, and release.yml
+# scans again at tag time. Reach for this only to reproduce a CI Sonar failure
+# locally.
 #
 # Configuration comes entirely from sonar-project.properties, exactly as in CI,
 # so this and the workflow cannot drift. No scanner arguments are passed.
@@ -580,27 +556,26 @@ validate:
 # rather than the git CLI: measured at MINUTES for ~144 files, where a native
 # `git blame` over the same files takes about one second. "SCM blame is in
 # progress.." means it is working, not hung -- but budget for the wait, or just
-# let CI do it, which is the whole point of the PR gate. A merge commit in the
-# history makes it worse, because JGit walks both parents.
+# let CI do it, which is the whole point of main-verify.yml. A merge commit in
+# the history makes it worse, because JGit walks both parents.
 #
 # WARNING: this PUBLISHES results to SonarCloud and they become the project's
 # current state for the branch. Run it on a clean tree at the commit you intend
 # to tag, not over work in progress -- otherwise the project ends up reporting
 # on code that was never committed.
 #
-# MAIN ONLY, and the guard below enforces it. -Dsonar.branch.name=main is passed
-# explicitly (it is no longer in sonar-project.properties, because PR analyses
-# must NOT be labelled main), so running this from a feature branch would
-# publish that branch's code as main's analysis and hand main a quality gate
-# result for code nobody merged. Feature branches get analysed by pr-verify.yml
-# on the pull request, which is where branch-scoped findings belong.
+# MAIN ONLY, and the guard below enforces it. sonar.branch.name=main is pinned
+# in sonar-project.properties (this repo is trunk-based -- main is the only
+# branch there is to analyse), so no scanner argument is passed here. Running
+# it from a scratch branch would publish that branch's code AS main's analysis
+# and hand main a quality gate result for code that was never on it.
 .PHONY: sonar
 sonar:
 	@_br=$$(git rev-parse --abbrev-ref HEAD); \
 	 if [ "$$_br" != "main" ]; then \
 	   echo "ERROR: 'make sonar' analyses main, but you are on '$$_br'." >&2; \
-	   echo "  Running it here would overwrite main's analysis with unmerged" >&2; \
-	   echo "  code. Open a PR instead -- pr-verify.yml scans it in PR mode." >&2; \
+	   echo "  Running it here would publish this branch's code as main's" >&2; \
+	   echo "  analysis. Switch to main first." >&2; \
 	   exit 1; \
 	 fi
 	@if [ -z "$$SONAR_TOKEN" ]; then \
@@ -614,8 +589,7 @@ sonar:
 	  -e GIT_CONFIG_KEY_0=safe.directory \
 	  -e GIT_CONFIG_VALUE_0=/usr/src \
 	  -v "$(CURDIR):/usr/src" \
-	  sonarsource/sonar-scanner-cli:latest \
-	  -Dsonar.branch.name=main
+	  sonarsource/sonar-scanner-cli:latest
 
 .PHONY: list
 list:
@@ -644,18 +618,18 @@ help:
 	@echo "Release (see RELEASING.md):"
 	@echo "  version           Show VERSION, the derived tag, and the latest git tag"
 	@echo "  release-check     Preflight only. Reports what each bump would produce"
-	@echo "  release-prep-patch   Bump PATCH, roll changelog, commit. From release/*"
-	@echo "  release-prep-minor   Bump MINOR, roll changelog, commit. From release/*"
-	@echo "  release-prep-major   Bump MAJOR, roll changelog, commit. From release/*"
-	@echo "  release-tag       Tag main's tip after the release PR merges"
-	@echo "  release-push      Push the tag. Fires release.yml. Not undoable"
+	@echo "  release-patch     Bump PATCH, roll changelog, commit, tag. Local only"
+	@echo "  release-minor     Bump MINOR, roll changelog, commit, tag. Local only"
+	@echo "  release-major     Bump MAJOR, roll changelog, commit, tag. Local only"
+	@echo "  release-tag       Tag the current VERSION without bumping (escape hatch)"
+	@echo "  release-push      Push main + the tag. Fires release.yml. Not undoable"
 	@echo ""
 	@echo "Utility:"
 	@echo "  fmt               terraform fmt -recursive terraform/"
 	@echo "  validate          terraform validate every module root (no cloud calls)"
 	@echo "  sonar             SonarCloud scan of main. LOCAL FALLBACK only -- CI"
-	@echo "                    gates every PR. Needs SONAR_TOKEN + docker, refuses"
-	@echo "                    to run off main, very slow on Apple Silicon"
+	@echo "                    scans every push to main. Needs SONAR_TOKEN + docker,"
+	@echo "                    refuses to run off main, very slow on Apple Silicon"
 	@echo "  list              Show all modules in dependency order"
 	@echo "  help              This message"
 	@echo ""
