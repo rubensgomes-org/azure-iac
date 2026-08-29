@@ -21,6 +21,14 @@ here.
 
 ### Changed
 
+### Fixed
+
+## [0.4.3] - 2026-08-29
+
+### Added
+
+### Changed
+
 - **Moved all development and maintenance to a single `main` branch.** The
   repo is trunk-based again: `main` is the only branch, every change is
   committed straight to it, and there are no feature branches, pull requests,
