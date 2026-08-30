@@ -23,6 +23,14 @@ here.
 
 ### Fixed
 
+## [0.4.4] - 2026-08-30
+
+### Added
+
+### Changed
+
+### Fixed
+
 - **Corrected workflow counts that the `pr-verify.yml` → `main-verify.yml`
   rename left stale.** `acr-create.yml` and `docs/PROVISIONING_PLAN.md` both
   said "five workflows"; there are six. `release.yml`'s timeout comment claimed
