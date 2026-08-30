@@ -19,6 +19,7 @@
 #  storage account, and container name) into Terraform local state.
 
 name: "Import Terraform Bootstrap Backend State"
+description: "Defines composite action for Terraform workflows"
 
 runs:
   using: "composite"

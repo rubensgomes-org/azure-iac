@@ -120,11 +120,22 @@ it.
    ```shell
    ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
    TF_SERVICE_PRINCIPAL='<SECRET>'
+   # take note of the following displayed output:
+   # "appId" --> SP (Service Principal) username = ARM_CLIENT_ID
+   # "password" --> SP (Service Principal) password = ARM_CLIENT_SECRET
    az ad sp create-for-rbac \
    --name ${TF_SERVICE_PRINCIPAL} \
    --role Contributor \
    --scopes "/subscriptions/${ARM_SUBSCRIPTION_ID}" \
    --verbose
+   ```
+
+4. Find the TF_OBJECT_ID
+
+   ```shell
+   APP_ID='<SECRET>' # from the previous command.
+   # take note of the "TF_OBJECT_ID" displayed
+   az ad sp show --id "${APP_ID}" --query id -o tsv
    ```
 
 ### Add Service Principal Roles
@@ -139,7 +150,33 @@ it.
       --scope "/subscriptions/${ARM_SUBSCRIPTION_ID}"
     ```
 
-2. Add "Storage Blob Data Contributor" role:
+2. Create a resource group for `Terraform`:
+
+   ```shell
+   TF_RESOURCE_GROUP='<SECRET>'
+   # create Terraform resource group
+   # NOTE: I changed the location of the Terraform resource group from 
+   # eastus to centralus
+   az group create \
+   --name "${TF_RESOURCE_GROUP}" \
+   --location centralus
+   ```
+
+3. Create the storage account for Terraform:
+
+   ```shell
+   TF_RESOURCE_GROUP='<SECRET>'
+   TF_STORAGE_ACCOUNT='<SECRET>'
+   # NOTE: I changed the location of the Terraform resource group from 
+   # eastus to centralus
+   az storage account create \
+   --name  "${TF_STORAGE_ACCOUNT}" \
+   --resource-group "${TF_RESOURCE_GROUP}" \
+   --location centralus \
+   --sku Standard_LRS
+   ```
+
+4. Add "Storage Blob Data Contributor" role:
 
     ```shell
     SCOPE="/subscriptions/${ARM_SUBSCRIPTION_ID}/resourceGroups/${TF_RESOURCE_GROUP}/providers/Microsoft.Storage/storageAccounts/${TF_STORAGE_ACCOUNT}"
@@ -170,7 +207,12 @@ it.
 2. Test Login using the service principal;
 
    ```shell
-   # Login as an SP (Service Principal)
+   az logout
+   # SP (Service Principal) username:
+   ARM_CLIENT_ID='<SECRET>'
+   # SP (Service Principal) password:
+   ARM_CLIENT_SECRET='<SECRET>'
+   ARM_TENANT_ID='<SECRET>'
    az login --service-principal \
    --username "${ARM_CLIENT_ID}" \
    --password "${ARM_CLIENT_SECRET}" \
@@ -178,7 +220,7 @@ it.
    --allow-no-subscriptions
    # Confirm the ServicePrincipal as the type of login
    az account show --query user
-   # To display the AZURE_CLIENT_ID
+   # To display the ARM_CLIENT_ID/AZURE_CLIENT_ID
    az account show --query user.name -o tsv
    ```
 
@@ -193,14 +235,14 @@ it.
 
 2. Display the Service Principal Object Id (ARM_OBJECT_ID):
 
-   - A Client ID (AZURE_CLIENT_ID) identifies the application
+   - A Client ID (ARM_CLIENT_ID/AZURE_CLIENT_ID) identifies the application
    - A Service Principal Object ID (TF_OBJECT_ID) identifies the actual Service 
      Principal instance in the tenant
 
      ```shell
-     AZURE_CLIENT_ID='<SECRET_INFO>'
+     ARM_CLIENT_ID='<SECRET_INFO>'
      # displays the object id:
-     az ad sp show --id "${AZURE_CLIENT_ID}" --query id -o tsv
+     az ad sp show --id "${ARM_CLIENT_ID}" --query id -o tsv
      # Take note of the output and store it in TF_OBJECT_ID
      ```
 
