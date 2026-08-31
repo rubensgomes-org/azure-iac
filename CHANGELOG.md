@@ -21,6 +21,14 @@ here.
 
 ### Changed
 
+### Fixed
+
+## [0.4.7] - 2026-08-30
+
+### Added
+
+### Changed
+
 - **The Terraform state backend region is now `centralus`, matching the
   estate.** `terraform/bootstrap-backend/terraform.tfvars` and the `location`
   default in its `variables.tf` moved from `eastus` to `centralus`, so the
