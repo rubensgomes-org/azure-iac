@@ -22,6 +22,14 @@ trusts one plans from a false premise.
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+## [0.5.0] - 2026-08-31
+
 ### Changed
 
 - **`owner` and `createdBy` tags on every taggable resource.** `owner` moves
