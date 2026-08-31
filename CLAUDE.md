@@ -239,17 +239,21 @@ Things to know before editing it:
   does not serialise against this repo's own. The azurerm blob lease is the
   real guard — a collision fails with a lock error. Never add `-lock=false`.
   The group string is `acr-lifecycle-<env>`, shared verbatim with
-  `acr-destroy.yml` so a create and a destroy of module 06 cannot overlap.
+  `acr-destroy.yml` so a create and a destroy of these modules cannot overlap.
   Lifecycle-shaped, not verb-shaped, for that reason. Changing it in one file
   without the other silently removes the interlock.
 
-**`acr-destroy.yml` is the teardown counterpart.** It takes the same two
-triggers as `acr-create.yml` (`workflow_call` + `workflow_dispatch`) but is
-asymmetric with it everywhere that matters: gated on `ALLOWED_ACTOR` plus a
-typed `DESTROY ACR <name>` phrase, and bound to the `AZURE` Environment so a
-required-reviewer gate can be added in repo settings without editing the file.
-None of those guards is relaxed on the `workflow_call` path — that is the whole
-basis on which a destroy is safe to expose as reusable:
+**`acr-destroy.yml` is the teardown counterpart, and destroys everything
+`acr-create.yml` applies** — modules 06, 04 and 01, in that order (registry +
+`AcrPull` grant, then the shared UAMI, then all five RGs). It took module 06
+alone until this changed; the wider scope is why the pre-flight guard and the
+renamed confirmation phrase below exist. It takes the same two triggers as
+`acr-create.yml` (`workflow_call` + `workflow_dispatch`) but is asymmetric with
+it in ceremony: gated on `ALLOWED_ACTOR` plus a typed `DESTROY ACR STACK <name>`
+phrase, and bound to the `AZURE` Environment so a required-reviewer gate can be
+added in repo settings without editing the file. None of those guards is relaxed
+on the `workflow_call` path — that is the whole basis on which a destroy is safe
+to expose as reusable:
 
 - **`environment: AZURE` is kept on both triggers, deliberately.** For a
   reusable workflow the binding resolves in the *caller's* repo, so a calling
@@ -270,16 +274,47 @@ basis on which a destroy is safe to expose as reusable:
   `github.actor` is whoever triggered the *caller's* run, so a push by another
   user or a bot/scheduled upstream trigger is denied at step 2, before any
   credential is touched.
-- It destroys **module 06 only** — the registry plus its `AcrPull` role
-  assignment. Modules 01 and 04 are never planned. That is structural (module
-  06 has its own state key and a destroy can only remove what is in the state
-  it is pointed at), but a guard step parses `terraform show -json tfplan` and
-  fails the run if the plan proposes deleting anything other than
-  `azurerm_container_registry` / `azurerm_role_assignment`.
+- **A pre-flight guard aborts the run if the five RGs hold anything outside
+  this stack.** This is the guard the widened scope made necessary and the one
+  to leave alone. While the workflow destroyed module 06 alone, pointing it at a
+  deployed estate was survivable — the registry went and `make apply-acr` put it
+  back. Now it also deletes the shared UAMI and the RGs, so against a live
+  estate it would remove the identity every microservice authenticates with and
+  then fail at the RG delete (`prevent_deletion_if_contains_resources`), leaving
+  the estate half-destroyed with modules 02/03/05/07–12 still holding state. It
+  scans `rg-<env>-*` via `az resource list` and allows exactly three types:
+  `Microsoft.ContainerRegistry/registries`,
+  `Microsoft.ManagedIdentity/userAssignedIdentities`, and
+  `microsoft.insights/actionGroups` (the Smart Detection orphan, which the
+  sweep step removes). A full teardown is `make destroy`, not a flag here.
+- **A per-module plan-scope guard runs before each destroy.** One script,
+  written once to `$RUNNER_TEMP` and called three times with an allowlist —
+  `azurerm_container_registry`/`azurerm_role_assignment` for 06,
+  `azurerm_user_assigned_identity` for 04, `azurerm_resource_group` for 01. It
+  parses `terraform show -json tfplan` and fails the run on any other type.
+  Belt-and-braces: each module has its own state key and a destroy can only
+  remove what is in the state it is pointed at. Keep it one script — three
+  inlined copies would drift.
+- **`make purge-orphans` runs between modules 04 and 01**, the same sweep the
+  repo-root `make destroy` does between 02 and 01. Without it the Smart
+  Detection action group blocks the observability RG's delete. Normally a no-op
+  here (module 12 is never applied by `acr-create.yml`), and safe because the
+  pre-flight guard has already proved nothing but orphans can be left.
+- **`rg-tfstate` is never in scope**, and the final step asserts it survived.
+  The workflow deletes resource groups while writing its own state into one, so
+  a scoping mistake reaching the backend would destroy every module's state with
+  no way to `terraform init` again. The assertion is cheap; the failure is not
+  recoverable.
 - The expected registry name is read from
   `terraform/envs/<env>/06-acr/terraform.tfvars`, not hardcoded in the
   workflow — comparing the typed confirmation against anything else would let
   the guard pass while a different registry was torn down.
+- **The confirmation phrase is `DESTROY ACR STACK <name>`, not
+  `DESTROY ACR <name>`.** It was renamed when the scope widened, which is a
+  breaking change for any caller, on purpose: a phrase naming only the registry
+  no longer describes what the run deletes, and informed consent is the entire
+  point of a type-to-confirm gate. The safeguard step prints a note explaining
+  the change when it sees the old phrase.
 - Its `concurrency.group` is `acr-lifecycle-<env>` — the *same string* as
   `acr-create.yml`, on purpose. A group only serialises runs that name it
   identically, and the run that must never overlap a destroy is a create of
@@ -289,8 +324,10 @@ basis on which a destroy is safe to expose as reusable:
   Basic SKU has no soft-delete, so there is no purge step and the name is
   released immediately. The pre-destroy inventory step logs what was in the
   registry because the run log is the only surviving record.
-- It uses `make plan-destroy-acr` / `make destroy-acr`. `plan-destroy-<name>`
-  is generated by the same Makefile factory as the other per-module targets.
+- It uses `make plan-destroy-<name>` / `make destroy-<name>` for `acr`,
+  `managed-identities` and `resource-groups`, plus `make purge-orphans`. All
+  are generated by the same Makefile factory as the other per-module targets;
+  the workflow reimplements nothing.
 
 **The state backend has no CI at all, deliberately.** Creating and destroying it
 are hand-operated procedures — `terraform/bootstrap-backend/TF_PROVISION.md` for

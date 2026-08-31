@@ -70,7 +70,9 @@ all apps (acceptable for a playground).
   (`terraform/bootstrap-backend/TF_PROVISION.md` and `TF_DESTROY.md`).
   See README.md
 - `PROVISION_ACR.md` — standalone runbook for standing up just the ACR
-  (modules 01 → 04 → 06) and tearing it back down
+  (modules 01 → 04 → 06) and tearing it back down. `acr-destroy.yml` is the
+  exact inverse of `acr-create.yml` in scope — it destroys 06 → 04 → 01 — and
+  refuses to run if the resource groups hold anything beyond that stack
 - `RELEASING.md` — what MAJOR/MINOR/PATCH mean here and how a tag is cut
 - `sonar-project.properties` — SonarCloud scanner config, read unmodified by
   both `release.yml` and `make sonar`. A red quality gate blocks the release

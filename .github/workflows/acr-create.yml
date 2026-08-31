@@ -65,9 +65,18 @@
 #     declared in every versions.tf in the repo. Every Terraform-touching
 #     workflow in this directory pins the same build; bump them together.
 #     (mirror-push.yml runs no Terraform and carries no pin.)
-#   - The teardown counterpart is acr-destroy.yml, which is reusable too but
-#     destroys module 06 only and is guarded by an actor allowlist, a typed
-#     confirmation phrase, and a plan-scope assertion.
+#   - The teardown counterpart is acr-destroy.yml, which is reusable too and
+#     removes exactly what this workflow creates -- the same three modules,
+#     destroyed in reverse order (06 -> 04 -> 01). It is guarded where this one
+#     is not: an actor allowlist, a typed confirmation phrase, a pre-flight
+#     check that the resource groups hold nothing beyond this stack, and a
+#     plan-scope assertion before each module's destroy.
+#   - Keep the two in step. A resource added to modules 01, 04 or 06 is created
+#     here and must be destroyable there; if it is of a new TYPE, add it to that
+#     module's allowlist in acr-destroy.yml's plan-scope guard, and to the
+#     pre-flight guard's allowed types if it lives in one of the five RGs.
+#     Otherwise the destroy fails closed -- which is the safe direction, but it
+#     fails.
 #   - terraform_wrapper is false. The wrapper intercepts stdout, which would
 #     break the `terraform output -raw` calls that produce this workflow's
 #     outputs.

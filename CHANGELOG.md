@@ -24,7 +24,46 @@ trusts one plans from a false premise.
 
 ### Added
 
+- **`acr-destroy.yml` pre-flight guard.** Before any destroy runs, the workflow
+  enumerates every resource in the `rg-<env>-*` resource groups and aborts the
+  run if it finds anything outside the ACR stack — allowing only
+  `Microsoft.ContainerRegistry/registries`,
+  `Microsoft.ManagedIdentity/userAssignedIdentities`, and the Azure-generated
+  `microsoft.insights/actionGroups` orphan the sweep step removes. Necessary
+  because the workflow now deletes the resource groups: against a live estate
+  that would remove the shared UAMI out from under every microservice and then
+  fail at the RG delete (`prevent_deletion_if_contains_resources`), leaving the
+  estate half-destroyed. A full teardown is `make destroy`
+  (`docs/PROVISIONING_PLAN.md` §15).
+- **Per-module plan-scope guards in `acr-destroy.yml`**, one before each of the
+  three destroys. The previous single inline guard is now a script written once
+  to `$RUNNER_TEMP` and invoked three times with a per-module type allowlist:
+  `azurerm_container_registry`/`azurerm_role_assignment` for module 06,
+  `azurerm_user_assigned_identity` for 04, `azurerm_resource_group` for 01.
+- **`make purge-orphans` step in `acr-destroy.yml`**, between modules 04 and
+  01 — the same sweep `make destroy` runs between 02 and 01. Without it the
+  "Application Insights Smart Detection" action group Azure creates and
+  Terraform never owns blocks the observability RG's delete.
+- **A post-destroy assertion that `rg-tfstate` survived.** The workflow now
+  deletes resource groups while writing its own state into one, so a scoping
+  mistake reaching the state backend would be unrecoverable.
+
 ### Changed
+
+- **`acr-destroy.yml` now destroys modules 06, 04 AND 01** — everything
+  `acr-create.yml` applies, in reverse dependency order: the registry and its
+  `AcrPull` grant, then the shared UAMI `id-<env>-app`, then all five resource
+  groups. It previously destroyed module 06 alone and deliberately left 01 and
+  04 standing. The two workflows are now exact inverses in scope.
+- **BREAKING (callers): the confirmation phrase is now
+  `DESTROY ACR STACK <acr_name>`**, was `DESTROY ACR <acr_name>`. A caller
+  passing the old phrase fails at the safeguard step with a message naming the
+  change. Renamed on purpose — the gate exists for informed consent, and a
+  phrase naming only the registry no longer describes what the run deletes.
+- `acr-destroy.yml`'s job timeout raised from 20 to 30 minutes to cover three
+  init/plan/destroy cycles instead of one.
+- Documentation updated for the new scope: `README.md`, `PROVISION_ACR.md`,
+  `CLAUDE.md`, `docs/PROJECT_SUMMARY.md`.
 
 ### Fixed
 

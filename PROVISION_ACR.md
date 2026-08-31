@@ -348,10 +348,27 @@ place costs nothing and saves a step next time.
 
 From CI, the equivalent is the **ACR Destroy (reusable)** workflow
 (`.github/workflows/acr-destroy.yml`), run from the Actions tab
-(`workflow_dispatch`) or called from another repository (`workflow_call`). It
-destroys module 06 only — resource groups and the managed identity are left
-standing, and a guard step aborts the run if the destroy plan says otherwise.
-It asks you to type `DESTROY ACR rubensdevacr` before it will proceed.
+(`workflow_dispatch`) or called from another repository (`workflow_call`). It is
+the exact inverse of `acr-create.yml`: it destroys **modules 06, 04 and 01**, in
+that order — the registry and its `AcrPull` grant, then the shared UAMI, then
+all five resource groups. It asks you to type `DESTROY ACR STACK rubensdevacr`
+before it will proceed.
+
+That is wider than the by-hand recipe above, which stops at the registry and the
+identity. Two guards keep it honest:
+
+- **A pre-flight guard enumerates the five resource groups and aborts the run
+  if they hold anything beyond this stack.** So the workflow cannot be pointed
+  at a live estate: destroying the RGs there would pull the shared identity out
+  from under every microservice and then fail at the RG delete, leaving things
+  half-torn-down. Use `make destroy` for a full teardown
+  (`docs/PROVISIONING_PLAN.md` §15).
+- **A per-module plan-scope guard** runs before each of the three destroys and
+  aborts if that module's plan proposes deleting a resource type outside its own
+  footprint.
+
+`rg-tfstate` is never in scope — it belongs to `terraform/bootstrap-backend`,
+not to module 01 — and the final verification step asserts it survived.
 
 Called from another repository it looks like this — and note that nothing is
 relaxed for the caller:
@@ -363,7 +380,7 @@ jobs:
     with:
       environment_name: dev
       acr_name: rubensdevacr                # required; no default on this path
-      confirm: DESTROY ACR rubensdevacr     # required; must match exactly
+      confirm: DESTROY ACR STACK rubensdevacr   # required; must match exactly
     secrets:
       AZURE_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -525,8 +542,9 @@ Related docs:
 
 - `.github/workflows/acr-create.yml` — the CI equivalent of §4, reusable
   from an application repository
-- `.github/workflows/acr-destroy.yml` — the CI equivalent of §7, reusable but
-  actor-restricted and type-to-confirm guarded on every trigger
+- `.github/workflows/acr-destroy.yml` — the CI counterpart of §7, but wider:
+  it destroys modules 06, 04 and 01. Reusable, actor-restricted and
+  type-to-confirm guarded on every trigger
 - `docs/PROVISIONING_PLAN.md` — §4 dependency map, §12 passwordless auth,
   §15 full-teardown procedure
 - `terraform/envs/dev/06-acr/README.md` — the by-hand `terraform` equivalents
