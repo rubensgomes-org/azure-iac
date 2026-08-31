@@ -12,13 +12,7 @@ Two things to settle before starting:
 - **This is a one-way door.** Deleting the Storage Account deletes every module
   state blob inside it, along with the versioning and soft-delete policies that
   would otherwise protect them — those guard blobs *within* a live account and
-  do not survive the account itself. There is no purge or restore step. What
-  goes with it: every state blob and all prior versions, and with them the
-  record of resource IDs, generated random suffixes and module outputs.
-  Re-bootstrapping afterwards starts from genuinely empty state, so any Azure
-  resource still standing at that point has to be `terraform import`ed back.
-
----
+  do not survive the account itself. There is no purge or restore step.
 
 ## 1. Why the step order matters
 
@@ -28,17 +22,6 @@ teardown self-destructive:
 
 > **NEVER run `terraform destroy` in this directory while `backend.tf` still
 > points at the azurerm backend.**
-
-Terraform would delete the Storage Account partway through and then be unable to
-write the resulting state back, because the blob it is holding open is gone. You
-end up with resources that may or may not have been deleted and no state file
-that says which.
-
-Moving state to a local file first separates the thing being destroyed from the
-thing recording the destruction. That is also what makes the procedure
-**resumable**: if the destroy fails partway, the local `terraform.tfstate` on
-disk is still accurate, so fixing the cause and re-running picks up where it
-stopped.
 
 ## 2. What gets destroyed
 
@@ -52,19 +35,10 @@ Four managed resources, all declared in `main.tf`. Their names come from
 | `azurerm_storage_container.tfstate`              | `container_name`              | Holds every module's state blob                                            |
 | `azurerm_role_assignment.state_blob_contributor` | —                             | `Storage Blob Data Contributor`, scoped to the account, so it dies with it |
 
-`terraform state list` shows a **fifth** line,
-`data.azurerm_client_config.current`. That is a data source, not a managed
-resource — Terraform reads it, never creates or deletes it, and it simply drops
-out of state. Count only what is managed:
 
 ```bash
 terraform state list | grep -v '^data\.'   # → 4 lines
 ```
-
-`main.tf` also declares `azurerm_management_lock.tfstate_rg_lock` under
-`count = var.enable_rg_lock ? 1 : 0`. When that variable is false the lock is
-absent from state entirely. When it is true the lock exists and **blocks the
-destroy** — see Gotchas.
 
 ## 3. Prerequisites
 
@@ -87,14 +61,17 @@ az account set --subscription "${ARM_SUBSCRIPTION_ID}"
 # 4. No estate module may still be applied.
 az group list --query "[?starts_with(name, 'rg-dev')].name" -o tsv
 #   must return nothing
+
+# 5. For sub-3cloud-lab use the following command:
+az group list \
+  --query "[?starts_with(name, 'rg-dev') && ends_with(name, 'rubens')].name" \
+  -o tsv
+#   must return nothing
 ```
 
 Destroying the backend while any `rg-dev-*` module is still applied strands
 those resources: their state blobs go away with the container, so Terraform can
 no longer see or delete them. They keep billing.
-
-The Service Principal needs **`User Access Administrator`** (or `Owner`) to
-delete the role assignment — `Contributor` alone is not enough.
 
 ## 4. Procedure
 
@@ -110,9 +87,9 @@ as-is:
 
 ```bash
 # value of backend_resource_group_name in terraform.tfvars
-BACKEND_RG='rg-tfstate'
+TF_RESOURCE_GROUP='rg-tfstate'
 # value of storage_account_id in terraform.tfvars
-BACKEND_SA='sttfstaterubens01'
+TF_STORAGE_ACCOUNT='sttfstaterubens01'
 ```
 
 ### Step 1 — comment out the backend block
@@ -128,6 +105,11 @@ With no `backend` block, Terraform falls back to the local backend.
 ### Step 2 — pull state down to a local file
 
 ```bash
+# You need to remove the following file first:
+cd "$(git rev-parse --show-toplevel)"
+rm -rf terraform/bootstrap-backend/.terraform
+# proceed now...
+cd "$(git rev-parse --show-toplevel)/terraform/bootstrap-backend"
 terraform init -migrate-state
 ```
 
@@ -158,6 +140,8 @@ cat .terraform/terraform.tfstate
 
 ```bash
 terraform plan -destroy -out=destroy.tfplan
+  -var backend_resource_group_name="${TF_RESOURCE_GROUP}" \
+  -var storage_account_id="${TF_STORAGE_ACCOUNT}"
 terraform show destroy.tfplan
 ```
 
@@ -188,13 +172,13 @@ the plan.
 terraform state list | grep -v '^data\.'   # → no output
 
 # value of backend_resource_group_name in terraform.tfvars
-BACKEND_RG='rg-tfstate'
+TF_RESOURCE_GROUP='rg-tfstate'
 # value of storage_account_id in terraform.tfvars
-BACKEND_SA='sttfstaterubens01'
+TF_STORAGE_ACCOUNT='sttfstaterubens01'
 
 # Azure's view: the backend's own resources are gone.
-az group exists -n "$BACKEND_RG"           # → false
-az storage account show -n "$BACKEND_SA"   # → ResourceNotFound
+az group exists -n "${TF_RESOURCE_GROUP}"           # → false
+az storage account show -n "${TF_STORAGE_ACCOUNT}"   # → ResourceNotFound
 ```
 
 `ResourceGroupNotFound` / `ResourceNotFound` here are success, not errors.

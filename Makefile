@@ -44,6 +44,17 @@
 ENV     ?= dev
 ENV_DIR := terraform/envs/$(ENV)
 
+# Optional RG-name suffix, mirroring module 01's `rg_suffix` input. Terraform
+# reads TF_VAR_rg_suffix from the environment; Make imports the environment as
+# variables, so the same export reaches both without a second knob. The dash is
+# added here for the same reason the module adds it in `local.suffix` — an
+# unset suffix must leave the historical names byte-for-byte unchanged.
+#
+# This exists solely so the orphan sweep below can name the observability RG.
+# Nothing else in this Makefile constructs an RG name; every terraform target
+# passes -var-file and lets Terraform do it.
+RG_SUFFIX := $(if $(TF_VAR_rg_suffix),-$(TF_VAR_rg_suffix),)
+
 # Release version. The repo-root VERSION file is the single source of truth:
 # the git tag is `v$(VERSION)`, the CHANGELOG heading is `[$(VERSION)]`, and
 # every module root reads the same file to stamp a `release` tag onto every
@@ -169,7 +180,7 @@ apply:
 # Creating an Application Insights component makes Azure ALSO create an action
 # group named "Application Insights Smart Detection" in the same RG. Terraform
 # never manages it, so destroying module 12 leaves it behind — and then module
-# 01 cannot delete rg-dev-observability, because azurerm's
+# 01 cannot delete rg-<env>-observability, because azurerm's
 # `prevent_deletion_if_contains_resources` (default true) refuses to delete an
 # RG with unknown resources in it. This recurs on EVERY teardown.
 #
@@ -189,8 +200,8 @@ apply:
 # `make -n destroy` would run the ENTIRE teardown for real instead of printing
 # it. Inlining keeps `-n` an honest dry run.
 define SWEEP_ORPHANS
-echo "=== SWEEP Azure-generated orphans (rg-dev-observability) ==="; \
-ids=$$(az monitor action-group list -g rg-dev-observability \
+echo "=== SWEEP Azure-generated orphans (rg-$(ENV)-observability$(RG_SUFFIX)) ==="; \
+ids=$$(az monitor action-group list -g rg-$(ENV)-observability$(RG_SUFFIX) \
          --query "[].id" -o tsv 2>/dev/null || true); \
 if [ -z "$$ids" ]; then echo "  (none)"; else \
   echo "$$ids" | while IFS= read -r id; do \

@@ -4,8 +4,6 @@ Steps to create `terraform/bootstrap-backend/` — the resource group, Storage
 Account, blob container and RBAC assignment that hold the remote state for every
 other module in this repo.
 
-This is the reverse of `terraform/bootstrap-backend/TF_DESTROY.md`.
-
 Two things to know before starting:
 
 - **This runs before everything else.** No module root under
@@ -58,7 +56,7 @@ Set these once from the values in `terraform.tfvars` so the rest can be pasted
 as-is:
 
 ```bash
-TF_RESOURCE_GROUP=rg-tfstate
+TF_RESOURCE_GROUP='rg-tfstate'
 TF_STORAGE_ACCOUNT='sttfstaterubens01'
 ```
 
@@ -68,9 +66,6 @@ TF_STORAGE_ACCOUNT='sttfstaterubens01'
 
 Open `backend.tf` and comment out the entire
 `terraform { backend "azurerm" { ... } }` block (lines 45-101).
-
-Comment rather than delete: the block holds the literals needed in pass 2, and
-the diff makes the temporary state of the tree obvious in `git status`.
 
 If you have arrived straight from a teardown it is already commented out.
 Confirm rather than assume:
@@ -89,6 +84,7 @@ terraform validate
 Confirm the local backend actually took effect:
 
 ```bash
+# This file is populated after migrating from azurerm to local during teardown 
 cat .terraform/terraform.tfstate
 # local backend   → {"version": 3, "terraform_version": "..."}  (no "backend" key)
 # azurerm backend → a "backend" object naming the storage account
@@ -99,11 +95,11 @@ If it still shows an azurerm backend, Step 1 did not take.
 #### Step 3 — plan and read it
 
 ```bash
-terraform plan -out=bootstrap.tfplan
+terraform plan -out=bootstrap.tfplan \
+  -var backend_resource_group_name="${TF_RESOURCE_GROUP}" \
+  -var storage_account_id="${TF_STORAGE_ACCOUNT}"
 terraform show bootstrap.tfplan
 ```
-
-`terraform.tfvars` is auto-loaded by filename, so no `-var-file` is needed.
 
 Expect **4 to add, 0 to change, 0 to destroy**, and check the resource group's
 `location` is the region you intend. Any `change` or `destroy` in a bootstrap
@@ -151,9 +147,8 @@ Terraform's view and Azure's view:
 terraform state list | grep -v '^data\.'    # → the 4 managed resources
 terraform plan                              # → "No changes"
 
-TF_RESOURCE_GROUP=rg-tfstate
+TF_RESOURCE_GROUP='rg-tfstate'
 TF_STORAGE_ACCOUNT='sttfstaterubens01'
-
 
 az group show -n "${TF_RESOURCE_GROUP}" --query location -o tsv
 az storage container list --account-name "${TF_STORAGE_ACCOUNT}" \

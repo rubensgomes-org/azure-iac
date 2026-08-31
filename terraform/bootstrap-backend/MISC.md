@@ -1,7 +1,8 @@
 ## General Instructions
 
-FROM HERE ON, YOU SHOULD USE THE TERRAFORM CODE.  THE FOLLOWING STEPS ARE ONLY 
-DISPLAYED FOR DOCUMENTATION PURSPOES ONLY:
+FROM HERE ON, YOU SHOULD USE THE TERRAFORM CODE TO PROVISION
+[TF_PROVISION](TF_PROVISION.md) OR TO DESTROY [TF_DESTROY](TF_DESTROY.md). THE
+FOLLOWING STEPS ARE ONLY DISPLAYED FOR DOCUMENTATION PURSPOES ONLY:
 
 1. Create a resource group for `Terraform`:
 
@@ -41,22 +42,7 @@ DISPLAYED FOR DOCUMENTATION PURSPOES ONLY:
       --scope "${SCOPE}"
     ```
 
-## Bootstrap Terraform Backend Resources
-
-_You should now proceed to create the Terraform resource group. storage 
-account and Blob Container as described in the [README](./bootstrap-backend/README.md)_
-
-## `Terraform` Azure Resource Group -- DO NOT RUN THIS USING AZ CLI
-
-**NOTE: TO BE DONE BY TERRAFORM !!!  THE CREATION OF ANY RESOURCES IN AZURE
-MUST BE DONE USING TERRAFORM TO AUTOMATE THE CREATION/DESTROY OF THOSE
-RESOURCES AS NEEDED.**
-
-Resource groups provide a logical container to manage and organize Azure
-resources, simplifying administration and enabling efficient resource
-management.
-
-- Create a resource group for `Terraform`:
+4. Create a resource group for `Terraform`:
 
    ```shell
    # login from the browser / select subscription
@@ -68,26 +54,20 @@ management.
    --location centralus
    ```
 
-- List the resource groups:
+5. List the resource groups:
 
     ```shell
     az group list --output table
     ```
 
-- Delete the resource group:
+6. Delete the resource group:
 
-    ```shell
-    az group delete \
-    --name "${TF_RESOURCE_GROUP}" \
-    --yes \
-    --no-wait  
-    ```
-
-## `Terraform` Azure Storage Account -- DO NOT RUN THIS USING AZ CLI
-
-**NOTE: TO BE DONE BY TERRAFORM !!!  THE CREATION OF ANY RESOURCES IN AZURE
-MUST BE DONE USING TERRAFORM TO AUTOMATE THE CREATION/DESTROY OF THOSE
-RESOURCES AS NEEDED.**
+   ```shell
+   az group delete \
+   --name "${TF_RESOURCE_GROUP}" \
+   --yes \
+   --no-wait  
+   ```
 
 An Azure Storage Account is the top-level container for Azure storage services.
 It provides a unique namespace and management boundary for storing data in
@@ -102,14 +82,14 @@ durable, highly available, secure, and scalable.
              └── <container>
    ```
 
-- Before creating the storage account, ENSURE the Microsoft.Storage Resource
-  Provider is registered in your new Azure subscription.
+7. Before creating the storage account, ENSURE the Microsoft.Storage Resource
+   Provider is registered in your new Azure subscription.
 
    ```shell
    az provider register --namespace Microsoft.Storage
    ```
 
-- It should say "Registered":
+8. It should say "Registered":
 
     ```shell
     az provider show \
@@ -117,7 +97,7 @@ durable, highly available, secure, and scalable.
     --query registrationState -o tsv
     ```
 
-- Now create the storage account for Terraform:
+9. Now create the storage account for Terraform:
 
    ```shell
    TF_RESOURCE_GROUP='<SECRET>'
@@ -129,7 +109,7 @@ durable, highly available, secure, and scalable.
    --sku Standard_LRS
    ```
 
-- Check the storage account `kind` created:
+10. Check the storage account `kind` created:
 
     ```shell
     az storage account show \
@@ -139,7 +119,7 @@ durable, highly available, secure, and scalable.
     -o tsv
     ```
 
-- Delete the storage account:
+11. Delete the storage account:
 
     ```shell
     az storage account delete \
@@ -147,13 +127,7 @@ durable, highly available, secure, and scalable.
     --resource-group "${TF_RESOURCE_GROUP}"
     ```
 
-## `Terraform` Azure Blob Container -- DO NOT RUN THIS USING AZ CLI
-
-**NOTE: TO BE DONE BY TERRAFORM !!!  THE CREATION OF ANY RESOURCES IN AZURE
-MUST BE DONE USING TERRAFORM TO AUTOMATE THE CREATION/DESTROY OF THOSE
-RESOURCES AS NEEDED.**
-
-- Get Storage Account key:
+12.  Get Storage Account key:
 
     ```shell
     az storage account keys list \
@@ -164,7 +138,7 @@ RESOURCES AS NEEDED.**
     # take note of output and store it in TF_STORAGE_KEY
     ```
 
-- List containers created under the storage account:
+13. List containers created under the storage account:
 
     ```shell
     az storage container list \
@@ -173,7 +147,7 @@ RESOURCES AS NEEDED.**
     --output table
     ```
 
-- Create the Blob Container to store the `Terraform` state:
+14. Create the Blob Container to store the `Terraform` state:
 
     ```shell
     TF_CONTAINER='<SECRET>'
@@ -183,7 +157,7 @@ RESOURCES AS NEEDED.**
     --account-key "${TF_STORAGE_KEY}"
     ```
 
-- Delete the Blob Container:
+15. Delete the Blob Container:
 
     ```shell
     TF_CONTAINER='<SECRET>'

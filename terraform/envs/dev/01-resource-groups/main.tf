@@ -10,7 +10,8 @@
 module "resource_groups" {
   source = "../../../modules/resource-groups"
 
-  env      = var.env
-  location = var.location
-  tags     = merge(var.tags, { release = local.release })
+  env       = var.env
+  location  = var.location
+  rg_suffix = var.rg_suffix
+  tags      = merge(var.tags, { release = local.release })
 }

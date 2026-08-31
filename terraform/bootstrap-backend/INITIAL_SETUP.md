@@ -130,9 +130,11 @@ it.
    # take note of the following displayed output:
    # "appId" --> SP (Service Principal) username = ARM_CLIENT_ID
    # "password" --> SP (Service Principal) password = ARM_CLIENT_SECRET
+   # The Service Principal needs **`User Access Administrator`** (or `Owner`) to
+   # delete the role assignment — `Contributor` alone is not enough.
    az ad sp create-for-rbac \
    --name ${TF_SERVICE_PRINCIPAL} \
-   --role Contributor \
+   --role Owner \
    --scopes "/subscriptions/${ARM_SUBSCRIPTION_ID}" \
    --verbose
    ```

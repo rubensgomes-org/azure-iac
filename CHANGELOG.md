@@ -24,7 +24,35 @@ trusts one plans from a false premise.
 
 ### Added
 
+- **Optional `rg_suffix` on the resource-groups module**, appending
+  `-<suffix>` to all five RG names (`rg-dev-platform-blue`, …). Default is the
+  empty string, so existing names are byte-for-byte unchanged and no plan moves
+  until the value is set. Wired through `terraform/modules/resource-groups/`
+  and the `terraform/envs/dev/01-resource-groups/` root; the other eleven
+  modules need no change because they read RG names from module 01's remote
+  state.
+
+  It is supplied as the **`TF_VAR_rg_suffix` environment variable** and is
+  deliberately absent from `env.tfvars` and `terraform.tfvars` — `-var-file`
+  outranks `TF_VAR_*`, so a value in either file would make the environment
+  variable a silent no-op. An undeclared `TF_VAR_*` is ignored without warning,
+  so exporting it does not disturb the other roots' plans.
+
+  Two limits are documented next to the variable and in both READMEs: `name`
+  is ForceNew on `azurerm_resource_group`, so changing the suffix on a live
+  estate is a broken estate rather than a rename (set it at first provision or
+  after a full teardown); and suffixed RGs alone do not make a parallel estate
+  possible, because `acr_name` is a fixed literal that would collide.
+
 ### Changed
+
+- **The Makefile orphan sweep no longer hardcodes `rg-dev-observability`.**
+  `SWEEP_ORPHANS` now builds the RG name from `$(ENV)` and a new `RG_SUFFIX`
+  derived from `TF_VAR_rg_suffix`, so `make purge-orphans` and the sweep inside
+  `make destroy` find the Smart Detection action group in a suffixed estate.
+  Without this the sweep would report `(none)` and module 01's destroy would
+  then fail on `prevent_deletion_if_contains_resources`. With no suffix
+  exported and the default `ENV=dev`, the command is unchanged.
 
 ### Fixed
 

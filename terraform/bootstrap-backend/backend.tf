@@ -42,60 +42,60 @@
 #   3. `terraform destroy`.
 # -----------------------------------------------------------------------------
 
-terraform {
-  # ---------------------------------------------------------------------------
-  # AzureRM remote state backend
-  # ---------------------------------------------------------------------------
-  # The `azurerm` backend stores the Terraform state as a blob in an Azure
-  # Storage Account. It supports state locking natively (via a blob lease on
-  # the state blob), so concurrent `apply` runs on the same key are safely
-  # serialised.
-  #
-  # NOTE: Backend blocks do NOT accept interpolations (`var.*`, `local.*`,
-  # etc.). Values must be literals or supplied at init time via
-  # `-backend-config=key=value` / `-backend-config=file.hcl`. The literals
-  # below therefore must be kept in sync with `terraform.tfvars`.
-  backend "azurerm" {
-    # -------------------------------------------------------------------------
-    # Backend storage location
-    # -------------------------------------------------------------------------
-    # Must match the resources created in main.tf:
-    #   - resource_group_name  = var.backend_resource_group_name
-    #   - storage_account_name = var.storage_account_id
-    #   - container_name       = var.container_name
-    # If you change any of those variable values (or `terraform.tfvars`),
-    # update the literals here to match.
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
-
-    # -------------------------------------------------------------------------
-    # State blob key (path within the container)
-    # -------------------------------------------------------------------------
-    # `key` is the filename of the state blob inside `container_name`. Each
-    # Terraform module in this repo MUST use a distinct key; two modules
-    # sharing a key would overwrite each other's state on apply.
-    #
-    # Convention used here:  <module-name>/<state-file>.tfstate
-    # Examples for other modules (elsewhere in the repo):
-    #   - phase1/network.tfstate
-    #   - phase2/aks.tfstate
-    key = "bootstrap/backend.tfstate"
-
-    # -------------------------------------------------------------------------
-    # Authentication mode
-    # -------------------------------------------------------------------------
-    # `use_azuread_auth = false` tells the backend to authenticate to the
-    # Storage Account using the Service Principal credentials supplied via
-    # the ARM_* environment variables (ARM_CLIENT_ID, ARM_CLIENT_SECRET,
-    # ARM_TENANT_ID, ARM_SUBSCRIPTION_ID). The backend obtains a storage
-    # access key at init time and uses it for blob I/O.
-    #
-    # Setting this to `true` would instead use the SP's Azure AD identity
-    # directly against the Storage Account's data plane; that requires the
-    # SP to have `Storage Blob Data Contributor` (or equivalent) on the
-    # account. We stay on `false` here so a fresh SP without data-plane
-    # RBAC can still bootstrap the backend on first run.
-    use_azuread_auth = false
-  }
-}
+# terraform {
+#   # ---------------------------------------------------------------------------
+#   # AzureRM remote state backend
+#   # ---------------------------------------------------------------------------
+#   # The `azurerm` backend stores the Terraform state as a blob in an Azure
+#   # Storage Account. It supports state locking natively (via a blob lease on
+#   # the state blob), so concurrent `apply` runs on the same key are safely
+#   # serialised.
+#   #
+#   # NOTE: Backend blocks do NOT accept interpolations (`var.*`, `local.*`,
+#   # etc.). Values must be literals or supplied at init time via
+#   # `-backend-config=key=value` / `-backend-config=file.hcl`. The literals
+#   # below therefore must be kept in sync with `terraform.tfvars`.
+#   backend "azurerm" {
+#     # -------------------------------------------------------------------------
+#     # Backend storage location
+#     # -------------------------------------------------------------------------
+#     # Must match the resources created in main.tf:
+#     #   - resource_group_name  = var.backend_resource_group_name
+#     #   - storage_account_name = var.storage_account_id
+#     #   - container_name       = var.container_name
+#     # If you change any of those variable values (or `terraform.tfvars`),
+#     # update the literals here to match.
+#     resource_group_name  = "rg-tfstate"
+#     storage_account_name = "sttfstaterubens01"
+#     container_name       = "tfstate"
+#
+#     # -------------------------------------------------------------------------
+#     # State blob key (path within the container)
+#     # -------------------------------------------------------------------------
+#     # `key` is the filename of the state blob inside `container_name`. Each
+#     # Terraform module in this repo MUST use a distinct key; two modules
+#     # sharing a key would overwrite each other's state on apply.
+#     #
+#     # Convention used here:  <module-name>/<state-file>.tfstate
+#     # Examples for other modules (elsewhere in the repo):
+#     #   - phase1/network.tfstate
+#     #   - phase2/aks.tfstate
+#     key = "bootstrap/backend.tfstate"
+#
+#     # -------------------------------------------------------------------------
+#     # Authentication mode
+#     # -------------------------------------------------------------------------
+#     # `use_azuread_auth = false` tells the backend to authenticate to the
+#     # Storage Account using the Service Principal credentials supplied via
+#     # the ARM_* environment variables (ARM_CLIENT_ID, ARM_CLIENT_SECRET,
+#     # ARM_TENANT_ID, ARM_SUBSCRIPTION_ID). The backend obtains a storage
+#     # access key at init time and uses it for blob I/O.
+#     #
+#     # Setting this to `true` would instead use the SP's Azure AD identity
+#     # directly against the Storage Account's data plane; that requires the
+#     # SP to have `Storage Blob Data Contributor` (or equivalent) on the
+#     # account. We stay on `false` here so a fresh SP without data-plane
+#     # RBAC can still bootstrap the backend on first run.
+#     use_azuread_auth = false
+#   }
+# }

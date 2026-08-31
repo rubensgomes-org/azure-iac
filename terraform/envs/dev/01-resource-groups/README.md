@@ -83,3 +83,27 @@ are reusable immediately after destroy.
 - The child module's set of purposes (`platform`, `network`, `data`, `app`,
   `observability`) is fixed on purpose. Adding one is a breaking change that
   every downstream module has to acknowledge.
+- **`rg_suffix` renames every RG and comes from the environment, not tfvars.**
+  `export TF_VAR_rg_suffix=blue` before `make apply-resource-groups` gives
+  `rg-dev-platform-blue`, `rg-dev-network-blue`, and so on. It is deliberately
+  absent from `../env.tfvars` and from `terraform.tfvars`, because `-var-file`
+  outranks `TF_VAR_*` — putting it in either file would make the environment
+  variable a no-op. The other eleven modules need no change: they read RG names
+  from this module's remote state.
+
+  Two limits worth knowing before using it:
+
+  1. `name` is ForceNew on `azurerm_resource_group`. Changing the suffix on a
+     live estate plans a destroy+recreate of all five RGs, but everything
+     inside them is owned by other state files that know nothing about it —
+     that is a broken estate, not a rename. Set it at first provision, or
+     after a full teardown (`docs/PROVISIONING_PLAN.md` §15).
+  2. Suffixed RGs alone do not make the estate parallel-safe. Key Vault,
+     Storage, Service Bus, Log Analytics and PostgreSQL already append a
+     `random_id`, but `acr_name` in `../06-acr/terraform.tfvars` is a fixed
+     literal and will collide with the first estate's registry.
+
+  `make purge-orphans` and the orphan sweep inside `make destroy` read the
+  same `TF_VAR_rg_suffix`, so export it for teardown too — otherwise the sweep
+  looks in `rg-dev-observability`, finds nothing, and module 01's destroy
+  fails on `prevent_deletion_if_contains_resources`.

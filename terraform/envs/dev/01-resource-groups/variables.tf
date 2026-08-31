@@ -27,6 +27,34 @@ variable "tags" {
   default     = {}
 }
 
+# ---- Consumed by this module, sourced from the ENVIRONMENT -----------------
+
+# Deliberately NOT in ../env.tfvars, and deliberately without a value anywhere
+# on disk. It is supplied — when it is supplied at all — as an environment
+# variable:
+#
+#   export TF_VAR_rg_suffix=blue
+#   make apply-resource-groups        # -> rg-dev-platform-blue, ...
+#
+# Keeping it out of the tfvars files is what makes that work: `-var-file`
+# OUTRANKS `TF_VAR_*` in Terraform's precedence order, so the moment
+# `rg_suffix` appears in env.tfvars the environment variable is silently
+# ignored. Pick one mechanism; this repo picks the environment.
+#
+# The other eleven module roots do not declare this and do not need to — they
+# read RG names out of module 01's remote state, so the suffix reaches them
+# without any code change. An undeclared TF_VAR_* is ignored without warning
+# (unlike an undeclared key in a -var-file), so exporting it in the shell does
+# not disturb their plans either.
+#
+# See modules/resource-groups/variables.tf for the ForceNew warning: this is
+# safe to set at first provision or after a full teardown, NOT on a live estate.
+variable "rg_suffix" {
+  description = "Optional suffix appended to every RG name. Set via TF_VAR_rg_suffix, not tfvars."
+  type        = string
+  default     = ""
+}
+
 # ---- Declared for env.tfvars parity, unused by this module -----------------
 
 variable "prefix" {

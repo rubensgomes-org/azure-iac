@@ -19,7 +19,15 @@ rationale (blast radius, dependency direction, lifecycle grouping).
 |------------|---------------|----------|---------------------------------------------------|
 | `env`      | `string`      | yes      | Environment name (e.g. `dev`). Baked into names.  |
 | `location` | `string`      | yes      | Azure region (e.g. `eastus`).                     |
+| `rg_suffix`| `string`      | no       | Appends `-<suffix>` to every RG name. Default `""` = no suffix. |
 | `tags`     | `map(string)` | no       | Common tags. `purpose` and `purpose_description` are added per-RG. |
+
+`rg_suffix` is normally supplied as the `TF_VAR_rg_suffix` environment
+variable rather than through a tfvars file — `-var-file` outranks `TF_VAR_*`,
+so a value in `env.tfvars` would silently win over the environment. It is safe
+to set at first provision or after a full teardown only: `name` is ForceNew on
+`azurerm_resource_group`, and the resources inside those RGs are owned by
+eleven other state files that would not follow a rename.
 
 ## Outputs
 
