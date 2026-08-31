@@ -145,7 +145,9 @@ Terraform's view and Azure's view:
 
 ```bash
 terraform state list | grep -v '^data\.'    # → the 4 managed resources
-terraform plan                              # → "No changes"
+terraform plan \
+  -var backend_resource_group_name="${TF_RESOURCE_GROUP}" \
+  -var storage_account_id="${TF_STORAGE_ACCOUNT}"
 
 TF_RESOURCE_GROUP='rg-tfstate'
 TF_STORAGE_ACCOUNT='sttfstaterubens01'
