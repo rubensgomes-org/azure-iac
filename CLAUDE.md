@@ -64,11 +64,16 @@ region overrides any more. Two things that follow from that:
   `eastus`; `centralus` is not restricted (verified via
   `az postgres flexible-server list-skus`). Check any future region the same
   way before editing `env.tfvars`.
-- **The state backend stays in `eastus`, deliberately.** `rg-tfstate` /
-  `sttfstaterubens01` are in `eastus` and `backend.hcl` has no region field —
-  the azurerm backend addresses state by RG + account + container name, so a
-  state blob's region is independent of where the resources it tracks live.
-  Do not "fix" this.
+- **The state backend is in `centralus` too.** `rg-tfstate` and its Storage
+  Account now sit in the same region as the estate. This is cosmetic, not
+  load-bearing: `backend.hcl` has no region field, and the azurerm backend
+  addresses state by RG + account + container name, so a state blob's region
+  is independent of where the resources it tracks live. (Until v0.4.6 the
+  backend was pinned to `eastus` and documented as a deliberate exception;
+  the RG was subsequently recreated in `centralus`, and
+  `terraform/bootstrap-backend/terraform.tfvars` was aligned to match.)
+  `location` there is ForceNew on the RG — changing it plans a destroy of
+  `rg-tfstate` and every state blob under it.
 
 **Rebuilding from here** is `make apply` from repo root, or module-by-module in
 numeric order. Nothing is up, so 01 builds from scratch too. Each module's

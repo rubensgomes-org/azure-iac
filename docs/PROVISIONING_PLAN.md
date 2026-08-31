@@ -70,7 +70,7 @@ v0.4.2. A single `location` in `terraform/envs/dev/env.tfvars` drives
 all twelve modules and there are no per-module overrides — module 09's
 `eastus2` pin is gone, because `centralus` is not offer-restricted for
 PG Flexible Server on this subscription the way `eastus` is. The state
-backend stays in `eastus` deliberately; see §15. Before moving the
+backend is in `centralus` as well; see §15. Before moving the
 estate again, read the ForceNew warning in `env.tfvars` and check the
 candidate region with
 `az postgres flexible-server list-skus --location <region>`.
@@ -1284,20 +1284,28 @@ check the new region with `az postgres flexible-server list-skus --location
 <region>` before committing to it; a restricted region brings the two-region
 split (and this caveat) straight back.
 
-**The state backend is the one deliberate exception.** `rg-tfstate` and
-`sttfstaterubens01` remain in `eastus` and did not move with the estate. That is
-not drift: the azurerm backend addresses state by resource group + storage
-account + container name, and `envs/dev/backend.hcl` has no region field at all,
-so a state blob's location is independent of where the resources it tracks live.
-Relocating it would mean a new globally-unique storage account name (Azure cannot
-move a storage account between regions) and a migration of every state blob,
-for no benefit. Leave it.
+**The state backend sits in `centralus` too, but its region is irrelevant.**
+`rg-tfstate` and the state Storage Account are in `centralus`, matching the
+estate. Nothing depends on that: the azurerm backend addresses state by resource
+group + storage account + container name, and `envs/dev/backend.hcl` has no
+region field at all, so a state blob's location is independent of where the
+resources it tracks live.
+
+Until v0.4.6 the backend was pinned to `eastus` and this paragraph documented
+that as a deliberate exception. The RG was later recreated in `centralus`, and
+`bootstrap-backend/terraform.tfvars` was aligned to match rather than moved
+back. Do not attempt to relocate it again: `location` is ForceNew on
+`azurerm_resource_group`, so a region change plans a DESTROY + CREATE of
+`rg-tfstate` — which deletes the Storage Account and every state blob in it —
+and Azure cannot move a Storage Account between regions, so it would also need
+a new globally-unique account name. Migrate the blobs out first or leave it
+alone.
 
 **What legitimately survives, and why.** None of these are leaks:
 
 | Survivor | Why |
 |---|---|
-| `rg-tfstate` + `sttfstaterubens01` + `tfstate` container | The state backend, in `eastus` by design (see the region note above). Not managed by modules 01-12 — see the optional step below. |
+| `rg-tfstate` + the state Storage Account + `tfstate` container | The state backend, in `centralus` (see the region note above). Not managed by modules 01-12 — see the optional step below. |
 | `NetworkWatcherRG` | Auto-created by Azure per-region, not by this repo. |
 | `ME_cae-dev_rg-dev-app_centralus` | Azure-managed infra RG for the Container App Environment. Removed automatically when module 10 destroys the CAE — never delete it by hand. |
 | Service Principal, PG Entra admin group | Created manually per `INITIAL_SETUP.md`. Delete by hand if you want a truly clean tenant. |

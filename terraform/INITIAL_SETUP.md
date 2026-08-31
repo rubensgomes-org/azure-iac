@@ -307,7 +307,7 @@ management.
    # create Terraform resource group
    az group create \
    --name "${TF_RESOURCE_GROUP}" \
-   --location eastus
+   --location centralus
    ```
 
 - List the resource groups:
@@ -367,7 +367,7 @@ durable, highly available, secure, and scalable.
    az storage account create \
    --name  "${TF_STORAGE_ACCOUNT}" \
    --resource-group "${TF_RESOURCE_GROUP}" \
-   --location eastus \
+   --location centralus \
    --sku Standard_LRS
    ```
 

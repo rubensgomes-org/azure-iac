@@ -110,9 +110,9 @@ az group list --query "[].name" -o tsv    # no rg-dev-* => nothing applied
 `terraform/envs/dev/env.tfvars` drives all twelve modules, with no per-module
 overrides — module 09's old `eastus2` pin is gone now that the estate sits in a
 region where PG Flexible Server is not offer-restricted. The Terraform state
-backend deliberately stays in `eastus`: the azurerm backend addresses state by
-resource group + storage account + container name and has no region field, so
-its location is independent of the resources it tracks.
+backend is in `centralus` as well, but only cosmetically: the azurerm backend
+addresses state by resource group + storage account + container name and has no
+region field, so its location is independent of the resources it tracks.
 
 Rebuild with `make apply` from the repo root, or module-by-module in numeric
 order — a module whose upstreams are not applied fails at plan with

@@ -27,9 +27,15 @@
 # -----------------------------------------------------------------------------
 
 # Azure region for the Resource Group and Storage Account. Any region works;
-# `eastus` is chosen for low latency from the maintainer's location and
-# broad service availability. Also drives data-residency for the state blob.
-location = "eastus"
+# `centralus` matches the region the rest of the estate moved to in v0.4.2
+# (see `terraform/envs/dev/env.tfvars`), so the backend and the resources it
+# tracks now sit in one region. Also drives data-residency for the state blob.
+#
+# This value is ForceNew on `azurerm_resource_group`: changing it plans a
+# DESTROY + CREATE of `rg-tfstate`, which would take the state Storage Account
+# — and the state blobs inside it — with it. Never change this on a backend
+# that holds live state without migrating the blobs out first.
+location = "centralus"
 
 # Resource Group that will hold every backend resource created by this
 # module (Storage Account, RBAC assignment, optional lock). Must match

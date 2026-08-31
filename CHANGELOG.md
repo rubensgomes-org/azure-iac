@@ -21,6 +21,29 @@ here.
 
 ### Changed
 
+- **The Terraform state backend region is now `centralus`, matching the
+  estate.** `terraform/bootstrap-backend/terraform.tfvars` and the `location`
+  default in its `variables.tf` moved from `eastus` to `centralus`, so the
+  bootstrap module describes the region `rg-tfstate` is actually in. The
+  v0.4.2 entry below documented the `eastus` backend as a deliberate
+  exception; the RG was subsequently recreated in `centralus`, and the code
+  is aligned to that rather than moved back. Documentation-and-tfvars only —
+  no state blob was migrated, and the change is cosmetic: the azurerm backend
+  addresses state by resource group + storage account + container name and
+  `envs/dev/backend.hcl` carries no region field, so a state blob's location
+  has never affected anything.
+
+  A warning went in alongside it, in `terraform.tfvars` and
+  `docs/PROVISIONING_PLAN.md` §15: `location` is ForceNew on
+  `azurerm_resource_group`, so editing it against a backend that holds live
+  state plans a DESTROY + CREATE of `rg-tfstate` and takes every state blob
+  with it. Migrate the blobs out first.
+
+  Corresponding notes updated in `CLAUDE.md`, `docs/PROVISIONING_PLAN.md`
+  (region note + §15 exception paragraph + survivor table),
+  `docs/PROJECT_SUMMARY.md`, and the two superseded `az` recipes in
+  `terraform/INITIAL_SETUP.md`.
+
 ### Fixed
 
 ## [0.4.6] - 2026-08-30

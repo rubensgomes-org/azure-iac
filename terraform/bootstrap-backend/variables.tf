@@ -27,11 +27,13 @@
 #   - Data residency of the state blob.
 #   - Network latency for every `terraform plan/apply` that reads state.
 #   - Pricing tier for the Storage Account.
-# Default `eastus` is a low-cost region with broad service availability.
+# Default `centralus` matches the estate region set in
+# `terraform/envs/dev/env.tfvars`, so a bare `terraform apply` with no tfvars
+# lands the backend in the same region as the resources it tracks.
 variable "location" {
   type        = string
   description = "Azure region for the backend resources."
-  default     = "eastus"
+  default     = "centralus"
 }
 
 # -----------------------------------------------------------------------------
