@@ -116,10 +116,20 @@ pg_entra_admin_group_name = "az-dev-pg-admins"
 # repo-root VERSION file (see <NN-module>/locals.tf) and merges
 # `release = local.release` in here. Setting it by hand would let the label
 # drift from the actual git tag. See RELEASING.md.
+#
+# NOTE: `managedBy` and `createdBy` are BOTH here on purpose and carry the same
+# value. They are not a duplication to tidy away — `managedBy` warns humans off
+# hand-editing the resource, `createdBy` is the provenance key queried by tag
+# policy. Removing either changes what an existing query matches.
+#
+# `environment` tracks the env directory this file belongs to, so it stays in
+# step with the `dev` baked into every resource name (`rg-dev-platform`,
+# `kv-dev-…`). A second env directory gets its own value here.
 tags = {
   managedBy   = "terraform"
+  createdBy   = "terraform"
   environment = "dev"
-  owner       = "rubens"
+  owner       = "rubens.s.gomes@gmail.com"
   costCenter  = "learning"
   project     = "azure-iac"
 }

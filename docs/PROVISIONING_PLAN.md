@@ -2,15 +2,17 @@
 
 ## Context
 
-You have a Terraform bootstrap already working: `terraform/bootstrap-backend/`
-provisioned the state backend (`rg-tfstate`, `sttfstaterubens01`, `tfstate`
-container) and migrated its own state remotely. The 12 module stub directories
-under `terraform/modules/` are empty, `terraform/envs/dev/env.tfvars` is empty,
-and no `docs/` folder exists yet.
+This is the provisioning reference for the estate: how it is structured, in what
+order it is built, and what each module needs. It describes how to provision —
+never what is currently provisioned. Deployment status and dated history belong
+in `CHANGELOG.md`.
 
-You want to build the rest of the estate one module at a time — apply → verify →
-move to the next — with per-module instructions you can run by hand, and
-eventually automate provision / destroy / reprovision end-to-end.
+The estate is built one module at a time — apply → verify → move to the next —
+with per-module instructions that can be run by hand, and automated end-to-end
+for provision / destroy / reprovision.
+
+The state backend is the prerequisite for all of it; see
+`../terraform/bootstrap-backend/TF_PROVISION.md`.
 
 **Decisions confirmed:**
 
@@ -32,195 +34,6 @@ eventually automate provision / destroy / reprovision end-to-end.
   and granted `CONNECT`/schema privileges on every app DB (fanned out via
   `for_each = toset(var.apps)`).
 
-## Progress (as of 2026-08-29)
-
-Modules **01 through 12 are fully implemented, and all have been applied
-and verified against Azure at least once** — the estate is
-feature-complete in code.
-
-**Currently applied in Azure: NOTHING. The estate is at zero.** Verified
-2026-08-29: none of the five `rg-dev-*` resource groups exist —
-`az group list` returns only `rg-tfstate` plus the Azure-created
-`NetworkWatcherRG` and `DefaultResourceGroup-EUS`. Every one of the
-twelve module state keys is an empty few-hundred-byte shell (serial +
-lineage, `resources: 0`); `bootstrap/backend.tfstate` is the only
-populated state in the container.
-
-(Until 2026-08-24 module 01 was still up. It has since been destroyed,
-so the five resource groups are gone rather than merely empty.)
-
-The estate therefore costs $0/month at present: the state Storage
-Account is free at this scale.
-
-Re-check rather than trusting this note — a status line ages badly:
-
-```bash
-az group list --query "[].name" -o tsv              # no rg-dev-* => nothing applied
-az storage blob list --account-name sttfstaterubens01 \
-  --container-name tfstate --auth-mode key \
-  --query "[].{name:name,size:properties.contentLength}" -o table
-```
-
-`--auth-mode key` is required: the interactive user account holds no
-`Storage Blob Data *` role, so `--auth-mode login` fails on that
-container.
-
-**Region: `centralus`** for the whole estate, moved from `eastus` in
-v0.4.2. A single `location` in `terraform/envs/dev/env.tfvars` drives
-all twelve modules and there are no per-module overrides — module 09's
-`eastus2` pin is gone, because `centralus` is not offer-restricted for
-PG Flexible Server on this subscription the way `eastus` is. The state
-backend is in `centralus` as well; see §15. Before moving the
-estate again, read the ForceNew warning in `env.tfvars` and check the
-candidate region with
-`az postgres flexible-server list-skus --location <region>`.
-
-**Rebuilding** is `make apply` from the repo root, or module-by-module
-in numeric order. Nothing is up, so module 01 builds from scratch too.
-Each module's upstreams must be applied first — a root whose
-`data.terraform_remote_state` points at an empty state key fails at plan
-with *Unsupported attribute*, which is not a useful message. Two chains
-worth knowing: ACR alone is `make apply-resource-groups &&
-make apply-managed-identities && make apply-acr` (~$5.07/month, all of
-it the Basic registry unit); Container Apps needs 01, 04, 06, 07, 08,
-09, 10, then 11.
-
-Module inventory (implementation status — all twelve are written and
-have been proven against Azure; see above for what is applied *now*):
-
-- 01-resource-groups
-- 02-networking
-- 03-log-analytics
-- 04-managed-identities
-- 05-key-vault
-- 06-acr
-- 07-storage
-- 08-service-bus
-- 09-postgresql (data-plane UAMI-principal bootstrap ran from Azure
-  Cloud Shell — the in-line `null_resource.pg_bootstrap` is gated OFF
-  because the runner's ISP blocks outbound TCP 5432; see the module's
-  README "Data-plane bootstrap" section)
-- 10-container-app-environment
-- 11-container-apps — was deployed with the
-  `mcr.microsoft.com/k8se/quickstart:latest` placeholder image on port
-  80; swap to real ACR-hosted images via `apps_image_map` +
-  `target_port` in the root's `terraform.tfvars` once Spring Boot
-  images are pushed — see `11-container-apps/README.md` → "Swapping the
-  placeholder image". Since the apps are down, that swap is a re-apply
-  rather than an in-place update (see D1) — and note the registry is
-  down too, so ACR has to be reprovisioned and the images repushed
-  first
-- 12-monitoring (App Insights workspace-based on the shared LAW, one
-  Action Group with an email receiver, five diagnostic settings sinking
-  `allLogs` + `AllMetrics` into the shared LAW from KV, ACR, Storage
-  blob subresource, Service Bus, and PostgreSQL)
-
-**Root `Makefile` scaffolded** at the repo root — §10 automation is
-done. Per-module targets `init-<name>`, `plan-<name>`, `apply-<name>`,
-`destroy-<name>` where `<name>` is the short suffix (e.g. `key-vault`,
-not `05-key-vault`), plus whole-estate `make apply` (01→12),
-`make destroy` (12→01 with post-destroy KV purge + PG soft-delete
-report), `make reprovision`, and utility targets `make fmt`,
-`make validate`, `make list`, `make help`. Every recipe reuses the
-same `-backend-config` + `-var-file` invocations the per-module READMEs
-document, so switching between the Makefile and manual `cd + terraform`
-is a no-op.
-
-**Deviation from §12 in 09-postgresql — Option B, not Option A.** The
-plan recommends `cyrilgdn/postgresql` (Option A) for the shared-UAMI
-AAD-principal step. In practice, `postgresql_role` runs `CREATE ROLE`,
-which in Azure Flexible Server with Entra-only auth produces a role
-that CANNOT log in — only `pgaadauth_create_principal` produces
-AAD-authenticated roles, and no cyrilgdn resource wraps that stored
-procedure. Option B (null_resource + local-exec + psql) was chosen
-instead. The script is idempotent and gated by `triggers` so re-apply
-with no relevant change does not re-run. Full rationale in
-`terraform/modules/postgresql/README.md` § Design decisions.
-
-**Prereqs unique to 09-postgresql (not needed by any prior module):**
-
-- The `pg_entra_admin_group_object_id` placeholder in
-  `terraform/envs/dev/env.tfvars` must be replaced with a real Entra
-  group objectId, and the Terraform SP must be a member of that group.
-- The runner needs `az` (2.60+), `psql` (Postgres client 15+), and
-  `bash` on `PATH`. The null_resource shells out to all three.
-
-**Sanity check.** `make validate` was run across all 12 module roots
-after the Makefile landed — every root passes `terraform validate` with
-no cloud calls.
-
-## Deferred work (project paused 2026-07-15, estate at zero since 2026-08-29)
-
-Everything below is optional or blocked on non-IaC work. The estate is
-fully implemented in code and self-contained; pick any item up in
-isolation when there's appetite. Note that **nothing is applied** (see
-Progress above), so every item here starts with reprovisioning its
-upstreams. In rough priority order:
-
-### D1. Wire real Java / Spring Boot images into module 11 (app work)
-
-Blocked on the Spring Boot 4.1.x microservices being built and pushed
-to `rubensdevacr`. When module 11 was last up it ran
-`mcr.microsoft.com/k8se/quickstart:latest` on port 80 as a placeholder.
-Nothing is applied now, so this is a fresh apply rather than a replace —
-but that also means the registry the images have to be pushed to does
-not exist yet. The name is FIXED at `rubensdevacr`
-(`envs/dev/06-acr/terraform.tfvars`), so it survives a destroy/recreate
-and is safe to hardcode in image tags; that was the point of dropping
-the old `acr<env><random>` scheme.
-
-When images exist:
-1. Reprovision ACR and push: `make apply-resource-groups &&
-   make apply-managed-identities && make apply-acr`, then push the
-   images to `rubensdevacr.azurecr.io`.
-2. In `terraform/envs/dev/11-container-apps/terraform.tfvars`, uncomment
-   and set `apps_image_map` (map: app-name → full ACR image reference,
-   e.g. `rubensdevacr.azurecr.io/api:1.0.0`) and `target_port` (Spring
-   Boot default `8080`).
-3. Apply module 11's remaining upstreams (07, 08, 09, 10 — or just
-   `make apply` from the repo root), then `make apply-container-apps`.
-   A bare `make apply-container-apps` fails at plan with *Unsupported
-   attribute* while any upstream state key is empty.
-
-See `terraform/envs/dev/11-container-apps/README.md` → "Swapping the
-placeholder image" for the full checklist.
-
-### D2. Wire `APPLICATIONINSIGHTS_CONNECTION_STRING` into the Container Apps
-
-Depends on D1 — pointless until real apps are running. Module 12 already
-exports the value as the sensitive output `ai_connection_string`.
-
-Change is in the child module: add one `env` block to the container
-template in `terraform/modules/container-apps/main.tf`, sourced from a
-new variable that the 11-container-apps root wires up from
-`data.terraform_remote_state.monitoring.outputs.ai_connection_string`.
-The Azure Monitor OpenTelemetry SDK on the Java side reads the env var
-directly — no code change beyond dependency + auto-instrumentation
-setup. Noted in `terraform/envs/dev/12-monitoring/README.md` → Notes →
-"App Insights connection string".
-
-### D3. §12a — PG data-plane bootstrap as a Container Apps Job
-
-Replaces the manual `shell.azure.com` step for registering the shared
-UAMI as a PG AAD principal and running per-DB grants. Runs inside the
-VNet so it works from any dev machine regardless of the outbound-5432
-block that forced the manual workaround today (see
-`terraform/modules/postgresql/README.md` → "Data-plane bootstrap" and
-the auto-memory note on WSL2 network constraints).
-
-Sketch: new module `13-pg-bootstrap-job` (Container Apps Job resource,
-one-shot, `mcr.microsoft.com/azure-cli` + a shell script that runs
-`pgaadauth_create_principal` and per-DB `GRANT`s using the shared
-UAMI's AAD token). Section §12a of this plan has the full design.
-Nice-to-have — the manual Cloud Shell workflow works today.
-
-### D4. APIM (deferred from day one)
-
-Explicitly out of scope for iteration 1 per `CLAUDE.md`. When it lands,
-it becomes module 14 (or 13 if D3 is skipped), fronts the Container
-Apps ingress, and gets its own diagnostic setting sinking into the
-shared LAW created by module 03.
-
 ## Recommended approach
 
 ### 1. Per-module Terraform roots, one state file per module
@@ -241,8 +54,7 @@ azure-iac/
 ├── docs/
 │   └── PROVISIONING_PLAN.md              ← the master plan (this doc, rendered for the repo)
 ├── terraform/
-│   ├── INITIAL_SETUP.md                  (existing, unchanged)
-│   ├── bootstrap-backend/                (existing, unchanged)
+│   ├── bootstrap-backend/                (state backend + INITIAL_SETUP.md)
 │   ├── modules/                          (child modules — no state)
 │   │   ├── resource-groups/
 │   │   ├── networking/
@@ -272,7 +84,7 @@ azure-iac/
 │           ├── 10-container-app-environment/
 │           ├── 11-container-apps/
 │           └── 12-monitoring/
-└── Makefile                              (added last, once modules are proven)
+└── Makefile                              (per-module + whole-estate targets)
 ```
 
 ### 3. Resource Group partitioning (5 RGs)
@@ -304,6 +116,23 @@ azure-iac/
 
 Destroy order is the strict reverse: `12 → 11 → ... → 01`.
 
+**Provisioning order in practice.** Every module's upstreams must be applied
+before it. A root whose `data.terraform_remote_state` points at an empty state
+key fails at plan with *Unsupported attribute*, which does not name the real
+cause. Two chains worth knowing:
+
+- **ACR alone** — `make apply-resource-groups && make apply-managed-identities &&
+  make apply-acr`. Module 06 needs 01's platform RG and 04's shared UAMI for the
+  `AcrPull` grant.
+- **Container Apps** — 01, 04, 06, 07, 08, 09, 10, then 11.
+
+**A rebuild starts with the state backend, not with module 01.** Until the
+backend exists, every module root's `terraform init
+-backend-config=../backend.hcl` targets a Storage Account that is not there, so
+`make apply` cannot run at all. The order is: bootstrap the backend (two passes
+— see `../terraform/bootstrap-backend/TF_PROVISION.md`), then `terraform init
+-reconfigure` in each module root, then `make apply`.
+
 ### 5. Standard per-module scaffolding
 
 Every `envs/dev/<NN-module>/` root gets these files (mirroring
@@ -326,7 +155,7 @@ Every `envs/dev/<NN-module>/` root gets these files (mirroring
 
 ### 6. Shared config files (populate before module 01)
 
-**`terraform/envs/dev/env.tfvars`** (currently empty):
+**`terraform/envs/dev/env.tfvars`**:
 
 ```hcl
 env      = "dev"
@@ -350,7 +179,7 @@ tags = {
 }
 ```
 
-**`terraform/envs/dev/backend.hcl`** (new):
+**`terraform/envs/dev/backend.hcl`**:
 
 ```hcl
 resource_group_name  = "rg-tfstate"
@@ -362,7 +191,7 @@ use_azuread_auth     = false
 State layout inside the `tfstate` container:
 
 ```
-bootstrap/backend.tfstate                     (existing)
+bootstrap/backend.tfstate                     (the backend module's own key)
 resource-groups/terraform.tfstate
 networking/terraform.tfstate
 log-analytics/terraform.tfstate
@@ -401,6 +230,12 @@ LA-optional).
 | Application Insights           | `appi-<env>`                            | `appi-dev`           |
 
 Every resource takes `tags = var.tags` merged with optional module-local tags.
+
+**ACR is named explicitly rather than with a random suffix.** The name is set in
+`terraform/envs/dev/06-acr/terraform.tfvars` instead of being generated as
+`acr<env><random>`. A fixed name survives a destroy and recreate, which is what
+makes it safe to hardcode in image tags and in an application pipeline's push
+target.
 
 ### 8. Provision / Verify / Destroy / Reprovision workflow (template)
 
@@ -524,9 +359,18 @@ is the worked example: it exports `ARM_*` and calls
 `make init/plan/apply-<name>` for modules 01, 04 and 06 in order. When a
 workflow and the Makefile disagree, fix the Makefile.
 
+Per-module targets are `init-<name>`, `plan-<name>`, `plan-destroy-<name>`,
+`apply-<name>` and `destroy-<name>`, where `<name>` is the short suffix with the
+numeric prefix stripped — `key-vault`, not `05-key-vault`. Whole-estate targets
+are `make apply` (01→12), `make destroy` (12→01, with the orphan sweep and the
+post-destroy Key Vault purge check) and `make reprovision`. Utility targets are
+`make fmt`, `make validate`, `make list` and `make help`. Every recipe reuses the
+same `-backend-config` + `-var-file` invocations the per-module READMEs document,
+so switching between the Makefile and a manual `cd` + `terraform` is a no-op.
+
 ### 11. Documentation split
 
-- `docs/PROVISIONING_PLAN.md` — this master plan (created).
+- `docs/PROVISIONING_PLAN.md` — this master plan.
 - `terraform/envs/dev/<NN-module>/README.md` — commands live next to the code
   you `cd` into.
 - `terraform/modules/<name>/README.md` — child module API (inputs, outputs,
@@ -590,20 +434,21 @@ the shared UAMI. Apps connect using `sb.<namespace>.servicebus.windows.net` +
 
    **Plan of record** — the SQL is idempotent (guarded by `IF NOT EXISTS` and
    `GRANT` semantics), so the same statements can run from three different
-   drivers with the same end-state. The plan iterated through all three during
-   module 09's bring-up; the current choice is **C** (manual one-shot), moving
-   to **D** (Container Apps Job) as a follow-on. See §12a for D.
+   drivers with the same end-state. **C** (manual one-shot) is the plan of
+   record; **D** (Container Apps Job) is its successor. See §12a for D.
 
    - **A. `cyrilgdn/postgresql` provider** — declarative, but its
      `postgresql_role` runs a plain `CREATE ROLE`, which cannot register an AAD
-     principal on Flexible Server with `password_auth_enabled = false`. Rejected
-     during module 09 implementation. Kept here so future work knows why.
+     principal on Flexible Server with `password_auth_enabled = false`. Only
+     `pgaadauth_create_principal` produces an AAD-authenticated role, and no
+     `cyrilgdn` resource wraps that stored procedure — which is why this option
+     is not used.
    - **B. `null_resource` + `local-exec` running `psql`** — the child module
      still ships this path (gated behind `var.run_bootstrap`, default `false`).
      Fails outright when the runner's network blocks outbound TCP 5432, which
      is standard corporate / home ISP policy. Usable only from a self-hosted
      runner inside an Azure VNet or a network that allows outbound 5432.
-   - **C. Manual one-shot from Azure Cloud Shell** (current). Cloud Shell
+   - **C. Manual one-shot from Azure Cloud Shell** — the plan of record. Cloud Shell
      egresses from Azure public IPs and is covered by the
      `allow-azure-services` firewall rule, so it bypasses runner-side egress
      blocks entirely. The exact commands live in
@@ -661,9 +506,6 @@ permissions as `worker`. Acceptable for a learning playground; document as a
 known limitation to revisit if this graduates to a production-shaped project.
 
 ### 12a. PG data-plane bootstrap follow-on: Container Apps Job
-
-**Status:** planned, not implemented. Tracked here so the design is captured
-before module 10 lands.
 
 **Motivation.** The manual Cloud Shell path (§12 option C) works but is a
 person-in-the-loop step every time the app list changes. A Job-based approach
@@ -745,7 +587,7 @@ export ARM_TENANT_ID=<tenant-id>
 export ARM_SUBSCRIPTION_ID=<subscription-id>
 ```
 
-See `terraform/INITIAL_SETUP.md` for how the SP was created and what roles it
+See `../terraform/bootstrap-backend/INITIAL_SETUP.md` for how the SP was created and what roles it
 holds.
 
 #### 13.01 resource-groups
@@ -964,11 +806,18 @@ terraform destroy -var-file=../env.tfvars -var-file=terraform.tfvars
 
 #### 13.09 postgresql
 
+Two prerequisites unique to this module:
+
+- `pg_entra_admin_group_object_id` in `terraform/envs/dev/env.tfvars` must be a
+  real Entra group objectId, and the Terraform SP must be a member of that group.
+- The runner needs `az` (2.60+), `psql` (PostgreSQL client 15+) and `bash` on
+  `PATH` — the data-plane step shells out to all three.
+
 ```bash
 # Provision — Terraform SP must (a) reach the PG server (public access + FW
 # rule during bootstrap) and (b) be a member of the Entra group whose objectId
-# is pg_entra_admin_group_object_id in env.tfvars, so the cyrilgdn/postgresql
-# step can obtain an AAD token and create the shared UAMI as a PG principal.
+# is pg_entra_admin_group_object_id in env.tfvars, so the data-plane step can
+# obtain an AAD token and register the shared UAMI as a PG principal.
 cd terraform/envs/dev/09-postgresql
 terraform init \
   -backend-config=../backend.hcl \
@@ -1200,9 +1049,8 @@ fi
 **Reprovision:** run the destroy block, then the provision block. Both are
 idempotent modulo the soft-delete windows called out in §9.
 
-Once modules 01-12 are all implemented and proven, these two blocks graduate
-into a `Makefile` at repo root (see §10) with per-module and whole-estate
-targets that reuse the exact same invocations.
+These two blocks are also available as `Makefile` targets at the repo root
+(see §10), per-module and whole-estate, reusing the exact same invocations.
 
 ### 15. Complete teardown — removing every provisioned resource
 
@@ -1255,6 +1103,21 @@ az keyvault list-deleted -o table # empty — see the Key Vault note below
 az resource list --query "[?starts_with(resourceGroup, 'rg-dev')]" -o table
 ```
 
+To confirm the module state blobs are empty shells rather than still tracking
+live resources:
+
+```bash
+az storage blob list --account-name <account> \
+  --container-name tfstate --auth-mode key \
+  --query "[].{name:name,size:properties.contentLength}" -o table
+```
+
+A blob under roughly 500 bytes holds only serial and lineage — no resources.
+`--auth-mode key` is required when signed in as an interactive user account,
+which holds no `Storage Blob Data *` role and so fails `--auth-mode login` on
+that container. Signed in as the Terraform SP, which does hold `Storage Blob
+Data Contributor`, `--auth-mode login` works.
+
 **Key Vault needs no manual purge.** Module 05's provider block is `features {}`,
 so `key_vault.purge_soft_delete_on_destroy` takes its default of **`true`** and
 the provider purges the vault as part of destroy. `az keyvault list-deleted`
@@ -1274,31 +1137,25 @@ whatever the truth was. It is also unnecessary — module 09 names the server
 server's retained name. The recovery counterpart, if you ever need a dropped
 server back, is `az postgres flexible-server revive-dropped`.
 
-**Region: single, no caveat.** The whole estate is `centralus` (`env.tfvars`),
-PostgreSQL included, so any teardown check scoped by region uses one value. This
-was not always true — until v0.4.2 module 09 pinned `location = "eastus2"` in its
-own `terraform.tfvars`, because the subscription is offer-restricted from
-provisioning PG Flexible Server in the then-current `eastus`. `centralus` carries
-no such restriction, so the override is gone. If you ever move the estate again,
-check the new region with `az postgres flexible-server list-skus --location
-<region>` before committing to it; a restricted region brings the two-region
-split (and this caveat) straight back.
+**Region: single, no caveat.** A single `location` in `env.tfvars` drives all
+twelve modules, PostgreSQL included, with no per-module overrides — so any
+teardown check scoped by region uses one value. Before moving the estate to a
+different region, check it with `az postgres flexible-server list-skus --location
+<region>`: the subscription is offer-restricted from provisioning PG Flexible
+Server in some regions, and a restricted region forces a per-module override and
+brings a two-region split back.
 
-**The state backend sits in `centralus` too, but its region is irrelevant.**
-`rg-tfstate` and the state Storage Account are in `centralus`, matching the
-estate. Nothing depends on that: the azurerm backend addresses state by resource
-group + storage account + container name, and `envs/dev/backend.hcl` has no
-region field at all, so a state blob's location is independent of where the
-resources it tracks live.
+**The state backend's region is irrelevant.** `bootstrap-backend/terraform.tfvars`
+sets it independently of the estate. Nothing depends on the value: the azurerm
+backend addresses state by resource group + storage account + container name, and
+`envs/dev/backend.hcl` has no region field at all, so a state blob's location is
+independent of where the resources it tracks live.
 
-Until v0.4.6 the backend was pinned to `eastus` and this paragraph documented
-that as a deliberate exception. The RG was later recreated in `centralus`, and
-`bootstrap-backend/terraform.tfvars` was aligned to match rather than moved
-back. Do not attempt to relocate it again: `location` is ForceNew on
+**Do not change it to relocate the backend.** `location` is ForceNew on
 `azurerm_resource_group`, so a region change plans a DESTROY + CREATE of
-`rg-tfstate` — which deletes the Storage Account and every state blob in it —
-and Azure cannot move a Storage Account between regions, so it would also need
-a new globally-unique account name. Migrate the blobs out first or leave it
+`rg-tfstate` — which deletes the Storage Account and every state blob in it.
+Azure cannot move a Storage Account between regions either, so it would also
+need a new globally-unique account name. Migrate the blobs out first or leave it
 alone.
 
 **What legitimately survives, and why.** None of these are leaks:
@@ -1315,36 +1172,65 @@ alone.
 
 `make destroy` never touches `terraform/bootstrap-backend/`. Removing it needs
 the chicken-and-egg dance documented in that module's `backend.tf`, because you
-cannot destroy the Storage Account while your state lives inside it:
+cannot destroy the Storage Account while your state lives inside it.
+
+**The full procedure now lives in `terraform/bootstrap-backend/TF_DESTROY.md`**
+— prerequisites, the migration verification step that catches a silent no-op
+destroy, the plan review, post-destroy verification, and the gotchas. Read that
+rather than the four-line sketch this section used to carry. The shape of it:
 
 ```bash
 cd terraform/bootstrap-backend
 # 1. Comment out the `terraform { backend "azurerm" {} }` block in backend.tf.
 # 2. Pull state down to a local file:
 terraform init -migrate-state
-# 3. Now safe to destroy:
-terraform destroy
+# 3. Verify the migration actually moved something — an empty local state
+#    destroys nothing and still reports success.
+terraform state list
+# 4. Now safe to destroy:
+terraform plan -destroy -out=destroy.tfplan && terraform apply destroy.tfplan
 ```
 
 `enable_rg_lock = false` in its `terraform.tfvars`, so there is no
 `CanNotDelete` lock to remove first. This is a one-way door — re-bootstrapping
 later starts from empty state, and every module must be re-applied from scratch.
 
-**Teardown failure modes.** All four were hit in practice during the first full
-teardown. The Makefile now handles the first, third and fourth automatically;
-the second is Azure/provider behaviour you work around, not a repo bug:
+**The state backend has no CI, deliberately.** Do not add any.
+
+A CI destroy would have to init against the azurerm backend and then destroy
+without migrating state out first — exactly the sequence `backend.tf` forbids.
+It would delete the Storage Account holding the state it is writing to, and a
+partial failure would leave orphans with no state and no way to re-run, because
+the next `init` needs the account just deleted. A CI create has the same
+`init`-first problem in reverse: it cannot bootstrap an account that does not
+exist yet, leaving it able only to re-apply drift on a four-resource module.
+
+Bootstrapping is also inherently two-pass and interactive — pass 2 is
+`terraform init -migrate-state`, which prompts, and CI gets past it only with
+`-force-copy`, turning the one irreversible state decision into an unattended
+flag. A correct CI destroy would additionally have to rewrite `backend.tf` on
+the runner and upload the resulting local state as an artifact, since nothing
+remains to store it in.
+
+Both directions are hand-operated: see
+`terraform/bootstrap-backend/TF_PROVISION.md` to create and `TF_DESTROY.md` to
+destroy.
+
+**Teardown failure modes.** The Makefile handles the first, third and fourth
+automatically; the second is Azure/provider behaviour to work around, not a repo
+bug:
 
 - **`/bin/sh: tac: command not found` — silent no-op destroy.** `tac` is GNU
-  coreutils and does not exist on macOS/BSD. The destroy loop used to build its
-  module list with `... | tr ' ' '\n' | tac`; on macOS the substitution returned
-  empty, the loop iterated **zero times**, and the recipe went straight to the
-  Key Vault purge having destroyed nothing. `set -e` cannot catch this — the
-  failure is inside a command substitution used as a `for` word-list, so the
-  loop's own exit status is 0. The symptom is a confusing
-  `(DeletedVaultNotFound) The specified deleted vault ... does not exist`,
-  which really means *the vault was never deleted*. The Makefile now reverses
-  `DIRS` in pure Make (`$(call reverse,...)`) with no external tool dependency,
-  and aborts if the reversed list is empty.
+  coreutils and does not exist on macOS/BSD. Building the destroy loop's module
+  list with `... | tr ' ' '\n' | tac` returns empty on macOS, so the loop
+  iterates **zero times** and the recipe goes straight to the Key Vault purge
+  having destroyed nothing. `set -e` cannot catch it — the failure is inside a
+  command substitution used as a `for` word-list, so the loop's own exit status
+  is 0. The symptom is a confusing `(DeletedVaultNotFound) The specified deleted
+  vault ... does not exist`, which really means *the vault was never deleted*.
+  The Makefile reverses `DIRS` in pure Make (`$(call reverse,...)`) with no
+  external tool dependency, and aborts if the reversed list is empty. Do not
+  reintroduce GNU-only tools in Makefile recipes.
 
 - **Module 09 stalls ~30 minutes, then fails on every PG child resource.**
   Symptom is a cluster of errors on the firewall rules, the databases and the
@@ -1392,8 +1278,18 @@ the second is Azure/provider behaviour you work around, not a repo bug:
   destroy loop. If the last `terraform init` in `05-key-vault` was
   `make validate`'s `-backend=false` form, `.terraform/` points at an empty
   local backend, `terraform output` fails, `|| true` swallows it, and the check
-  is skipped. The capture now re-inits against the real backend first and
+  is skipped. The capture therefore re-inits against the real backend first and
   echoes what it found.
+
+  Tell the two apart by checking for `.terraform/terraform.tfstate` — that
+  marker file is present only when a directory is init'd against the azurerm
+  backend:
+
+  ```bash
+  for d in terraform/envs/dev/*/; do
+    printf "%-50s %s\n" "$d" "$(ls "$d.terraform/" 2>/dev/null | tr '\n' ' ')"
+  done
+  ```
 
 - **Module 01 fails: "the Resource Group still contains Resources".** The named
   resource is an action group Azure generated, not Terraform:
@@ -1409,7 +1305,7 @@ the second is Azure/provider behaviour you work around, not a repo bug:
   Terraform never managed it, so module 12's destroy leaves it behind, and
   azurerm's `prevent_deletion_if_contains_resources` (default `true`) then
   refuses to delete the RG. **This recurs on every teardown** — it is not a
-  one-off. `make destroy` now sweeps it automatically just before module 01;
+  one-off. `make destroy` sweeps it automatically just before module 01;
   `make purge-orphans` runs the sweep on its own.
 
   To clear it by hand, delete by **resource ID**:
@@ -1429,15 +1325,6 @@ the second is Azure/provider behaviour you work around, not a repo bug:
   false`. That disables the guard for every resource group in the root,
   permanently, to work around one known piece of Azure-generated litter.
 
-Tell these apart by checking `.terraform/terraform.tfstate` — that marker file
-is present only when the directory is init'd against the azurerm backend:
-
-```bash
-for d in terraform/envs/dev/*/; do
-  printf "%-50s %s\n" "$d" "$(ls "$d.terraform/" 2>/dev/null | tr '\n' ' ')"
-done
-```
-
 ### 16. Release and versioning
 
 Every release of this repo is a `MAJOR.MINOR.PATCH` git tag on `main`. The
@@ -1447,12 +1334,11 @@ that explains *why*.
 
 The repo is **trunk-based**: `main` is the only branch, every change is
 committed straight to it, and a release is a bump commit plus a tag made in one
-local step and pushed in another. This is a reversal of the PR-only model the
-repo ran between v0.4.0 and v0.4.2, which forced a two-phase release — a
-*release PR*, then a tag after the merge — because squash-merge rewrote the
-commit SHA a locally created tag would have pointed at. With the release commit
-made directly on `main`, the SHA that is tagged is the SHA that is pushed, and
-the second phase has nothing left to do. The trade is that there is no
+local step and pushed in another. Because the release commit is made directly on
+`main`, the SHA that is tagged is the SHA that is pushed — no two-phase
+*release PR* then tag-after-merge dance, which a squash-merge model would force
+by rewriting the commit SHA a locally created tag pointed at. The trade is that
+there is no
 pre-merge gate; see the static-analysis note below for what replaced it.
 
 **Source of truth.** The repo-root `VERSION` file holds a bare
@@ -1477,10 +1363,9 @@ question is what `terraform plan` does to an already-applied estate:
   automation, provider *minor* bumps. The plan is additive or in-place.
 - **PATCH** — in-place attribute tweaks, docs, `fmt`, CI fixes. No churn.
 
-While the project is at `0.x` — i.e. while the Deferred work above is
-outstanding — MINOR absorbs breaking changes. `1.0.0` is cut when a full
-`make apply` from zero brings up all twelve modules with real application
-images and verifies clean (D1 and D2 closed).
+While the project is at `0.x`, MINOR absorbs breaking changes. `1.0.0` is cut
+when a full `make apply` from zero brings up all twelve modules with real
+application images and verifies clean.
 
 **Trigger is manual and explicit.** `make release-patch|minor|major` picks the
 level; nothing is inferred from commit messages, because the commit history
@@ -1540,33 +1425,35 @@ recording:
 
 - The gate runs *after* the tag is pushed. A red gate therefore leaves a tag
   with no GitHub Release; per §16 a published tag is never moved, so the
-  remedy is the next patch release. `main-verify.yml` runs the same gate on
-  every push to `main`, so by tag time a red gate should mean something changed
-  since that run — most likely a quality-profile change or a new-code-period
-  roll, neither of which involves a commit.
+  remedy is the next patch release. `main-verify.yml` runs the same gate but
+  only on `workflow_dispatch`, so unless it was dispatched, the tag push is the
+  first analysis of the release commit and a red gate may simply mean the
+  commit was never checked. Dispatch it with `-f run_sonar=true` before
+  tagging — the scan is opt-in. A red gate can also
+  come from a quality-profile change or a new-code-period roll, neither of
+  which involves a commit.
 - `sonar.branch.name=main` is pinned in `sonar-project.properties` and no
   caller passes a scanner argument. `main` is the only branch, so there is one
   correct value, and the pin is what stops `release.yml` — which fires on a tag
   ref — submitting the analysis as a short-lived branch whose gate lookup 403s
-  on this plan. The property was briefly removed under the PR-only model, when
-  a global pin would have made every PR analysis overwrite main's.
+  on this plan. Restore per-caller scanner arguments only if pull requests are
+  ever introduced, since a global pin would make every PR analysis overwrite
+  main's.
 - `sonar.exclusions` must keep covering `**/.terraform/**`. `make validate`
   runs first and leaves a `.terraform/modules/` copy of every local module's
   `.tf` files; without the exclusion `sonar.sources=.` indexes both copies.
 
-**Terraform CLI pin in CI.** The six Terraform-touching workflows in
+**Terraform CLI pin in CI.** The four Terraform-touching workflows in
 `.github/workflows/` (`main-verify.yml`, `release.yml`, `acr-create.yml`,
-`acr-destroy.yml`, `tf-bootstrap-create.yml`, `tf-bootstrap-destroy.yml`) pin
-`terraform_version: "1.15.8"`, which is the minimum needed to satisfy the
-`required_version = "~> 1.15"` declared in every `versions.tf` in the repo —
-roots, child modules, and `bootstrap-backend/`. The two bootstrap workflows
-originally pinned `1.14.3`, which does *not* satisfy that constraint; they
-would have failed `terraform init`. Bump all six together. They also all set
-`terraform_wrapper: false`, because the wrapper intercepts stdout and would
-break `terraform output -raw`. `mirror-push.yml` is the seventh workflow and
-runs no Terraform, so it carries neither setting and is not part of the bump.
+`acr-destroy.yml`) pin `terraform_version: "1.15.8"`, which is the minimum
+needed to satisfy the `required_version = "~> 1.15"` declared in every
+`versions.tf` in the repo — roots, child modules, and `bootstrap-backend/`.
+Bump all four together. They also all set `terraform_wrapper: false`, because
+the wrapper intercepts stdout and would break `terraform output -raw`.
+`mirror-push.yml` runs no Terraform, so it carries neither setting and is not
+part of the bump.
 
-## Critical files to be created (in execution phases)
+## Files each phase creates
 
 **Phase 0 — scaffolding (do once, before module 01):**
 
@@ -1598,7 +1485,7 @@ runs no Terraform, so it carries neither setting and is not part of the bump.
 - `terraform/bootstrap-backend/README.md` — high-quality README template (lock
   file, chicken-and-egg workflow, error recovery). Model per-module READMEs on
   this.
-- `terraform/INITIAL_SETUP.md` — auth model (SP + `ARM_*` env vars) and provider
+- `../terraform/bootstrap-backend/INITIAL_SETUP.md` — auth model (SP + `ARM_*` env vars) and provider
   registration prerequisites; every module inherits these.
 
 ## Verification (end-to-end)
@@ -1622,34 +1509,35 @@ runs no Terraform, so it carries neither setting and is not part of the bump.
    banner per module — a run that jumps straight to the purge destroyed
    nothing (§15).
 3. `make reprovision` (destroy then apply) succeeds without manual intervention.
-4. Existing bootstrap state remains untouched (`bootstrap/backend.tfstate` still
-   present in container).
+4. Bootstrap state remains untouched (`bootstrap/backend.tfstate` still present
+   in the container). This is the check that `make apply` / `make destroy` never
+   reach into the backend module.
 
-Full teardown to zero — including what legitimately survives and how to remove
-the state backend itself — is §15.
+Full teardown to zero — including what legitimately survives — is §15.
+Provisioning the state backend is
+`terraform/bootstrap-backend/TF_PROVISION.md`; removing it is `TF_DESTROY.md`
+alongside it.
 
-## Open items (safe defaults chosen — flag if you disagree)
+## Design defaults
 
-- **Log Analytics name**: random suffix baked in (sidesteps 30-day soft-delete
-  name block). Say the word if you'd rather have a fixed name and accept the
-  recover-or-wait ceremony.
-- **Key Vault dev policy**: `purge_protection = false`, 7-day soft delete. The
-  provider auto-purges on destroy (`purge_soft_delete_on_destroy` defaults to
-  `true` under `features {}`), so no manual purge step is required. Say the
-  word if you want prod-style defaults instead.
-- **PostgreSQL AAD-principal bootstrap**: using `cyrilgdn/postgresql` provider (
-  declarative). If you'd rather keep PG module strictly `azurerm`-only, we'll
-  fall back to a `null_resource + az account get-access-token + psql` step (
-  works but re-runs on every apply unless triggered carefully).
+These are deliberate choices for a learning-playground estate. Each is safe to
+revisit, but none is accidental.
+
+- **Log Analytics name** carries a random suffix, which sidesteps the 30-day
+  soft-delete name block. A fixed name means a recover-or-wait step after every
+  teardown.
+- **Key Vault dev policy** is `purge_protection = false` with 7-day soft delete.
+  The provider auto-purges on destroy (`purge_soft_delete_on_destroy` defaults
+  to `true` under `features {}`), so no manual purge step is required. See §9.
+- **PostgreSQL AAD-principal bootstrap** is the manual one-shot from Azure Cloud
+  Shell (§12 option C), with the Container Apps Job (§12a) as its successor. The
+  `cyrilgdn/postgresql` provider is not used — see §12 for why.
 - **Entra admin group for PG**: `pg_entra_admin_group_object_id` must be set in
-  `env.tfvars` before module 09 applies. If no group exists yet, we can either (
-  a) create it via `azuread_group` inside the `managed-identities` module, or (
-  b) you create it once in the portal and hand back the object ID. Recommend (b)
-  so identity governance stays outside Terraform.
-- **Storage RBAC scope**: `Storage Blob Data Contributor` at the *
-  *storage-account scope** for the shared UAMI (dev-friendly, one assignment).
-  Say the word if you'd rather scope per container instead.
-- **Initial `var.apps` list**: plan uses `["api", "worker"]` as a placeholder —
-  this list drives one PG database per name (and, later, one Container App per
-  name). Confirm actual microservice names before module 09 applies; removing a
-  name will destroy its DB.
+  `env.tfvars` before module 09 applies, and the group is created outside
+  Terraform so identity governance stays out of the estate's lifecycle.
+- **Storage RBAC scope** is `Storage Blob Data Contributor` at the
+  **storage-account scope** for the shared UAMI — one assignment rather than one
+  per container.
+- **`var.apps`** drives one PG database per name, and one Container App per
+  name. Confirm the list before module 09 applies: removing a name destroys its
+  database.

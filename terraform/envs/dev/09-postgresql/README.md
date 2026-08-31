@@ -9,18 +9,12 @@ AAD-authenticated PG role with per-DB grants. State lives in
 
 Wraps [`../../../modules/postgresql/`](../../../modules/postgresql/README.md).
 
-## Resume — pick up here
+## Upstreams
 
-**Status (verified against Azure 2026-08-29): destroyed, along with the
-rest of the estate.** `postgresql/terraform.tfstate` is an empty shell
-(`resources: 0`), and `rg-dev-data` itself no longer exists. There is no
-server, admin binding, firewall rule, or database, and nothing in state
-to reconcile.
-
-**Upstreams are down too**, which is the part that bites first. This root
-reads modules 01 and 04 through `data.terraform_remote_state`; against
-their empty state keys a plan fails with *Unsupported attribute* rather
-than anything self-explanatory. Bring module 09 back with:
+**Apply the upstreams first.** This root reads modules 01 and 04 through
+`data.terraform_remote_state`; against an empty state key a plan fails
+with *Unsupported attribute* rather than anything self-explanatory.
+Bring module 09 up with:
 
 ```bash
 make apply-resource-groups      # 01 — rg-dev-data and friends

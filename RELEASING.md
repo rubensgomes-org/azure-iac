@@ -65,11 +65,9 @@ A MAJOR release is a warning that you cannot roll forward with a plain
 
 ### Pre-1.0
 
-The project is at `0.x` while the deferred work in
-`docs/PROVISIONING_PLAN.md` is outstanding — most importantly D1 (real Spring
-Boot images in module 11) and D2 (Application Insights wiring). Under `0.x`,
-MINOR absorbs breaking changes; the rules above apply as written from `1.0.0`
-onward.
+The project is at `0.x` until module 11 runs real Spring Boot images and
+Application Insights is wired into the Container Apps. Under `0.x`, MINOR
+absorbs breaking changes; the rules above apply as written from `1.0.0` onward.
 
 **`1.0.0` is cut when a full `make apply` from zero brings up all twelve modules
 with real application images and verifies clean.**
@@ -98,9 +96,16 @@ bad changelog roll never escapes the machine: until `release-push`, both the
 commit and the tag are local and a `git tag -d` + `git reset --hard HEAD~1`
 undoes them completely.
 
-There is **no local Sonar step**. `main-verify.yml` has already scanned every
-commit going into the release, and `release.yml` scans once more at tag time,
-so you get the gate twice without running it yourself.
+There is **no local Sonar step** in the recipe, and no automatic one either:
+`main-verify.yml` is `workflow_dispatch`-only, so nothing has scanned the
+commits going into this release unless you asked it to. `release.yml` scans at
+tag time — a gate you hit *after* the tag is pushed. Dispatch
+`main-verify.yml` **with the scan turned on** before releasing anything you
+care about — the Sonar job is opt-in and off by default:
+
+```bash
+gh workflow run main-verify.yml --ref main -f run_sonar=true
+```
 
 `make sonar` exists as a local fallback, but it is **not part of this recipe**,
 and on Apple Silicon it is close to unusable: the scanner image is amd64-only,
@@ -189,11 +194,11 @@ version bump. Confirm with `make plan-resource-groups` if you want to see it.
 
 `.github/workflows/release.yml` runs on any pushed tag matching `v*.*.*`:
 
-(`main-verify.yml` already ran the same `fmt`, `validate` and Sonar checks when
-the release commit was pushed, so by the time this fires it should be a
-formality. It is repeated here because a tag can be pushed for a commit whose
-checks went green weeks earlier — and because this is the last gate before
-something is published under your name.)
+(This is usually the FIRST time these checks run against the release commit.
+`main-verify.yml` runs the same three, but only when dispatched by hand, so
+unless you did that, `release.yml` is not a formality — it is the gate. That is
+also why it is worth dispatching `main-verify.yml` beforehand: a failure there
+costs nothing, whereas a failure here leaves a pushed tag with no Release.)
 
 1. Fails if `v$(cat VERSION)` does not equal the tag name.
 2. Fails if `CHANGELOG.md` has no section for that version.
@@ -213,8 +218,10 @@ exists, so a red gate leaves a tag with no GitHub Release behind it. Do not
 delete or move the tag — fix the findings and cut the next patch release, per
 "Undoing a release" above.
 
-That should be rare: `main-verify.yml` ran the same Sonar check when the release
-commit was pushed, so for the gate to be red here, something has to have changed
-between that run and the tag. It is not impossible — the gate is evaluated against SonarCloud's
-current state, and a quality-profile change or a new-code-period roll can turn
-it red with no commit involved.
+Expect this rather than treating it as exceptional. `main-verify.yml` runs the
+same Sonar check but only on demand, so unless you dispatched it, the tag push
+is the first analysis of the release commit. Dispatch it with
+`-f run_sonar=true` first if you want to know before tagging — a bare dispatch
+skips the scan. The gate is also evaluated against SonarCloud's current
+state, so a quality-profile change or a new-code-period roll can turn it red
+with no commit involved.

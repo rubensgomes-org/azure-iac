@@ -66,7 +66,7 @@ The following are planned for later:
 
 The authentication of Terraform against Azure is based on using a `Service
 Principal + Secrets`. Follow the steps
-in [INITIAL_SETUP](./terraform/INITIAL_SETUP.md) before running with the Phase 0
+in [INITIAL_SETUP](terraform/bootstrap-backend/INITIAL_SETUP.md) before running with the Phase 0
 below.
 
 ### Bootstrap Terraform Backend Module (bootstrap-backend)
@@ -77,6 +77,14 @@ by Terraform:
 - Terraform Resource group
 - Terraform Storage account
 - Terraform Blob Container
+
+It is done **by hand**, not by a workflow. The bootstrap is two-pass — apply on
+local state, then `terraform init -migrate-state` to move state into the
+container it just created — and the second pass prompts, so there is nothing
+useful for CI to do. The runbook is
+[`terraform/bootstrap-backend/TF_PROVISION.md`](./terraform/bootstrap-backend/TF_PROVISION.md).
+Tearing it back down is the same story; see
+[`TF_DESTROY.md`](./terraform/bootstrap-backend/TF_DESTROY.md).
 
 ### Tearing everything down
 
@@ -91,13 +99,20 @@ Verify with `az group list -o table` — no `rg-dev-*` rows should remain.
 `rg-tfstate` and `NetworkWatcherRG` are expected to survive.
 
 See [§15 of the provisioning plan](./docs/PROVISIONING_PLAN.md) for the full
-procedure: verification commands, what legitimately survives, how to remove the
-state backend itself, and the failure modes that can make a destroy silently do
-nothing.
+procedure: verification commands, what legitimately survives, and the failure
+modes that can make a destroy silently do nothing.
+
+Removing the **state backend** as well is a separate, one-way operation with
+its own runbook —
+[`terraform/bootstrap-backend/TF_DESTROY.md`](./terraform/bootstrap-backend/TF_DESTROY.md).
+There is deliberately no CI workflow for it — a destroy cannot run from inside
+the backend it is deleting — nor for the bootstrap that creates it, which is
+two-pass and interactive. Both are done by hand; the bootstrap runbook is
+[`TF_PROVISION.md`](./terraform/bootstrap-backend/TF_PROVISION.md).
 
 ## GitHub Actions
 
-Seven workflows live in [`.github/workflows/`](./.github/workflows/). Four of
+Five workflows live in [`.github/workflows/`](./.github/workflows/). Two of
 them authenticate to Azure with the same `terraform-sp` Service Principal used
 locally; `release.yml` and `main-verify.yml` deliberately hold no Azure
 credentials (their only secret is `SONAR_TOKEN`, which reaches sonarcloud.io and
@@ -108,9 +123,7 @@ PAT for one private repository in a work GitHub namespace.
 |----------------------------------------------------------------------------|----------------------------|--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [`acr-create.yml`](./.github/workflows/acr-create.yml)                     | **ACR Create (reusable)**  | `workflow_call`, `workflow_dispatch` | Applies modules 01 → 04 → 06 so a registry exists and is writable. Publishes `acr_name` / `acr_login_server` outputs.                                                                         |
 | [`acr-destroy.yml`](./.github/workflows/acr-destroy.yml)                   | **ACR Destroy (reusable)** | `workflow_call`, `workflow_dispatch` | Destroys module 06 only — the registry and every image in it. Resource groups (01) and the shared UAMI (04) are left standing. Actor-restricted and type-to-confirm guarded on both triggers. |
-| [`tf-bootstrap-create.yml`](./.github/workflows/tf-bootstrap-create.yml)   | **TF Bootstrap Create**    | `workflow_dispatch`                  | Creates/updates the state backend (`rg-tfstate`, `tfstate`). Takes a `storage_account_name` input, default `sttfstaterubens01`.                                                                                                             |
-| [`tf-bootstrap-destroy.yml`](./.github/workflows/tf-bootstrap-destroy.yml) | **TF Bootstrap Destroy**   | `workflow_dispatch`                  | Tears the state backend down. Takes the same `storage_account_name` input, default `sttfstaterubens01`, repeated in the type-to-confirm phrase.                                                                                                                                                                 |
-| [`main-verify.yml`](./.github/workflows/main-verify.yml)                   | **Main Verify**            | `push` → main                        | Three checks on every commit to `main`: `terraform`, `workflows`, `sonar`. See Trunk-based development.                                                                                        |
+| [`main-verify.yml`](./.github/workflows/main-verify.yml)                   | **Main Verify**            | `workflow_dispatch`                  | Checks on `main`: `terraform` and `workflows` always, `sonar` only when the `run_sonar` input is true. Manual only — nothing runs it automatically. See Trunk-based development.              |
 | [`release.yml`](./.github/workflows/release.yml)                           | **Release (tag push)**     | tag `v*.*.*`                         | Validates the tag against `VERSION` + `CHANGELOG.md`, runs `fmt`/`validate` and the SonarCloud quality gate, publishes a GitHub Release.                                                      |
 | [`mirror-push.yml`](./.github/workflows/mirror-push.yml)                   | **Mirror Push (work repo)**| `workflow_dispatch`                  | Force-pushes `main` to a private repository in a work GitHub namespace. Manual only, actor-restricted. See Mirroring to the work repository.                                                  |
 
@@ -274,13 +287,15 @@ Because the target is an EMU namespace, the usual PAT advice does not apply:
 
 #### Turn Actions off in the work repository
 
-The mirror receives `.github/workflows/` along with everything else, so
-`main-verify.yml` fires there on every mirror push and fails: no `SONAR_TOKEN`,
-different organization. Disable it at Settings → Actions → General → *Disable
-actions* in the work repository. `release.yml` never fires there because no tags
-are pushed, and `mirror-push.yml`'s own mirrored copy is dispatch-only and gated
-on an actor name that cannot exist in an EMU namespace, so pressing Run on it
-there is denied before it reads a secret.
+The mirror receives `.github/workflows/` along with everything else, but
+nothing in it fires there on a mirror push: every workflow is either
+`workflow_dispatch`-only or tag-triggered, and no tags are pushed to the
+mirror. `mirror-push.yml`'s own mirrored copy is additionally gated on an actor
+name that cannot exist in an EMU namespace, so pressing Run on it there is
+denied before it reads a secret. Disable Actions anyway at Settings → Actions →
+General → *Disable actions* in the work repository: it costs nothing, and it
+means adding a `push:` trigger to a workflow here cannot start failing runs
+over there for want of a `SONAR_TOKEN`.
 
 ### Static analysis (SonarCloud)
 
@@ -290,11 +305,15 @@ the run if the quality gate is red**. Configuration lives in
 workflow passes no scanner arguments of its own, so changing analysis scope
 means editing that file, not the workflow.
 
-Every push to `main` is scanned by `main-verify.yml`, so the gate has already
-reported on the release commit by the time you tag. `make sonar` runs the same
-scan locally (Docker + `SONAR_TOKEN`) but is **not** part of the release recipe
-— it is a fallback for reproducing a CI Sonar failure, and on Apple Silicon it
-is very slow, since the scanner image is amd64-only and blames through JGit.
+Nothing scans a commit automatically before you tag it. `main-verify.yml` is
+manual, so unless you dispatch it, the tag push is the first time SonarCloud
+sees the release commit — and a red gate there leaves a tag with no GitHub
+Release. Dispatch `main-verify.yml` with `-f run_sonar=true` (or run
+`make sonar`) before cutting a release you care about — the scan is opt-in, so
+a bare dispatch skips it. `make sonar` runs the same scan locally (Docker +
+`SONAR_TOKEN`), but on Apple Silicon it is very slow, since the scanner image
+is amd64-only and blames through JGit; the dispatch is usually the better
+option.
 
 All three callers analyse the same branch, so `sonar.branch.name=main` is
 pinned in `sonar-project.properties` and none of them passes a scanner argument
@@ -335,11 +354,12 @@ make validate     # all twelve module roots, no cloud calls
 # 3. Record the change under [Unreleased] in CHANGELOG.md, then commit.
 git add -A && git commit
 
-# 4. Push. main-verify.yml runs terraform + workflows + sonar on the push.
+# 4. Push. Nothing verifies this automatically — step 2 was the gate.
 git push origin main
 
-# 5. Check the run. There is no pre-merge gate, so this is where you find out.
-gh run watch
+# 5. Optional: run the same three checks in CI against the pushed commit.
+gh workflow run main-verify.yml --ref main && gh run watch
+#    Add -f run_sonar=true to include the SonarCloud scan (off by default).
 ```
 
 Four things worth knowing before the first time:
@@ -403,19 +423,30 @@ squash-merge rewrites the commit SHA a locally created tag would point at.
 Committing on `main` means the SHA you tag is the SHA you push, so a release
 collapses back to one command.
 
-What replaces the gate is
-[`main-verify.yml`](./.github/workflows/main-verify.yml), which runs on **every
-push to `main`**:
+The checks that would have run in a PR live in
+[`main-verify.yml`](./.github/workflows/main-verify.yml), which is
+**`workflow_dispatch`-only — nothing triggers it for you**:
 
 | Check       | What it does                                                                                          |
 |-------------|-------------------------------------------------------------------------------------------------------|
 | `terraform` | `terraform fmt -check` and `make validate` across all twelve module roots                             |
 | `workflows` | Every workflow file parses, and no GitHub expression is interpolated inside a `run:` body (see below) |
-| `sonar`     | SonarCloud analysis of `main` — a red quality gate fails the check                                    |
+| `sonar`     | SonarCloud analysis of `main` — a red quality gate fails the check. **Opt-in:** off unless you set the `run_sonar` input to true |
 
-These are **not** required status checks, and cannot be: a check that only
-fires *on* a push cannot also gate that push. They tell you afterwards. Run
-`make fmt && make validate` before committing and they rarely surprise you.
+These are **not** required status checks and cannot be: a dispatch-only
+workflow reports against no push at all.
+
+Nothing runs them for you, so **`make fmt && make validate` before committing
+is the only thing standing between a broken commit and `main`** — there is no
+after-the-fact report either. Dispatch the workflow
+(`gh workflow run main-verify.yml --ref main`) when you want the CI versions,
+and add `-f run_sonar=true` for the Sonar scan the local commands do not cover
+— it is off by default, so a bare dispatch runs `terraform` and `workflows`
+only.
+
+The dispatch form lets you pick any branch, but the `sonar` job refuses to run
+off `main`: `sonar-project.properties` pins `sonar.branch.name=main`, so a run
+from elsewhere would publish that branch's code as main's analysis.
 
 `release.yml` re-runs all three at tag time, and there a red gate genuinely
 blocks — no GitHub Release is published over failing analysis.

@@ -12,16 +12,11 @@ account.
 Wraps [
 `../../../modules/container-apps/`](../../../modules/container-apps/README.md).
 
-**Status (verified against Azure 2026-08-29): destroyed, and so is
-everything it depends on.** The `container-apps/terraform.tfstate` key is
-an empty shell, and `rg-dev-app` no longer exists — `cae-dev` went with
-it when module 10 was destroyed.
-
-**`make apply-container-apps` on its own will NOT work.** All seven
-prerequisites below are down; this root reads every one of them through
-`data.terraform_remote_state`, and against an empty state key the plan
-fails with *Unsupported attribute* rather than a useful message. Apply
-the chain in order first:
+**`make apply-container-apps` on its own will NOT work** unless all seven
+prerequisites below are already applied. This root reads every one of
+them through `data.terraform_remote_state`, and against an empty state
+key the plan fails with *Unsupported attribute* rather than a useful
+message. Apply the chain in order first:
 
 ```bash
 make apply-resource-groups        # 01

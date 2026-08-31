@@ -11,15 +11,157 @@ Add entries under `[Unreleased]` as you work. Do not edit the version headings
 by hand: `make release-<level>` renames `[Unreleased]` to the new version and
 re-seeds an empty `[Unreleased]` block above it.
 
-`[Unreleased]` is for *changes since the last release only*. Outstanding
-planned work (D1–D4) lives in `docs/PROVISIONING_PLAN.md` → Deferred work, not
-here.
+`[Unreleased]` is for *changes since the last release only*.
+
+This changelog is the **only** place in the repo that records dated history or
+deployment state. Every other document — `CLAUDE.md`, `README.md`,
+`docs/PROVISIONING_PLAN.md`, `docs/PROJECT_SUMMARY.md`, the module READMEs and
+the `bootstrap-backend/` runbooks — describes how to provision, never what is
+currently provisioned. Keep it that way: status notes rot, and a reader who
+trusts one plans from a false premise.
 
 ## [Unreleased]
 
+### Changed
+
+- **`owner` and `createdBy` tags on every taggable resource.** `owner` moves
+  from `rubens` to `rubens.s.gomes@gmail.com`, and a new
+  `createdBy = "terraform"` is added alongside the existing `managedBy`, in
+  camelCase to match the surrounding keys. Both source maps
+  were edited: `terraform/envs/dev/env.tfvars` (which reaches all twelve estate
+  modules through the existing `merge(var.tags, { release = local.release })`
+  call site in each root) and `terraform/bootstrap-backend/variables.tf`'s
+  `tags` default (which is on a separate path and is not fed by `env.tfvars`).
+  No module code changed — every taggable resource in the repo already passed
+  `var.tags` through, so the two source maps were the only edits needed.
+
+  The backend deliberately gets **no `environment` key**: it is
+  subscription-level shared infrastructure spanning every environment. The
+  estate's `environment` tag is unchanged and still tracks the env directory.
+  `managedBy` and `createdBy` intentionally carry the same value and are both
+  documented as non-duplicates so neither is later "cleaned up".
+
+  Types that cannot carry tags are unaffected — role assignments, subnets and
+  their NSG associations, diagnostic settings, PostgreSQL databases/firewall
+  rules/AD administrator, Service Bus queues, storage containers and the
+  management lock. Tag updates are in-place in `azurerm`; nothing is recreated.
+
 ### Added
 
+- **`terraform/bootstrap-backend/TF_DESTROY.md`** — runbook for destroying the
+  Terraform state backend. Covers why the teardown needs the local-state
+  migration first (the module stores its own state in the container it
+  manages), the four managed resources involved, the verification step that
+  catches a silent no-op destroy against an empty state, post-destroy checks,
+  and the gotchas. Written as procedure only: it names resources by their
+  `terraform.tfvars` keys rather than by literal name, and asserts nothing
+  about what happens to exist in the subscription, so it does not go stale.
+
 ### Changed
+
+- **Documentation no longer records deployment state.** `CHANGELOG.md` is now
+  the only place in the repo that carries dated history or status; every other
+  document describes how to provision, never what is currently provisioned.
+  Removed from `docs/PROVISIONING_PLAN.md`: the `Progress` section, the
+  `Deferred work` section (D1–D4), the authoring-time Context snapshot, and
+  roughly sixty lines of embedded status markers, event logs and dated
+  parentheticals across §2, §6, §11, §12, §12a, §14, §15 and §16 — 1718 lines
+  down to 1540. Durable content buried in the removed sections was rescued
+  first: the provisioning-order rules and the *Unsupported attribute* failure
+  mode into §4, the fixed ACR name rationale into §7, the Makefile target
+  naming into §10, module 09's Entra and tooling prerequisites into §13.09, and
+  the state-blob verification commands with the `--auth-mode key` explanation
+  into §15. Time-bound rationale was rewritten as present-tense rules rather
+  than deleted, so the `location`-is-ForceNew warning and the region
+  offer-restriction check survive without the version history around them.
+  `CLAUDE.md`'s `Project status` section became `Provisioning order`;
+  `docs/PROJECT_SUMMARY.md`'s `Status` section became `Region`, `Provisioning
+  order`, `Branching` and `Releases`. `README.md`, `RELEASING.md`, the module 09
+  and 11 READMEs, and `acr-destroy.yml`'s dated comment were corrected to
+  match. No Terraform resource definitions changed.
+
+- **`main-verify.yml` is now `workflow_dispatch`-only.** It previously ran on
+  every push to `main`. **Nothing verifies `main` automatically any more** — a
+  commit that breaks `fmt -check`, `make validate` or the SonarCloud gate goes
+  unnoticed until the workflow is dispatched by hand or a release tag is
+  pushed, at which point `release.yml` runs the same three checks. Two
+  consequences worth planning around: `make fmt` and `make validate` before
+  committing is now the only gate rather than a habit, and a red quality gate
+  at tag time is likelier than it was, since the tag push is often the first
+  analysis of the release commit — dispatch the workflow before cutting a
+  release. A side effect worth knowing: the mirrored copy in the work repo no
+  longer fires on a mirror push, so that repo stops producing failed runs.
+  `README.md`, `RELEASING.md`, `CLAUDE.md`, `docs/PROJECT_SUMMARY.md` and
+  `docs/PROVISIONING_PLAN.md` updated accordingly.
+
+- **`main-verify.yml`'s `sonar` job is opt-in and skipped by default.** The
+  dispatch form carries a `run_sonar` boolean input defaulting to `false`, and
+  the job's `if: ${{ inputs.run_sonar }}` skips it otherwise, so a bare
+  dispatch runs only `terraform` and `workflows`. The scan is the slow part of
+  the workflow, the only part needing a secret or reaching a third party, and
+  the only part that publishes anything — it overwrites main's quality gate
+  status — so it should not be a tax on every "did I break `fmt`?" run. Pass
+  `-f run_sonar=true` to include it; most usefully before pushing a release
+  tag, since `release.yml` runs the same scan only after the tag exists. A
+  skipped job reports as *skipped*, never as a pass, so it cannot be mistaken
+  for a green gate. `README.md`, `RELEASING.md`, `CLAUDE.md`,
+  `docs/PROJECT_SUMMARY.md`, `docs/PROVISIONING_PLAN.md` and `release.yml`'s
+  header updated to show the flag wherever they tell you to dispatch for a
+  scan.
+
+- **`main-verify.yml`'s `sonar` job refuses to run off `main`.** A consequence
+  of the trigger change: the `workflow_dispatch` form offers a branch selector,
+  and `sonar-project.properties` pins `sonar.branch.name=main` while every
+  caller passes the scanner no arguments — so a run started from another branch
+  would publish that branch's code as main's analysis. A step 0 guard fails the
+  job unless `github.ref` is `refs/heads/main`, mirroring `make sonar`'s
+  existing refusal. The `terraform` and `workflows` jobs are unguarded: they
+  publish nothing, so running them from a branch is harmless.
+
+- **The state backend has been destroyed.** `rg-tfstate`, `sttfstaterubens01`,
+  the `tfstate` container and all twelve module state blobs were removed on
+  2026-08-31 via the procedure now documented in `TF_DESTROY.md`. The estate is
+  at zero *and* has no backend, so a rebuild starts with the two-pass bootstrap
+  rather than with `make apply`. Terraform code is unchanged; no module was
+  edited.
+
+### Removed
+
+- **`.github/workflows/tf-bootstrap-destroy.yml`.** It ran `terraform init`
+  against the azurerm backend and then `terraform destroy -auto-approve`,
+  deleting the Storage Account that held the state it was writing to — the
+  exact sequence `bootstrap-backend/backend.tf` forbids. Its final
+  `upload-artifact` of `errored.tfstate` (a file Terraform writes only when it
+  fails to persist state) showed the failure was anticipated; that step also
+  pointed at the workspace root while Terraform ran in
+  `terraform/bootstrap-backend`, so it captured nothing. A partial failure
+  would have left orphaned resources with no state and no way to re-run, since
+  the next `init` needs the account just deleted. It had never been run.
+  Destroying the backend is now a documented manual procedure
+  (`TF_DESTROY.md`).
+
+- **`.github/workflows/tf-bootstrap-create.yml`.** Same `init`-first structure,
+  so it could not bootstrap a backend that did not exist yet — its own step 5
+  comment said so ("the azurerm backend cannot init against a Storage Account
+  that has not been created"). That left it able only to re-apply drift on a
+  four-resource module, in a solo repo whose owner has local `ARM_*`. The
+  bootstrap is also inherently two-pass and interactive: pass 2 is
+  `terraform init -migrate-state`, which prompts, and CI can only get past that
+  with `-force-copy` — turning the one irreversible state-migration decision
+  into an unattended flag. It had never been run. Creating the backend is a
+  documented manual procedure (`terraform/bootstrap-backend/README.md`).
+
+- **`.github/actions/import-state/`.** Orphaned by the two removals above, and
+  broken on its own terms: its premise ("Terraform is using the local backend")
+  was false because `backend.tf` hardcodes an azurerm backend, so its three
+  imports always no-opped via their `terraform state show` guards. It also never
+  imported `azurerm_role_assignment.state_blob_contributor`, so the local-state
+  model it was written for was only ever half-built. `.github/actions/` is now
+  empty and gone.
+
+  Net effect: the state backend has no CI in either direction, which matches
+  what it is — a one-time, one-way, hand-operated foundation. Workflow count is
+  five; the `terraform_version` bump list is four.
 
 ### Fixed
 
@@ -50,7 +192,7 @@ here.
   Corresponding notes updated in `CLAUDE.md`, `docs/PROVISIONING_PLAN.md`
   (region note + §15 exception paragraph + survivor table),
   `docs/PROJECT_SUMMARY.md`, and the two superseded `az` recipes in
-  `terraform/INITIAL_SETUP.md`.
+  `terraform/bootstrap-backend/INITIAL_SETUP.md`.
 
 ### Fixed
 
@@ -725,5 +867,5 @@ what the estate *is*, not what changed.
   only the ACR (modules 01 → 04 → 06), covering the Make commands,
   verification, image push, cost, and the safety notes that apply when
   `apply-`/`destroy-` targets run under `-auto-approve`.
-- `CLAUDE.md`, `README.md`, `terraform/INITIAL_SETUP.md`, and a README in
+- `CLAUDE.md`, `README.md`, `terraform/bootstrap-backend/INITIAL_SETUP.md`, and a README in
   every module and module root.

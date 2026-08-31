@@ -9,16 +9,30 @@
 #   ran at tag time inside release.yml, which is far too late to be useful.
 #
 # Trigger:
-#   push to main. It runs AFTER the fact rather than blocking a merge, which is
-#   the trade the trunk-based model makes: no PR means no pre-merge gate, so
-#   the feedback loop is "push, then look at the run". Run `make fmt` and
-#   `make validate` locally first and it should never be a surprise.
+#   workflow_dispatch ONLY. You start it from the GitHub Actions UI.
 #
-#   It is deliberately NOT a required status check on main -- requiring a check
-#   that only fires ON a push would reject the push that triggers it.
+#   The consequence is worth stating plainly: NOTHING verifies main
+#   automatically. A commit that breaks `fmt -check`, `make validate` or the
+#   Sonar gate sits unnoticed until someone runs this by hand or pushes a
+#   release tag, at which point release.yml runs the same three checks as the
+#   final gate. Run `make fmt` and `make validate` before committing -- that is
+#   the real gate, not this workflow.
+#
+#   It cannot be a required status check: a dispatch-only workflow does not
+#   report against a push at all.
+#
+#   The branch selector on the dispatch form accepts any ref, so step 0 of the
+#   sonar job pins the run to main -- see that job for why.
+#
+#   The `run_sonar` input defaults to FALSE, so a bare dispatch runs the two
+#   cheap local checks (terraform, workflows) and SKIPS the SonarCloud scan.
+#   Tick the box, or pass `-f run_sonar=true`, when you want the gate. The
+#   scan is the slow part of this workflow and the only part that needs a
+#   secret or reaches a third party, so it is opt-in rather than a tax on
+#   every "did I break fmt?" dispatch.
 #
 # Relationship to release.yml:
-#   Same three checks, different moment. This one reports on every commit;
+#   Same three checks, different moment. This one reports when asked;
 #   release.yml re-runs them at tag time as the final gate before a GitHub
 #   Release is published. Neither replaces the other -- a tag can be pushed for
 #   a commit whose checks went green weeks earlier.
@@ -26,7 +40,8 @@
 # Structure:
 #   THREE JOBS, NOT ONE, on purpose. They run in parallel, and each reports as
 #   a separately named check, so a failure names the area rather than sending
-#   you into a single combined log.
+#   you into a single combined log. Two always run; `sonar` runs only when the
+#   `run_sonar` input is true, and otherwise reports as skipped.
 #
 # Notes:
 #   - terraform_version must satisfy the `required_version = "~> 1.15"`
@@ -39,8 +54,31 @@
 name: Main Verify
 
 on:
-  push:
-    branches: [main]
+  # Manual trigger only -- see the Trigger note above.
+  workflow_dispatch:
+    inputs:
+      # -----------------------------------------------------------------------
+      # run_sonar
+      #
+      # Defaults to false so the common case -- "check my formatting and that
+      # every root still validates" -- is a one-click dispatch that finishes in
+      # a couple of minutes and touches nothing outside the runner.
+      #
+      # Setting it true adds the SonarCloud scan: a full-history checkout, a
+      # network round trip, the org-level SONAR_TOKEN, and a PUBLISHED analysis
+      # that overwrites main's quality gate status. Opt in when you want the
+      # gate -- most usefully before pushing a release tag, since release.yml
+      # runs the same scan after the tag already exists.
+      #
+      # `type: boolean` renders a checkbox and, unlike github.event.inputs.*,
+      # arrives in the `inputs` context as a real boolean, so the job-level
+      # `if:` below needs no string comparison.
+      # -----------------------------------------------------------------------
+      run_sonar:
+        description: "Also run the SonarCloud scan (publishes main's quality gate)"
+        required: false
+        type: boolean
+        default: false
 
 # Workflow-level default: read-only, for every job. The one job that needs more
 # raises it for itself -- see the `sonar` job's own `permissions:` block. Keep
@@ -50,10 +88,10 @@ permissions:
   contents: read
 
 concurrency:
-  # Keyed on the ref, so a rapid second push to main supersedes the run for the
-  # first. Unlike the release and ACR workflows, cancelling here is safe and
-  # desirable: these jobs touch no Azure state and hold no locks, and only the
-  # newest commit's result is interesting.
+  # Keyed on the ref, so a second dispatch supersedes one already in flight for
+  # the same branch. Unlike the release and ACR workflows, cancelling here is
+  # safe and desirable: these jobs touch no Azure state and hold no locks, and
+  # only the newest result is interesting.
   group: main-verify-${{ github.ref }}
   cancel-in-progress: true
 
@@ -198,6 +236,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # Opt-in. A false (default) value skips the whole job -- it reports as
+    # "skipped" in the Actions UI, not as a pass, so a skipped scan is never
+    # mistaken for a green gate.
+    #
+    # A job-level `if:` is not a `run:` body, so the ${{ }} rule that governs
+    # the rest of this repo does not apply: nothing is pasted into a shell.
+    if: ${{ inputs.run_sonar }}
+
     # Scoped to THIS job so it is explicit, even though it matches the
     # workflow default. A job-level block REPLACES that default rather than
     # adding to it, so `contents: read` has to be stated here or the checkout
@@ -205,7 +251,42 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      # Bound here rather than written into the run body below. A `${{ ... }}`
+      # inside a `run:` is substituted as raw TEXT before the shell parses it.
+      SOURCE_REF: ${{ github.ref }}
+
     steps:
+      # -----------------------------------------------------------------------
+      # Step 0: SAFEGUARD - this job may only analyse main
+      #
+      # The workflow_dispatch form offers a BRANCH SELECTOR and will happily
+      # run this against any ref in the repo. A push-triggered workflow scoped
+      # to main would have the ref by construction; this one does not.
+      #
+      # That matters specifically for Sonar. sonar-project.properties pins
+      # `sonar.branch.name=main` and every caller passes the scanner no
+      # arguments, so a run started from another branch would publish THAT
+      # branch's code as main's analysis -- overwriting the quality gate status
+      # for a commit that was never on main. `make sonar` refuses to run off
+      # main for exactly this reason; this is the CI counterpart of that guard.
+      #
+      # Only the sonar job is guarded. The `terraform` and `workflows` jobs are
+      # pure local checks with no published side effect, so running them from a
+      # branch is harmless and occasionally useful.
+      # -----------------------------------------------------------------------
+      - name: SAFEGUARD - Validate source ref is main
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${SOURCE_REF}" != "refs/heads/main" ]; then
+            echo "Denied: the sonar job analyses 'main' only."
+            echo "sonar-project.properties pins sonar.branch.name=main, so a run"
+            echo "from another ref would publish its code as main's analysis."
+            echo "Ref: '${SOURCE_REF}'"
+            exit 1
+          fi
+
       # -----------------------------------------------------------------------
       # Step 1: Checkout, with full history
       #

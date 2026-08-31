@@ -63,9 +63,12 @@ same applies to several other providers as well.
 
    ```shell
    # Login as a User (NOT Service Principal)
-   az login --tenant '<ARM_TENANT_ID>'
+   # login as a User from the browser / select subscription
+   # You need to know your Azure Tenant ID below.
+   az login --tenant "${ARM_TENANT_ID}"
    # Confirm the User as the type of login
    az account show --query user
+   # You need to be the owner of the subscription below
    az account set --subscription "${ARM_SUBSCRIPTION_ID}"
    # ACR:
    az provider register --verbose --namespace Microsoft.ContainerRegistry
@@ -109,8 +112,10 @@ it.
 2. select the subscription at the CLI prompt
 
     ```shell
+    # Login as a User (NOT Service Principal)
     # login as a User from the browser / select subscription
-    az login --tenant '<ARM_TENANT_ID>'
+    # You need to know your Azure Tenant ID below.
+    az login --tenant "${ARM_TENANT_ID}"
     # display azure account info
     az account show
     ```
@@ -118,8 +123,10 @@ it.
 3. create service principal
 
    ```shell
+   # Remember you should have Ownere RBAC role on this subscription
    ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-   TF_SERVICE_PRINCIPAL='<SECRET>'
+   # name the SP username as you please (e.g., terraform-sp is a good one)
+   TF_SERVICE_PRINCIPAL='terraform-sp'
    # take note of the following displayed output:
    # "appId" --> SP (Service Principal) username = ARM_CLIENT_ID
    # "password" --> SP (Service Principal) password = ARM_CLIENT_SECRET
@@ -133,14 +140,13 @@ it.
 4. Find the TF_OBJECT_ID
 
    ```shell
+   # The "appId" from previous `az ad sp create-for-rbac` outtput.
    APP_ID='<SECRET>' # from the previous command.
    # take note of the "TF_OBJECT_ID" displayed
    az ad sp show --id "${APP_ID}" --query id -o tsv
    ```
 
-### Add Service Principal Roles
-
-1. Add "User Access Administrator" role:
+5. Add "User Access Administrator" role:
 
     ```shell
     az role assignment create \
@@ -148,43 +154,6 @@ it.
       --assignee-principal-type ServicePrincipal \
       --role "User Access Administrator" \
       --scope "/subscriptions/${ARM_SUBSCRIPTION_ID}"
-    ```
-
-2. Create a resource group for `Terraform`:
-
-   ```shell
-   TF_RESOURCE_GROUP='<SECRET>'
-   # create Terraform resource group
-   # NOTE: I changed the location of the Terraform resource group from 
-   # eastus to centralus
-   az group create \
-   --name "${TF_RESOURCE_GROUP}" \
-   --location centralus
-   ```
-
-3. Create the storage account for Terraform:
-
-   ```shell
-   TF_RESOURCE_GROUP='<SECRET>'
-   TF_STORAGE_ACCOUNT='<SECRET>'
-   # NOTE: I changed the location of the Terraform resource group from 
-   # eastus to centralus
-   az storage account create \
-   --name  "${TF_STORAGE_ACCOUNT}" \
-   --resource-group "${TF_RESOURCE_GROUP}" \
-   --location centralus \
-   --sku Standard_LRS
-   ```
-
-4. Add "Storage Blob Data Contributor" role:
-
-    ```shell
-    SCOPE="/subscriptions/${ARM_SUBSCRIPTION_ID}/resourceGroups/${TF_RESOURCE_GROUP}/providers/Microsoft.Storage/storageAccounts/${TF_STORAGE_ACCOUNT}"
-    az role assignment create \
-      --assignee-object-id "${TF_OBJECT_ID}" \
-      --assignee-principal-type ServicePrincipal \
-      --role "Storage Blob Data Contributor" \
-      --scope "${SCOPE}"
     ```
 
 ### Verify Azure Service Principal Roles
@@ -208,10 +177,17 @@ it.
 
    ```shell
    az logout
+   # SP (Service Principal) username which is the same as appId output when the
+   # 
+   # ARM_CLIENT_ID is the value of "appId" output when the 
+   # `az ad sp create-for-rbac` was run to create the SP.
+   # ARM_CLIENT_SECRET is the value of "password" output when the 
+   # `az ad sp create-for-rbac` was run to create the SP.
    # SP (Service Principal) username:
    ARM_CLIENT_ID='<SECRET>'
    # SP (Service Principal) password:
    ARM_CLIENT_SECRET='<SECRET>'
+   # You must know your tenant ID
    ARM_TENANT_ID='<SECRET>'
    az login --service-principal \
    --username "${ARM_CLIENT_ID}" \
@@ -224,29 +200,16 @@ it.
    az account show --query user.name -o tsv
    ```
 
-## SetUp CLI Environment Variables
+## Terraform Azure Resource Manager Environment Variables
 
-1. take note of the following secret information which are needed by
-   `Terraform` and GitHub Action:
+1. take note of the following information:
 
-    - appId → ARM_CLIENT_ID/AZURE_CLIENT_ID
-    - password → ARM_CLIENT_SECRET/AZURE_CLIENT_SECRET
-    - tenant → ARM_TENANT_ID/AZURE_TENANT_ID
+    - appId:  ARM_CLIENT_ID/AZURE_CLIENT_ID
+    - password: ARM_CLIENT_SECRET/AZURE_CLIENT_SECRET
+    - tenant:  ARM_TENANT_ID/AZURE_TENANT_ID
+    - subscription: ARM_SUBSCRIPTION_ID/AZURE_SUBSCRIPTION_ID 
 
-2. Display the Service Principal Object Id (ARM_OBJECT_ID):
-
-   - A Client ID (ARM_CLIENT_ID/AZURE_CLIENT_ID) identifies the application
-   - A Service Principal Object ID (TF_OBJECT_ID) identifies the actual Service 
-     Principal instance in the tenant
-
-     ```shell
-     ARM_CLIENT_ID='<SECRET_INFO>'
-     # displays the object id:
-     az ad sp show --id "${ARM_CLIENT_ID}" --query id -o tsv
-     # Take note of the output and store it in TF_OBJECT_ID
-     ```
-
-3. Configure Azure Resource Manager (ARM) CLI Environment Variables
+2. Configure Azure Resource Manager (ARM) CLI Environment Variables
 
     - The following environment variables are needed by `terraform`
       hashicorp/azurerm provider module at runtime:
@@ -260,180 +223,21 @@ it.
         export TF_OBJECT_ID='<SECRET>'
         export TF_LOG='INFO'
         export TF_LOG_PATH='/tmp/terraform.log'
-        # the following are not known at this time yet.  These variables are 
-        # defined as part of the bootstrap-backend module which should be done 
-        # prior to anything else.
-        # export TF_CONTAINER='<SECRET>'
-        # export TF_RESOURCE_GROUP='<SECRET>'
-        # export TF_STORAGE_ACCOUNT='<SECRET>'
-        # export TF_STORAGE_KEY='<SECRET>'
         ```
 
-## GitHub Actions Environment Variables
+## GitHub Actions Secrets
 
-The following variables are required by GitHub Actions workflows
-
-1. Save the credentials to the corresponding GitHub repo:
+The following variables are required by the GitHub Actions workflows:
 
    ```text
-   "azure-iac" Repo → Settings → Environments → AZURE → Environment secrets 
+   # For example for the repo "azure-iac" 
+   # Repo → Settings / Secrets and variables / Actions / (add secrets here) 
    AZURE_CLIENT_ID='<SECRET>'
    AZURE_CLIENT_SECRET='<SECRET>'
    AZURE_SUBSCRIPTION_ID='<SECRET>'
    AZURE_TENANT_ID='<SECRET>'
    ```
 
-## Bootstrap Terraform Backend Resources
-
-_You should now proceed to create the Terraform resource group. storage 
-account and Blob Container as described in the [README](./bootstrap-backend/README.md)_
-
-## `Terraform` Azure Resource Group -- DO NOT RUN THIS USING AZ CLI
-
-**NOTE: TO BE DONE BY TERRAFORM !!!  THE CREATION OF ANY RESOURCES IN AZURE
-MUST BE DONE USING TERRAFORM TO AUTOMATE THE CREATION/DESTROY OF THOSE
-RESOURCES AS NEEDED.**
-
-Resource groups provide a logical container to manage and organize Azure
-resources, simplifying administration and enabling efficient resource
-management.
-
-- Create a resource group for `Terraform`:
-
-   ```shell
-   # login from the browser / select subscription
-   az login --tenant '<ARM_TENANT_ID>'
-   TF_RESOURCE_GROUP='<SECRET>'
-   # create Terraform resource group
-   az group create \
-   --name "${TF_RESOURCE_GROUP}" \
-   --location centralus
-   ```
-
-- List the resource groups:
-
-    ```shell
-    az group list --output table
-    ```
-
-- Delete the resource group:
-
-    ```shell
-    az group delete \
-    --name "${TF_RESOURCE_GROUP}" \
-    --yes \
-    --no-wait  
-    ```
-
-## `Terraform` Azure Storage Account -- DO NOT RUN THIS USING AZ CLI
-
-**NOTE: TO BE DONE BY TERRAFORM !!!  THE CREATION OF ANY RESOURCES IN AZURE
-MUST BE DONE USING TERRAFORM TO AUTOMATE THE CREATION/DESTROY OF THOSE
-RESOURCES AS NEEDED.**
-
-An Azure Storage Account is the top-level container for Azure storage services.
-It provides a unique namespace and management boundary for storing data in
-Azure. A storage account can contain blobs, files, queues, tables, and other
-storage-related resources. Data stored in a storage account is designed to be
-durable, highly available, secure, and scalable.
-
-   ```text
-   Subscription
-     └── <resource group>
-         └── <storage account>
-             └── <container>
-   ```
-
-- Before creating the storage account, ENSURE the Microsoft.Storage Resource
-  Provider is registered in your new Azure subscription.
-
-   ```shell
-   az provider register --namespace Microsoft.Storage
-   ```
-
-- It should say "Registered":
-
-    ```shell
-    az provider show \
-    --namespace Microsoft.Storage \
-    --query registrationState -o tsv
-    ```
-
-- Now create the storage account for Terraform:
-
-   ```shell
-   TF_RESOURCE_GROUP='<SECRET>'
-   TF_STORAGE_ACCOUNT='<SECRET>'
-   az storage account create \
-   --name  "${TF_STORAGE_ACCOUNT}" \
-   --resource-group "${TF_RESOURCE_GROUP}" \
-   --location centralus \
-   --sku Standard_LRS
-   ```
-
-- Check the storage account `kind` created:
-
-    ```shell
-    az storage account show \
-    --name "${TF_STORAGE_ACCOUNT}" \
-    --resource-group "${TF_RESOURCE_GROUP}" \
-    --query kind \
-    -o tsv
-    ```
-
-- Delete the storage account:
-
-    ```shell
-    az storage account delete \
-    --name "${TF_STORAGE_ACCOUNT}" \
-    --resource-group "${TF_RESOURCE_GROUP}"
-    ```
-
-## `Terraform` Azure Blob Container -- DO NOT RUN THIS USING AZ CLI
-
-**NOTE: TO BE DONE BY TERRAFORM !!!  THE CREATION OF ANY RESOURCES IN AZURE
-MUST BE DONE USING TERRAFORM TO AUTOMATE THE CREATION/DESTROY OF THOSE
-RESOURCES AS NEEDED.**
-
-- Get Storage Account key:
-
-    ```shell
-    az storage account keys list \
-    --resource-group "${TF_RESOURCE_GROUP}" \
-    --account-name "${TF_STORAGE_ACCOUNT}" \
-    --query "[0].value" \
-    -o tsv
-    # take note of output and store it in TF_STORAGE_KEY
-    ```
-
-- List containers created under the storage account:
-
-    ```shell
-    az storage container list \
-    --account-name "${TF_STORAGE_ACCOUNT}" \
-    --account-key "${TF_STORAGE_KEY}" \
-    --output table
-    ```
-
-- Create the Blob Container to store the `Terraform` state:
-
-    ```shell
-    TF_CONTAINER='<SECRET>'
-    az storage container create \
-    --name "${TF_CONTAINER}" \
-    --account-name "${TF_STORAGE_ACCOUNT}" \
-    --account-key "${TF_STORAGE_KEY}"
-    ```
-
-- Delete the Blob Container:
-
-    ```shell
-    TF_CONTAINER='<SECRET>'
-    az storage container delete \
-    --name "${TF_CONTAINER}" \
-    --account-name "${TF_STORAGE_ACCOUNT}" \
-    --account-key "${TF_STORAGE_KEY}"
-    ````
 
 ---
 Author:  [Rubens Gomes](https://rubensgomes.com/)

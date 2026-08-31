@@ -42,8 +42,12 @@
 #     short-lived branch. This workflow passes the scanner no arguments of its
 #     own. Never add `continue-on-error` to that step: a release that publishes
 #     over a red gate defeats the point of having one.
-#   - main-verify.yml runs the same three checks on every push to main. This
-#     workflow is the last gate, not the only one.
+#   - main-verify.yml runs the same three checks, but only on
+#     workflow_dispatch, and its sonar job is off unless run_sonar=true.
+#     Unless someone dispatched it that way, THIS workflow is the first and
+#     only Sonar analysis of the release commit -- not a formality. Run
+#     `gh workflow run main-verify.yml --ref main -f run_sonar=true` before
+#     tagging to find out early.
 # =============================================================================
 
 name: Release (tag push)

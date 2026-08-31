@@ -12,7 +12,7 @@ Wraps [`../../../modules/resource-groups/`](../../../modules/resource-groups/REA
   container `tfstate` exist).
 - `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`
   exported in the current shell. See
-  [`../../../INITIAL_SETUP.md`](../../../INITIAL_SETUP.md) for the SP setup.
+  [`../../../bootstrap-backend/INITIAL_SETUP.md`](../../../bootstrap-backend/INITIAL_SETUP.md) for the SP setup.
 - `../env.tfvars` populated (env, location, tags — the ones this module reads).
 
 ## Provision

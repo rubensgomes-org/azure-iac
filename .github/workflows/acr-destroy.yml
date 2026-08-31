@@ -55,7 +55,8 @@
 #
 # Authentication:
 #   Service Principal + client secret from the GitHub Environment named "AZURE",
-#   matching tf-bootstrap-destroy.yml rather than acr-create.yml.
+#   rather than the organization secrets acr-create.yml uses. This is the only
+#   workflow in the repo bound to an Environment.
 #
 #   THE ENVIRONMENT BINDING IS KEPT ON BOTH PATHS, AND THAT HAS A COST WORTH
 #   UNDERSTANDING. For a reusable workflow `environment:` is resolved in the
@@ -222,7 +223,10 @@ jobs:
       ENV_NAME: ${{ inputs.environment_name }}
 
       # Only this GitHub user may run a destructive workflow in this repo.
-      # Same gate as tf-bootstrap-destroy.yml. Update on a rename.
+      # Same gate, and same value, as mirror-push.yml. Update on a rename.
+      # This is the repo's only destructive workflow. The state backend has no
+      # destroy workflow, deliberately — its teardown is a manual procedure
+      # (terraform/bootstrap-backend/TF_DESTROY.md).
       #
       # Enforced on BOTH triggers. On workflow_call `github.actor` is the user
       # who triggered the caller's run, so a called destroy only proceeds when

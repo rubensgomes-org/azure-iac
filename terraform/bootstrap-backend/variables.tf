@@ -166,12 +166,27 @@ variable "enable_rg_lock" {
 #
 # Defaults document intent: `managedBy = "terraform"` warns humans not to
 # hand-edit the resources; `purpose = "tfstate"` marks them as backend
-# infrastructure. Callers can extend or replace this map entirely.
+# infrastructure; `createdBy` is the provenance key queried by tag policy (it
+# duplicates `managedBy` deliberately — see the same note in
+# `terraform/envs/dev/env.tfvars`); `owner` is the contact for cost and cleanup
+# queries.
+#
+# There is deliberately NO `environment` key here, unlike the estate's tag map.
+# The backend is subscription-level shared infrastructure that outlives and
+# spans every environment — labelling it `dev` would be wrong, and labelling it
+# with any single environment would be arbitrary.
+#
+# Callers can extend or replace this map entirely. Note that setting `tags` in
+# `terraform.tfvars` REPLACES this default wholesale rather than merging with
+# it, which would silently drop whichever keys the caller omitted — edit this
+# default instead.
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to backend resources."
   default = {
     managedBy = "terraform"
+    createdBy = "terraform"
     purpose   = "tfstate"
+    owner     = "rubens.s.gomes@gmail.com"
   }
 }

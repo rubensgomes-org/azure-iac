@@ -52,21 +52,23 @@ all apps (acceptable for a playground).
 
 ## Repo layout
 
-- `terraform/bootstrap-backend/` — the already-provisioned state backend
-  (`rg-tfstate`, `sttfstaterubens01`, `tfstate` container). Not torn down by the
-  estate destroy.
+- `terraform/bootstrap-backend/` — the state backend (`rg-tfstate`,
+  `sttfstaterubens01`, `tfstate` container), plus `INITIAL_SETUP.md`,
+  `TF_PROVISION.md` and `TF_DESTROY.md`. Not touched by the estate destroy.
 - `terraform/modules/<name>/` — reusable child modules (no state/backend)
 - `terraform/envs/dev/<NN-module>/` — per-module roots, each with its own state key
 - `terraform/envs/dev/{env.tfvars, backend.hcl}` — shared config
 - `docs/PROVISIONING_PLAN.md` — the master plan (naming conventions, per-module
   command reference §13, passwordless wiring §12)
 - `Makefile` — whole-estate + per-module `apply`/`destroy`/`reprovision`
-- `.github/workflows/` — seven workflows: `acr-create.yml` / `acr-destroy.yml`
-  (both `workflow_call` + `workflow_dispatch`), `tf-bootstrap-create.yml` /
-  `tf-bootstrap-destroy.yml`, `release.yml`, `main-verify.yml`, and
-  `mirror-push.yml`. Only the four Azure-touching ones hold credentials;
+- `.github/workflows/` — five workflows: `acr-create.yml` / `acr-destroy.yml`
+  (both `workflow_call` + `workflow_dispatch`), `release.yml`, `main-verify.yml`,
+  and `mirror-push.yml`. Only the two Azure-touching ones hold credentials;
   `release.yml`, `main-verify.yml` and `mirror-push.yml` do not. The Terraform
-  ones each shell out to repo-root `make` targets. See README.md
+  ones each shell out to repo-root `make` targets. The state backend has no CI,
+  deliberately — create and destroy are hand-operated
+  (`terraform/bootstrap-backend/TF_PROVISION.md` and `TF_DESTROY.md`).
+  See README.md
 - `PROVISION_ACR.md` — standalone runbook for standing up just the ACR
   (modules 01 → 04 → 06) and tearing it back down
 - `RELEASING.md` — what MAJOR/MINOR/PATCH mean here and how a tag is cut
@@ -85,65 +87,50 @@ export ARM_TENANT_ID=<tenant-id>
 export ARM_SUBSCRIPTION_ID=<subscription-id>
 ```
 
-## Status (paused, estate state verified 2026-08-29)
+## Region
 
-**Feature-complete in code.** All 12 modules are implemented, and all have been
-applied and verified against Azure at least once; `make validate` passes across
-every root. The user runs all `terraform` / `make` commands manually.
+A single `location` in `terraform/envs/dev/env.tfvars` drives all twelve
+modules, with no per-module overrides. Before moving the estate to another
+region, check it with `az postgres flexible-server list-skus --location
+<region>` — the subscription is offer-restricted from provisioning PG Flexible
+Server in some regions, and a restricted one forces a per-module override back
+into the estate.
 
-**Live in Azure right now: nothing — the estate is at zero.** None of the five
-`rg-dev-*` resource groups exist; `az group list` returns only `rg-tfstate`
-plus Azure's own `NetworkWatcherRG` and `DefaultResourceGroup-EUS`. All twelve
-module state keys are empty few-hundred-byte shells (`resources: 0`), and
-`bootstrap/backend.tfstate` is the only populated state. Nothing is running, so
-the estate currently costs **$0/month** — the state Storage Account is free at
-this scale. (Module 01 was still up as of 2026-08-24; it has since been
-destroyed.)
+The Terraform state backend's region is set independently and is cosmetic: the
+azurerm backend addresses state by resource group + storage account + container
+name and has no region field, so its location is unrelated to the resources it
+tracks.
 
-Verify rather than trust that line; it ages every time something is applied:
+## Provisioning order
 
-```bash
-az group list --query "[].name" -o tsv    # no rg-dev-* => nothing applied
-```
+`make apply` from the repo root, or module-by-module in numeric order. A module
+whose upstreams are not applied fails at plan with *Unsupported attribute*,
+which does not name the real cause. ACR alone is `make apply-resource-groups &&
+make apply-managed-identities && make apply-acr`; Container Apps needs 01, 04,
+06, 07, 08, 09, 10, then 11.
 
-**Region: `centralus`**, moved from `eastus` in v0.4.2. One `location` in
-`terraform/envs/dev/env.tfvars` drives all twelve modules, with no per-module
-overrides — module 09's old `eastus2` pin is gone now that the estate sits in a
-region where PG Flexible Server is not offer-restricted. The Terraform state
-backend is in `centralus` as well, but only cosmetically: the azurerm backend
-addresses state by resource group + storage account + container name and has no
-region field, so its location is independent of the resources it tracks.
+A rebuild starts with the state backend, not module 01 — until it exists, no
+module root can `terraform init`. See
+`../terraform/bootstrap-backend/TF_PROVISION.md`, then `terraform init
+-reconfigure` each root, then `make apply`. PROVISIONING_PLAN.md §4 has the
+dependency map.
 
-Rebuild with `make apply` from the repo root, or module-by-module in numeric
-order — a module whose upstreams are not applied fails at plan with
-*Unsupported attribute*. Nothing is up, so 01 builds from scratch too: ACR
-alone is `make apply-resource-groups && make apply-managed-identities &&
-make apply-acr` (~$5.07/month); Container Apps needs 01, 04, 06, 07, 08, 09,
-10, then 11. PROVISIONING_PLAN.md → Progress has the detail.
+## Branching
 
-**Branching.** Trunk-based: `main` is the only branch, every change is
-committed straight to it, and there are no feature branches or pull requests.
-`main-verify.yml` runs `terraform`, `workflows` and `sonar` on every push.
+Trunk-based: `main` is the only branch, every change is committed straight to
+it, and there are no feature branches or pull requests. `main-verify.yml` runs
+`terraform` and `workflows`, plus `sonar` when its `run_sonar` input is set
+true, but is `workflow_dispatch`-only — nothing verifies `main` automatically,
+so `make fmt` and `make validate` before committing is the real gate.
 
-**Releases.** Tagged `v<VERSION>` off `main`; `VERSION` at the repo root is the
-source of truth and every Azure resource carries a matching `release` tag.
-Semver here is infra-impact based — see `RELEASING.md`. A release is
-`make release-<level>` (bump, changelog roll, commit and tag, all local)
-followed by `make release-push`.
+## Releases
 
-**Deferred / outstanding work:**
+Tagged `v<VERSION>` off `main`; `VERSION` at the repo root is the source of
+truth and every Azure resource carries a matching `release` tag. Semver here is
+infra-impact based — see `RELEASING.md`. A release is `make release-<level>`
+(bump, changelog roll, commit and tag, all local) followed by
+`make release-push`.
 
-- **D1** — set a real image for module 11 (it last ran the
-  `mcr.microsoft.com/k8se/quickstart` placeholder) once real Spring Boot images
-  are pushed to ACR *(blocked on app dev)*. Since 11 is destroyed, this is a
-  fresh `make apply-container-apps` with `apps_image_map` set — and the
-  registry is destroyed too, so ACR must be reprovisioned and the images
-  repushed first
-- **D2** — wire `APPLICATIONINSIGHTS_CONNECTION_STRING` into Container Apps
-  *(depends on D1)*
-- **D3** — replace the manual PG data-plane bootstrap with a Container Apps Job
-  (§12a)
-- **D4** — APIM, always-deferred iteration-2 work
 
 ## Notable gotchas
 

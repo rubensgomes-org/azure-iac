@@ -141,7 +141,7 @@ not worth a code change.
 - **`ARM_*` exported in the current shell** — `ARM_CLIENT_ID`,
   `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`. Every Make
   target shells out to `terraform`, which reads these from the environment.
-  See `terraform/INITIAL_SETUP.md`.
+  See `terraform/bootstrap-backend/INITIAL_SETUP.md`.
 - **`az login`** as yourself, for the verification steps and for pushing
   images. This is a *different* identity from the Terraform service
   principal.
@@ -531,5 +531,5 @@ Related docs:
   §15 full-teardown procedure
 - `terraform/envs/dev/06-acr/README.md` — the by-hand `terraform` equivalents
 - `terraform/envs/dev/04-managed-identities/README.md` — UAMI verification
-- `terraform/INITIAL_SETUP.md` — one-time SP setup and `ARM_*` variables
+- `terraform/bootstrap-backend/INITIAL_SETUP.md` — one-time SP setup and `ARM_*` variables
 - `CLAUDE.md` — current estate status

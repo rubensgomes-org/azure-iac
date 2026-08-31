@@ -98,8 +98,7 @@ jobs:
 
     env:
       # Only this GitHub user may publish into the work namespace. Same gate,
-      # and same value, as tf-bootstrap-destroy.yml and acr-destroy.yml.
-      # Update on a rename.
+      # and same value, as acr-destroy.yml. Update on a rename.
       ALLOWED_ACTOR: "rubensgomes"
 
       # Every `${{ ... }}` this job needs is bound HERE, once, so that no run

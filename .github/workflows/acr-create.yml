@@ -29,7 +29,7 @@
 #   with each calling repository.
 #
 #   This job is deliberately NOT bound to a GitHub Environment, unlike
-#   tf-bootstrap-create.yml and acr-destroy.yml. Two reasons:
+#   acr-destroy.yml. Two reasons:
 #
 #     1. Organization secrets are not Environment secrets. A job with no
 #        `environment:` resolves them fine.
