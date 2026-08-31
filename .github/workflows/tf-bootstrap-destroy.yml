@@ -30,6 +30,12 @@
 #   - Terraform automatically loads terraform.tfvars from WORKING_DIR.
 #   - azure/login@v2 does NOT accept "client-secret:" as an input; for SP+secret
 #     auth you must use the "creds" JSON object.
+#   - The Storage Account name is a real INPUT (default "sttfstaterubens01"),
+#     mirroring tf-bootstrap-create.yml: Storage Account names are globally
+#     unique across all of Azure, so a backend bootstrapped under a different
+#     name has to be destroyable under that name too. It is NOT compared to a
+#     hardcoded constant any more - see the SAFEGUARD step for what replaces
+#     that check and why the guard is no weaker.
 # =============================================================================
 
 name: TF Bootstrap Destroy
@@ -46,7 +52,9 @@ on:
         description: >
           DO NOT EVER REMOVE THE BOOTSTRAP BACKEND RESOURCES UNLESS YOU FOLLOW A VERY
           RIGOROUS PROCEDURE BEFORE DOING SO.
-          SAFEGUARD QUESTION: Type EXACTLY the phrase below to confirm destruction:
+          SAFEGUARD QUESTION: Type EXACTLY "DESTROY <rg_name> <storage_account_name>
+          <container_name>", using the SAME storage account name you typed in the
+          storage_account_name field. For the defaults that phrase is:
           DESTROY rg-tfstate sttfstaterubens01 tfstate
         required: true
         type: string
@@ -57,8 +65,27 @@ on:
         default: "rg-tfstate"
         type: string
 
+      # ---------------------------------------------------------------------
+      # storage_account_name
+      #
+      # Unlike rg_name and container_name - which are echoes checked against
+      # hardcoded constants - this field NAMES THE TARGET. Storage Account
+      # names are globally unique across every Azure tenant, so a backend
+      # bootstrapped elsewhere (see the matching input on
+      # tf-bootstrap-create.yml) carries a different name, and a constant here
+      # would make that backend impossible to tear down through this workflow.
+      #
+      # What still guards it, now that there is no constant to compare against:
+      #   - the ALLOWED_ACTOR gate and the AZURE Environment binding;
+      #   - double entry - the value must be repeated verbatim inside `confirm`,
+      #     so a single typo cannot reach Terraform;
+      #   - a format check (3-24 lowercase alphanumeric) in the SAFEGUARD step;
+      #   - rg_name stays pinned to the constant, so the blast radius is capped
+      #     at a Storage Account inside the expected bootstrap RG. The imports
+      #     in .github/actions/import-state address the account through that RG.
+      # ---------------------------------------------------------------------
       storage_account_name:
-        description: "Target Storage Account name (must match expected)"
+        description: "Target Storage Account name (globally unique; 3-24 lowercase alphanumeric)"
         required: true
         default: "sttfstaterubens01"
         type: string
@@ -116,9 +143,23 @@ jobs:
       # -----------------------------------------------------------------------
       # Bootstrap identifiers used both for documentation and safeguard validation.
       # IMPORTANT: Keep these in sync with your terraform/bootstrap-backend config.
+      #
+      # Naming: an EXPECTED_ prefix marks a constant that an input is validated
+      # against. STORAGE_ACCOUNT_NAME has none because it is not a constant -
+      # it is the dispatch input naming the account this run targets.
       # -----------------------------------------------------------------------
       EXPECTED_RG_NAME: "rg-tfstate"
-      EXPECTED_STORAGE_ACCOUNT_NAME: "sttfstaterubens01"
+      # Supplied by the dispatch input above (defaults to "sttfstaterubens01"),
+      # exactly as in tf-bootstrap-create.yml. Bound here once so the SAFEGUARD
+      # step, the backend `init`, the `-var` on destroy, and
+      # .github/actions/import-state all read one value from the environment.
+      #
+      # It carries no "EXPECTED_" prefix, unlike its two neighbours, and the
+      # difference is meaningful rather than cosmetic: those two ARE constants
+      # that the typed inputs are checked against, while this one IS the target
+      # the run acts on. .github/actions/import-state reads all three from the
+      # environment under exactly these names.
+      STORAGE_ACCOUNT_NAME: ${{ github.event.inputs.storage_account_name }}
       EXPECTED_CONTAINER_NAME: "tfstate"
 
       # -----------------------------------------------------------------------
@@ -146,9 +187,19 @@ jobs:
       #
       # What it enforces:
       #   1) (Optional) Only ALLOWED_ACTOR may run this workflow
-      #   2) rg_name / storage_account_name / container_name must match expected
-      #   3) confirm input must EXACTLY match:
+      #   2) rg_name / container_name must match the expected constants
+      #   3) storage_account_name must be a well-formed Storage Account name
+      #      (it names the target, so there is no constant to match it against)
+      #   4) confirm input must EXACTLY match:
       #        "DESTROY <rg> <storage> <container>"
+      #
+      # Why (3) is not a mismatch check like (2):
+      #   There is no constant left to compare against. $STORAGE_ACCOUNT_NAME
+      #   IS the typed input, so a mismatch check would compare the value to
+      #   itself - a tautology that always passes while reading like a guard.
+      #   It is replaced by a format check plus the double entry in (4): the
+      #   same name has to be typed a second time inside the confirmation
+      #   phrase, which is the property the old constant provided.
       #
       # Failure behavior:
       #   If any check fails, the workflow exits immediately before logging in
@@ -193,9 +244,15 @@ jobs:
             exit 1
           fi
 
-          if [ "${TYPED_STORAGE_ACCOUNT_NAME}" != "${EXPECTED_STORAGE_ACCOUNT_NAME}" ]; then
-            echo "Denied: storage_account_name mismatch."
-            echo "Expected: '${EXPECTED_STORAGE_ACCOUNT_NAME}'"
+          # storage_account_name NAMES THE TARGET, so it is validated for shape
+          # rather than compared to a constant. Same regex as the
+          # `storage_account_id` validation in
+          # terraform/bootstrap-backend/variables.tf and as the fail-fast step
+          # in tf-bootstrap-create.yml. Keep the three in sync. Double entry is
+          # enforced by the confirmation phrase below.
+          if ! printf '%s' "${TYPED_STORAGE_ACCOUNT_NAME}" | grep -Eq '^[a-z0-9]{3,24}$'; then
+            echo "Denied: storage_account_name is not a valid Storage Account name."
+            echo "Must be 3-24 characters, lowercase letters and digits only."
             echo "Got:      '${TYPED_STORAGE_ACCOUNT_NAME}'"
             exit 1
           fi
@@ -208,7 +265,7 @@ jobs:
           fi
 
           # ---- Validate type-to-confirm phrase ----
-          expected="DESTROY ${EXPECTED_RG_NAME} ${EXPECTED_STORAGE_ACCOUNT_NAME} ${EXPECTED_CONTAINER_NAME}"
+          expected="DESTROY ${EXPECTED_RG_NAME} ${STORAGE_ACCOUNT_NAME} ${EXPECTED_CONTAINER_NAME}"
           if [ "${TYPED_CONFIRM}" != "${expected}" ]; then
             echo "Denied: Confirmation phrase did not match exactly."
             echo "Expected: ${expected}"
@@ -282,10 +339,19 @@ jobs:
       #
       # Purpose:
       #   Initializes providers and state so Terraform can destroy correctly.
+      #
+      # `-backend-config="storage_account_name=..."` overrides the literal in
+      # terraform/bootstrap-backend/backend.tf, which cannot interpolate a
+      # variable. With the default input it supplies the value that file already
+      # hardcodes, so nothing changes; with a custom one it points the backend at
+      # the same account this run is about to destroy - which is also the account
+      # holding the state being read. Mirrors tf-bootstrap-create.yml.
       # -----------------------------------------------------------------------
       - name: Terraform init (bootstrap)
         working-directory: ${{ env.WORKING_DIR }}
-        run: terraform init --upgrade
+        run: |
+          terraform init --upgrade \
+            -backend-config="storage_account_name=${STORAGE_ACCOUNT_NAME}"
 
       # -----------------------------------------------------------------------
       # Step 7: terraform import bootstrap backend state (optional)
@@ -312,7 +378,9 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Terraform destroy (bootstrap)
         working-directory: ${{ env.WORKING_DIR }}
-        run: terraform destroy -auto-approve
+        run: |
+          terraform destroy -auto-approve \
+            -var="storage_account_id=${STORAGE_ACCOUNT_NAME}"
 
       # -----------------------------------------------------------------------
       # Step 9: Capture and save Terraform error output for later view.
