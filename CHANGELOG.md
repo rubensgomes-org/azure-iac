@@ -19,6 +19,14 @@ here.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.4.6] - 2026-08-30
+
+### Added
+
 - **`storage_account_name` is now a dispatch input on both bootstrap
   workflows** (`tf-bootstrap-create.yml`, `tf-bootstrap-destroy.yml`),
   defaulting to `sttfstaterubens01`. Azure Storage Account names live in a
