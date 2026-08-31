@@ -19,6 +19,14 @@ here.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.4.5] - 2026-08-30
+
+### Added
+
 - **`mirror-push.yml` — publish `main` to the private work repository**
   (`rubens-gomes_3CC/azure-iac`, a GitHub Enterprise Managed Users namespace).
   `workflow_dispatch` only: mirroring pushes into a corporate namespace, so
