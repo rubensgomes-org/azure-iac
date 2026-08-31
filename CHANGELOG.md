@@ -19,7 +19,63 @@ here.
 
 ### Added
 
+- **`storage_account_name` is now a dispatch input on both bootstrap
+  workflows** (`tf-bootstrap-create.yml`, `tf-bootstrap-destroy.yml`),
+  defaulting to `sttfstaterubens01`. Azure Storage Account names live in a
+  global namespace — they must be unique across every tenant in Azure, not just
+  this subscription — so the name this project already holds cannot be reused by
+  a bootstrap anywhere else, and a hardcoded constant made a fresh backend
+  impossible to create or tear down through CI. Resource group and container
+  names are only scoped to the subscription and account, so they stay as `env`
+  constants.
+
+  The value reaches three places that have to agree, and all three now read one
+  environment binding: `terraform init -backend-config="storage_account_name=…"`
+  (the literal in `bootstrap-backend/backend.tf` cannot interpolate a variable),
+  `-var="storage_account_id=…"` on plan/destroy, and the imports in
+  `.github/actions/import-state`. `-var` specifically, not `TF_VAR_` —
+  environment variables are Terraform's *lowest*-precedence variable source and
+  would lose to the auto-loaded `terraform.tfvars`, so the input would have
+  steered the imports while apply still created the name in `tfvars`.
+
+  Both workflows validate the name against `^[a-z0-9]{3,24}$` — the same regex
+  as the `storage_account_id` validation in `bootstrap-backend/variables.tf` —
+  before Azure login, so a malformed value fails in seconds instead of as an ARM
+  400 mid-apply or as an `init` failure that reads like a credentials problem.
+
+  A name that does not exist yet still cannot be created by
+  `tf-bootstrap-create.yml` in one pass: the azurerm backend cannot initialise
+  against a Storage Account that has not been created. That is the two-pass
+  chicken-and-egg already documented at the top of `backend.tf`, and the init
+  step now carries a comment pointing at it.
+
 ### Changed
+
+- **`tf-bootstrap-destroy.yml`'s safeguard no longer compares the typed storage
+  account name against a constant — it enforces double entry instead.** The
+  input already existed as an echo checked against
+  `EXPECTED_STORAGE_ACCOUNT_NAME`; now that the same input *supplies* that
+  value, keeping the comparison would have compared the input to itself — a
+  tautology that always passes while still reading like a guard. It is replaced
+  by the format check above plus the confirmation phrase, which is now built
+  from the typed name, so the account has to be typed identically in two fields
+  before Terraform runs. `rg_name` and `container_name` keep their constant
+  checks, which caps the blast radius at a Storage Account inside the expected
+  bootstrap RG; the `ALLOWED_ACTOR` gate and the `AZURE` Environment binding are
+  untouched.
+
+- **Renamed `EXPECTED_STORAGE_ACCOUNT_NAME` to `STORAGE_ACCOUNT_NAME`** across
+  both bootstrap workflows and `.github/actions/import-state/action.yml`. The
+  prefix now carries meaning rather than decoration: `EXPECTED_` marks a
+  constant that an input is validated against (`EXPECTED_RG_NAME`,
+  `EXPECTED_CONTAINER_NAME`), and its absence marks the input naming the target
+  this run acts on. Both workflows document the split above their `env:` block.
+
+- **`.github/actions/import-state` passes the same `-var` on its post-import
+  plan.** Without it that plan would report creating the account named in
+  `terraform.tfvars` while the imports immediately above it targeted a different
+  one. Both bootstrap workflows set the variable it reads, so the composite
+  action needs no new input.
 
 ### Fixed
 
