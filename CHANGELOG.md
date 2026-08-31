@@ -24,6 +24,14 @@ trusts one plans from a false premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.5.1] - 2026-08-31
+
+### Added
+
 - **Optional `rg_suffix` on the resource-groups module**, appending
   `-<suffix>` to all five RG names (`rg-dev-platform-blue`, …). Default is the
   empty string, so existing names are byte-for-byte unchanged and no plan moves
