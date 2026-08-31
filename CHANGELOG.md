@@ -24,6 +24,14 @@ trusts one plans from a false premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.5.2] - 2026-08-31
+
+### Added
+
 - **`acr-destroy.yml` pre-flight guard.** Before any destroy runs, the workflow
   enumerates every resource in the `rg-<env>-*` resource groups and aborts the
   run if it finds anything outside the ACR stack — allowing only
