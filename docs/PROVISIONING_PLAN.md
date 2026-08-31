@@ -518,7 +518,7 @@ Root `Makefile` with per-module targets (`make apply-networking`,
 `make destroy`, `make reprovision`) that iterate `envs/dev/[0-9][0-9]-*` in
 forward order for apply and reverse for destroy. Uses the same
 `-backend-config` + `-var-file` invocations. GitHub Actions reuses the same
-`make` targets rather than reimplementing them — see the six workflows in
+`make` targets rather than reimplementing them — see the workflows in
 `.github/workflows/`, described in README.md and CLAUDE.md. `acr-create.yml`
 is the worked example: it exports `ARM_*` and calls
 `make init/plan/apply-<name>` for modules 01, 04 and 06 in order. When a
@@ -1546,16 +1546,17 @@ recording:
   runs first and leaves a `.terraform/modules/` copy of every local module's
   `.tf` files; without the exclusion `sonar.sources=.` indexes both copies.
 
-**Terraform CLI pin in CI.** All six workflows in `.github/workflows/`
-(`main-verify.yml`, `release.yml`, `acr-create.yml`, `acr-destroy.yml`,
-`tf-bootstrap-create.yml`, `tf-bootstrap-destroy.yml`) pin
+**Terraform CLI pin in CI.** The six Terraform-touching workflows in
+`.github/workflows/` (`main-verify.yml`, `release.yml`, `acr-create.yml`,
+`acr-destroy.yml`, `tf-bootstrap-create.yml`, `tf-bootstrap-destroy.yml`) pin
 `terraform_version: "1.15.8"`, which is the minimum needed to satisfy the
 `required_version = "~> 1.15"` declared in every `versions.tf` in the repo —
 roots, child modules, and `bootstrap-backend/`. The two bootstrap workflows
 originally pinned `1.14.3`, which does *not* satisfy that constraint; they
 would have failed `terraform init`. Bump all six together. They also all set
 `terraform_wrapper: false`, because the wrapper intercepts stdout and would
-break `terraform output -raw`.
+break `terraform output -raw`. `mirror-push.yml` is the seventh workflow and
+runs no Terraform, so it carries neither setting and is not part of the bump.
 
 ## Critical files to be created (in execution phases)
 

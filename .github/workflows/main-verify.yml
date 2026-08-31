@@ -30,9 +30,10 @@
 #
 # Notes:
 #   - terraform_version must satisfy the `required_version = "~> 1.15"`
-#     declared in every versions.tf in the repo. SIX workflows in this
-#     directory now pin the same build; bump them together.
-#   - terraform_wrapper is false, matching every other workflow here.
+#     declared in every versions.tf in the repo. Every Terraform-touching
+#     workflow in this directory pins the same build; bump them together.
+#     (mirror-push.yml runs no Terraform and carries no pin.)
+#   - terraform_wrapper is false, matching every other workflow that runs it.
 # =============================================================================
 
 name: Main Verify

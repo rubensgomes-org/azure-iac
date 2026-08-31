@@ -97,11 +97,12 @@ nothing.
 
 ## GitHub Actions
 
-Six workflows live in [`.github/workflows/`](./.github/workflows/). Four of them
-authenticate to Azure with the same `terraform-sp` Service Principal used
+Seven workflows live in [`.github/workflows/`](./.github/workflows/). Four of
+them authenticate to Azure with the same `terraform-sp` Service Principal used
 locally; `release.yml` and `main-verify.yml` deliberately hold no Azure
 credentials (their only secret is `SONAR_TOKEN`, which reaches sonarcloud.io and
-nothing else).
+nothing else), and `mirror-push.yml` holds none either — its only secret is a
+PAT for one private repository in a work GitHub namespace.
 
 | Workflow                                                                   | Shows in Actions as        | Trigger                              | What it does                                                                                                                                                                                  |
 |----------------------------------------------------------------------------|----------------------------|--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -111,6 +112,7 @@ nothing else).
 | [`tf-bootstrap-destroy.yml`](./.github/workflows/tf-bootstrap-destroy.yml) | **TF Bootstrap Destroy**   | `workflow_dispatch`                  | Tears the state backend down.                                                                                                                                                                 |
 | [`main-verify.yml`](./.github/workflows/main-verify.yml)                   | **Main Verify**            | `push` → main                        | Three checks on every commit to `main`: `terraform`, `workflows`, `sonar`. See Trunk-based development.                                                                                        |
 | [`release.yml`](./.github/workflows/release.yml)                           | **Release (tag push)**     | tag `v*.*.*`                         | Validates the tag against `VERSION` + `CHANGELOG.md`, runs `fmt`/`validate` and the SonarCloud quality gate, publishes a GitHub Release.                                                      |
+| [`mirror-push.yml`](./.github/workflows/mirror-push.yml)                   | **Mirror Push (work repo)**| `workflow_dispatch`                  | Force-pushes `main` to a private repository in a work GitHub namespace. Manual only, actor-restricted. See Mirroring to the work repository.                                                  |
 
 The middle column is the `name:` each workflow declares — that is the label in
 the repository's **Actions** sidebar, which is where you start the manual ones.
@@ -211,6 +213,74 @@ Two things will block a caller that has not been set up for this on purpose:
 
 Running the same thing by hand, plus cost, teardown, and the safety notes, is
 covered in [PROVISION_ACR.md](./PROVISION_ACR.md).
+
+### Mirroring to the work repository
+
+A copy of this repository lives in a private repository inside a work GitHub
+Enterprise Managed Users (EMU) namespace:
+
+```text
+source   rubensgomes-org/azure-iac       this repo, public
+target   rubens-gomes_3CC/azure-iac      work, private
+```
+
+[`mirror-push.yml`](./.github/workflows/mirror-push.yml) publishes `main` there.
+Run it from the **Actions** tab → **Mirror Push (work repo)** → *Run workflow*,
+with the branch selector left on `main`.
+
+It is **manual only**. `push: branches: [main]` is the obvious trigger for a
+mirror and is what most examples use; this one deliberately does not, because
+mirroring publishes into a corporate namespace and *when* that happens should
+stay a decision rather than a side effect of committing.
+
+What it does and does not do:
+
+- Pushes **`main` only**, with `--force`. No tags, no other branches, no
+  `--mirror`. The work copy is a reflection of this repo's trunk, not a peer —
+  anything committed directly to its `main` is destroyed by the next run. The
+  run log records the SHA that was overwritten, because nothing else does.
+- Denies the run unless the actor is the allowlisted maintainer **and** the
+  dispatch came from `main`. The branch selector accepts any branch, and
+  whatever it checks out is what would be force-pushed, so the ref is checked
+  rather than assumed.
+- Verifies afterwards that the mirror's `main` is at this commit. `git push`
+  exits 0 for a no-op and a server-side push rule can accept a push while
+  rewriting it, so "the command returned" is not the same claim as "the mirror
+  is up to date".
+
+#### The token
+
+One repository-level Actions secret, **`WORK_GITHUB_PAT`** (Settings → Secrets
+and variables → Actions). It never touches Azure and no Azure workflow reads it.
+
+Because the target is an EMU namespace, the usual PAT advice does not apply:
+
+- Mint it **while signed in as `rubens-gomes_3CC`** through the enterprise
+  identity provider — not from the personal account. A personal-account token
+  gets **404**, not 403, on a private EMU repository, which reads as "that repo
+  doesn't exist" and sends you looking in entirely the wrong place.
+- Prefer a **fine-grained** PAT; EMU enterprises commonly disable classic ones.
+  Resource owner = the namespace that owns the repository, repository access =
+  only `azure-iac`, and **two** permissions:
+  - `Contents: Read and write`
+  - `Workflows: Read and write` — **required, and easy to miss.** The commits
+    being mirrored include files under `.github/workflows/`, and a token
+    without this is rejected with *"refusing to allow a Personal Access Token
+    to create or update workflow ..."*. The classic-PAT equivalent is the
+    `workflow` scope alongside `repo`.
+- A fine-grained PAT may need organization approval before it becomes active,
+  and a classic one — if permitted at all — must be **SSO-authorized** for the
+  owning organization.
+
+#### Turn Actions off in the work repository
+
+The mirror receives `.github/workflows/` along with everything else, so
+`main-verify.yml` fires there on every mirror push and fails: no `SONAR_TOKEN`,
+different organization. Disable it at Settings → Actions → General → *Disable
+actions* in the work repository. `release.yml` never fires there because no tags
+are pushed, and `mirror-push.yml`'s own mirrored copy is dispatch-only and gated
+on an actor name that cannot exist in an EMU namespace, so pressing Run on it
+there is denied before it reads a secret.
 
 ### Static analysis (SonarCloud)
 

@@ -61,11 +61,12 @@ all apps (acceptable for a playground).
 - `docs/PROVISIONING_PLAN.md` — the master plan (naming conventions, per-module
   command reference §13, passwordless wiring §12)
 - `Makefile` — whole-estate + per-module `apply`/`destroy`/`reprovision`
-- `.github/workflows/` — six workflows: `acr-create.yml` / `acr-destroy.yml`
+- `.github/workflows/` — seven workflows: `acr-create.yml` / `acr-destroy.yml`
   (both `workflow_call` + `workflow_dispatch`), `tf-bootstrap-create.yml` /
-  `tf-bootstrap-destroy.yml`, `release.yml`, and `main-verify.yml`. Only the four
-  Azure-touching ones hold credentials; `release.yml` and `main-verify.yml` do
-  not. Each shells out to repo-root `make` targets. See README.md
+  `tf-bootstrap-destroy.yml`, `release.yml`, `main-verify.yml`, and
+  `mirror-push.yml`. Only the four Azure-touching ones hold credentials;
+  `release.yml`, `main-verify.yml` and `mirror-push.yml` do not. The Terraform
+  ones each shell out to repo-root `make` targets. See README.md
 - `PROVISION_ACR.md` — standalone runbook for standing up just the ACR
   (modules 01 → 04 → 06) and tearing it back down
 - `RELEASING.md` — what MAJOR/MINOR/PATCH mean here and how a tag is cut

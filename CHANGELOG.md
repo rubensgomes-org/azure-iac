@@ -19,6 +19,23 @@ here.
 
 ### Added
 
+- **`mirror-push.yml` — publish `main` to the private work repository**
+  (`rubens-gomes_3CC/azure-iac`, a GitHub Enterprise Managed Users namespace).
+  `workflow_dispatch` only: mirroring pushes into a corporate namespace, so
+  *when* it happens stays a decision rather than a side effect of committing.
+  Force-pushes `main` and nothing else — no tags, no `--mirror` — behind the
+  same `ALLOWED_ACTOR` gate the destroy workflows use, plus a check that the
+  dispatch ran from `main` (the Actions branch selector accepts any branch, and
+  whatever it checks out is what would be pushed). Verifies afterwards that the
+  mirror's `main` is at this commit, since `git push` also exits 0 for a push a
+  server-side rule quietly rewrote.
+
+  Its one secret is a repo-level `WORK_GITHUB_PAT`; it touches no Azure and runs
+  no Terraform, so it carries no `terraform_version` pin. README.md →
+  *Mirroring to the work repository* covers the EMU token requirements — in
+  particular that the PAT needs `Workflows: Read and write` as well as
+  `Contents`, because the mirrored commits touch `.github/workflows/`.
+
 ### Changed
 
 ### Fixed

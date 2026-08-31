@@ -28,8 +28,9 @@
 #
 # Notes:
 #   - terraform_version must satisfy the `required_version = "~> 1.15"`
-#     declared in every versions.tf in the repo. All six workflows in this
-#     directory pin the same build; bump them together.
+#     declared in every versions.tf in the repo. Every Terraform-touching
+#     workflow in this directory pins the same build; bump them together.
+#     (mirror-push.yml runs no Terraform and carries no pin.)
 #   - `gh` is preinstalled on ubuntu-latest, so the release is published with
 #     the CLI rather than a third-party action. GH_TOKEN comes from the
 #     built-in github.token, which the `contents: write` permission below
