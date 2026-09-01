@@ -24,6 +24,14 @@ trusts one plans from a false premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.5.4] - 2026-09-01
+
+### Added
+
 - **`docs/MODULES_DEPENDENCY.md`** — the dependency graph of the twelve module
   roots, derived from the `data "terraform_remote_state"` blocks in each
   root's `main.tf`. Tree view, per-module table with the reason for each edge,
