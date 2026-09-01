@@ -122,7 +122,7 @@ PAT for one private repository in a work GitHub namespace.
 | Workflow                                                                   | Shows in Actions as        | Trigger                              | What it does                                                                                                                                                                                  |
 |----------------------------------------------------------------------------|----------------------------|--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [`acr-create.yml`](./.github/workflows/acr-create.yml)                     | **ACR Create (reusable)**  | `workflow_call`, `workflow_dispatch` | Applies modules 01 → 04 → 06 so a registry exists and is writable. Publishes `acr_name` / `acr_login_server` outputs.                                                                         |
-| [`acr-destroy.yml`](./.github/workflows/acr-destroy.yml)                   | **ACR Destroy (reusable)** | `workflow_call`, `workflow_dispatch` | Destroys modules 06 → 04 → 01 — everything `acr-create.yml` applies: the registry and every image in it, the shared UAMI, and all five resource groups. Actor-restricted, type-to-confirm guarded, and refuses to run if the wider estate is deployed. |
+| [`acr-destroy.yml`](./.github/workflows/acr-destroy.yml)                   | **ACR Destroy (reusable)** | `workflow_call`, `workflow_dispatch` | Destroys module 06 only — the registry and every image in it. The shared UAMI and the resource groups are left standing. Actor-restricted and type-to-confirm guarded. |
 | [`main-verify.yml`](./.github/workflows/main-verify.yml)                   | **Main Verify**            | `workflow_dispatch`                  | Checks on `main`: `terraform` and `workflows` always, `sonar` only when the `run_sonar` input is true. Manual only — nothing runs it automatically. See Trunk-based development.              |
 | [`release.yml`](./.github/workflows/release.yml)                           | **Release (tag push)**     | tag `v*.*.*`                         | Validates the tag against `VERSION` + `CHANGELOG.md`, runs `fmt`/`validate` and the SonarCloud quality gate, publishes a GitHub Release.                                                      |
 | [`mirror-push.yml`](./.github/workflows/mirror-push.yml)                   | **Mirror Push (work repo)**| `workflow_dispatch`                  | Force-pushes `main` to a private repository in a work GitHub namespace. Manual only, actor-restricted. See Mirroring to the work repository.                                                  |
@@ -157,44 +157,42 @@ with a letter. Anything else is rejected in the first few seconds of the run.
 be changed in place, so editing this variable while an estate is standing means
 destroying and recreating all five resource groups — and the resources inside
 them belong to other state files that would know nothing about it. Both
-workflows check and refuse: `acr-create.yml` compares the variable against what
-module 01's state already holds, and `acr-destroy.yml` refuses to proceed if any
-resource group in the estate carries a different suffix from the one
-configured. Change it only at first provision or after a full teardown.
+`acr-create.yml` checks and refuses, comparing the variable against what module
+01's state already holds. Change it only at first provision or after a full
+teardown. `acr-destroy.yml` does not read it at all — module 06 touches no
+resource group.
 
-`acr-destroy.yml` is the inverse of `acr-create.yml` and is reachable the same
-two ways. It now mirrors it in **scope** — the same three modules, destroyed in
-reverse order (06 → 04 → 01) — but deliberately not in ceremony. Four guards
-apply on **both** triggers, callers included:
+`acr-destroy.yml` is reachable the same two ways, but is **not** the inverse of
+`acr-create.yml`: it destroys **module 06 only**. The shared UAMI (module 04)
+and the five resource groups (module 01) are left standing — tearing those down
+is `make destroy-managed-identities` / `make destroy-resource-groups`, or a full
+teardown with `make destroy`. Three guards apply on **both** triggers, callers
+included:
 
 1. the run is restricted to a single GitHub actor;
-2. it refuses to proceed until the phrase `DESTROY ACR STACK rubensdevacr` is
+2. it refuses to proceed until the phrase `DESTROY ACR rubensdevacr` is
    supplied exactly;
-3. it enumerates the five resource groups first and **aborts** if they hold
-   anything beyond this stack, so it can never be run against a live estate;
-4. it asserts the blast radius from each module's destroy plan before running
-   that module's destroy — a plan reaching outside its own module aborts the
-   run.
+3. it asserts the blast radius from the destroy plan before running it — a plan
+   proposing to delete anything but the registry and its `AcrPull` role
+   assignment aborts the run.
 
-Guard 3 is what the widened scope made necessary. When this workflow destroyed
-module 06 alone, running it against a deployed estate was survivable — the
-registry went and `make apply-acr` put it back. Now it also deletes the shared
-UAMI and the resource groups, so against a live estate it would pull the
-identity out from under every microservice and then fail at the RG delete
-(azurerm refuses to delete a non-empty resource group), leaving the estate
-half-destroyed. Tear an estate down with `make destroy` instead — see
-[`docs/PROVISIONING_PLAN.md`](./docs/PROVISIONING_PLAN.md) §15.
+**It is safe to run against a live estate**, which is the point of the narrow
+scope. Container apps configured to pull from the registry will fail to pull
+until it is recreated and the images are pushed again, but nothing else is
+deleted and no state is orphaned. An earlier version destroyed 06, 04 and 01
+together and carried a pre-flight guard that aborted whenever the wider estate
+was deployed; both the wider scope and that guard are gone.
 
-Every image and repository in the registry is deleted permanently. Everything
-else comes back with the same names: the registry name is fixed in
-`terraform.tfvars`, and the RG and identity names derive from `env`, so
-re-running `acr-create.yml` restores the stack at the same login server and only
-the images need repushing.
+Every image and repository in the registry is deleted permanently. The registry
+itself comes back with the same name — it is fixed in `terraform.tfvars` — so
+`make apply-acr` (or a re-run of `acr-create.yml`, which no-ops on 01 and 04)
+restores it at the same login server and only the images need repushing.
 
-**The confirmation phrase changed** with the scope, from `DESTROY ACR <name>` to
-`DESTROY ACR STACK <name>`. A caller still passing the old phrase fails at the
-safeguard step with a message saying so. The gate exists for informed consent,
-and a phrase naming only the registry no longer describes what the run deletes.
+**The confirmation phrase is `DESTROY ACR <name>`.** It was
+`DESTROY ACR STACK <name>` while the scope covered all three modules; the word
+went when the scope did, and a caller still passing it fails at the safeguard
+step with a message saying so. The gate exists for informed consent, so the
+phrase has to describe what the run deletes.
 
 Note the asymmetry in Environment binding. `acr-create.yml` binds no GitHub
 Environment, because for a reusable workflow `environment:` resolves in the
@@ -254,11 +252,11 @@ suffixed resource group names must define a variable of the same name itself.
 
 ### Destroying the ACR from another pipeline
 
-`acr-destroy.yml` is reusable too, for a pipeline that stands an estate up and
+`acr-destroy.yml` is reusable too, for a pipeline that stands a registry up and
 tears it back down. The caller must repeat the registry name in full — there are
 no defaults on `acr_name` or `confirm` on this path, so a `uses:` line cannot
-delete the stack by accident. Remember this removes the resource groups and the
-shared UAMI as well as the registry:
+delete the registry by accident. This removes the registry and its images only;
+the resource groups and the shared UAMI are untouched:
 
 ```yaml
 jobs:
@@ -267,7 +265,7 @@ jobs:
     with:
       environment_name: dev                 # optional; defaults to dev
       acr_name: rubensdevacr                # required; no default
-      confirm: DESTROY ACR STACK rubensdevacr   # required; must match exactly
+      confirm: DESTROY ACR rubensdevacr     # required; must match exactly
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}

@@ -1,66 +1,66 @@
 # =============================================================================
-# Destroy the app-hosting prerequisites (ACR and its dependencies)
+# Destroy the container registry (module 06 only)
 #
 # Purpose:
-#   The exact inverse of acr-create.yml. Whatever that workflow creates, this
-#   one removes — the same three Terraform roots, in reverse dependency order:
+#   Removes ONE Terraform root:
 #
-#       06-acr                 ->  azurerm_container_registry
-#                                  azurerm_role_assignment (AcrPull)
-#       04-managed-identities  ->  azurerm_user_assigned_identity (id-<env>-app)
-#       01-resource-groups     ->  the 5 RGs (rg-<env>-platform, -network,
-#                                  -data, -app, -observability)
+#       06-acr  ->  azurerm_container_registry
+#                   azurerm_role_assignment (AcrPull)
 #
-#   THE BLAST RADIUS IS THE WHOLE ACR STACK, NOT JUST THE REGISTRY. This
-#   workflow used to destroy module 06 alone and leave 01 and 04 standing;
-#   it no longer does. Every image, the shared identity every microservice
-#   authenticates with, and all five resource groups go.
+#   THE BLAST RADIUS IS THE REGISTRY AND ITS IMAGES. Nothing else. This is
+#   deliberately NOT the inverse of acr-create.yml, which applies modules 01,
+#   04 and 06: the shared managed identity (id-<env>-app) and the five resource
+#   groups are left standing, and any other module's resources are untouched.
 #
-#   What still survives, and must:
-#     * rg-tfstate / sttfstaterubens01 — the Terraform state backend. It is
-#       not part of any module here and is torn down only by the manual
-#       procedure in terraform/bootstrap-backend/TF_DESTROY.md. Step 12
-#       asserts it is still there.
-#     * Every other module's state blob. Modules 02, 03, 05, 07-12 are never
-#       planned by this workflow; see the pre-flight guard below for what
-#       happens if their resources are actually deployed.
+#   Tearing down 04 and 01 as well is `make destroy-managed-identities` and
+#   `make destroy-resource-groups` locally, or a full teardown with
+#   `make destroy` (docs/PROVISIONING_PLAN.md §15). It is not available here,
+#   on purpose.
+#
+#   What survives, and must:
+#     * rg-tfstate / sttfstaterubens01 — the Terraform state backend. Torn down
+#       only by the manual procedure in
+#       terraform/bootstrap-backend/TF_DESTROY.md. Step 8 asserts it is there.
+#     * Every other module's state blob and every other module's resources.
+#       Only 06-acr is ever planned.
+#
+#   RUNNING THIS AGAINST A LIVE ESTATE IS SURVIVABLE AND REVERSIBLE. Container
+#   apps configured to pull from the registry will fail to pull until it is
+#   recreated (`make apply-acr` or acr-create.yml) and the images are pushed
+#   again — but no state is orphaned and nothing else is deleted. That is why
+#   this workflow carries no pre-flight estate check: with module 06 alone in
+#   scope there is no half-destroyed outcome to guard against.
 #
 # Trigger:
 #   workflow_dispatch — the primary path. A maintainer runs this from the
 #                       Actions tab and types the confirmation phrase.
-#   workflow_call     — reusable, so a sibling repository can tear the stack
-#                       down as a step in its own pipeline (an ephemeral-estate
-#                       teardown job, say). Never a push/tag event.
+#   workflow_call     — reusable, so a sibling repository can drop the registry
+#                       as a step in its own pipeline. Never a push/tag event.
 #
-#   Making a DESTROY reusable is a deliberate, load-bearing decision, not
-#   convenience. Four guards apply identically on both paths, and none of them
-#   is relaxed for a caller:
+#   Making a DESTROY reusable is a deliberate decision. Three guards apply
+#   identically on both paths, and none is relaxed for a caller:
 #
 #     1. ALLOWED_ACTOR — `github.actor` on a called run is whoever triggered the
 #        CALLER's run, so a pipeline kicked off by anyone else, by a bot, or by
 #        a schedule is denied at step 2 before a credential is touched.
-#     2. The typed `DESTROY ACR STACK <name>` phrase is a REQUIRED input with no
+#     2. The typed `DESTROY ACR <name>` phrase is a REQUIRED input with no
 #        default on the workflow_call path. A caller has to spell the registry
 #        name out in its own YAML; it cannot invoke this by accident.
-#     3. The step 6 pre-flight guard refuses to run at all if the five RGs hold
-#        anything beyond this stack — i.e. if the wider estate is deployed.
-#     4. A per-module plan-scope guard runs before each of the three destroys
-#        and fails closed on any resource type outside that module's footprint.
+#     3. A plan-scope guard runs before the destroy and fails closed on any
+#        resource type outside module 06's footprint.
 #
-#   THE CONFIRMATION PHRASE CHANGED when the scope widened, from
-#   `DESTROY ACR <name>` to `DESTROY ACR STACK <name>`. That is a breaking
-#   change for any existing caller, on purpose: a phrase naming only the
-#   registry would be an inaccurate description of what the run now deletes,
-#   and the whole point of a type-to-confirm gate is informed consent.
+#   THE CONFIRMATION PHRASE IS `DESTROY ACR <name>`. It was briefly
+#   `DESTROY ACR STACK <name>` while this workflow also destroyed modules 04
+#   and 01; the word STACK went when that scope did, because the phrase must
+#   describe what the run actually deletes. Step 2 prints a note if the old
+#   phrase is typed.
 #
 # Relationship to acr-create.yml:
-#   Now a true mirror image in SCOPE — same three modules, reversed — but
-#   deliberately not in CEREMONY. acr-create is unguarded; this one is
-#   quadruple-guarded. Bringing the stack back is `acr-create.yml`, or
-#   `make apply-resource-groups apply-managed-identities apply-acr` locally.
-#   The registry name is fixed at `rubensdevacr` in terraform.tfvars and the
-#   RG and identity names are derived from `env`, so everything returns with
-#   the same names and every image reference stays valid. Only the IMAGES
+#   NOT a mirror image. acr-create.yml applies 01 -> 04 -> 06; this destroys 06.
+#   Re-creating the registry afterwards is `make apply-acr` locally (01 and 04
+#   are still there), or a full acr-create.yml run, which no-ops on 01 and 04.
+#   The registry name is fixed in terraform.tfvars, so everything returns with
+#   the same name and every image reference stays valid. Only the IMAGES
 #   themselves are unrecoverable.
 #
 # Authentication:
@@ -72,7 +72,7 @@
 #   UNDERSTANDING. For a reusable workflow `environment:` is resolved in the
 #   CALLER's repository, so any repo that `uses:` this one must define an
 #   Environment named "AZURE" itself. That is the point: a remote repository
-#   cannot destroy this stack until someone has deliberately created that
+#   cannot destroy this registry until someone has deliberately created that
 #   Environment there — and can attach required reviewers to it — rather than
 #   inheriting the ability by copy-pasting a `uses:` line. acr-create.yml binds
 #   no Environment precisely to avoid imposing this on callers; here the
@@ -84,29 +84,14 @@
 #   which is the only way a caller finds out cheaply rather than inside
 #   `terraform init`.
 #
-# Configuration:
-#   TF_VAR_rg_suffix — a repository-level Actions VARIABLE (not a secret, not
-#   an input). Bound at job level below; see the comment there. It must match
-#   the estate that is actually deployed: step 2 validates its shape, and
-#   step 6 refuses the run if any resource group shaped like module 01's
-#   carries a different suffix. The
-#   value does not widen or narrow what Terraform destroys — state decides
-#   that — it decides which RG the step 10 orphan sweep is aimed at.
-#
 # Notes:
-#   - No post-destroy purge exists or is needed for the registry. Basic-SKU ACR
-#     has no soft-delete, so the name is released immediately — unlike Key Vault
-#     (docs/PROVISIONING_PLAN.md §15), which is module 05 and not in scope here.
-#   - Step 10 runs `make purge-orphans` between modules 04 and 01. Azure creates
-#     an "Application Insights Smart Detection" action group that Terraform
-#     never owns, and an RG containing it cannot be deleted
-#     (`prevent_deletion_if_contains_resources`). This is the same sweep the
-#     repo-root `make destroy` performs between modules 02 and 01.
-#   - If Container Apps (module 11) or anything else in the estate is running,
-#     step 6 ABORTS THE RUN rather than warning. Deleting the RGs out from
-#     under a live estate is not a partial failure — it is the destroy of
-#     everything. Tear the estate down with `make destroy` first
-#     (docs/PROVISIONING_PLAN.md §15).
+#   - No post-destroy purge exists or is needed. Basic-SKU ACR has no
+#     soft-delete, so the name is released immediately — unlike Key Vault
+#     (docs/PROVISIONING_PLAN.md §15), which is module 05 and not in scope.
+#   - TF_VAR_rg_suffix is deliberately NOT bound here. It mattered while this
+#     workflow destroyed module 01 and ran `make purge-orphans`; module 06
+#     neither declares that variable nor touches a resource group, so binding
+#     it would be dead configuration. acr-create.yml still binds it.
 #   - terraform_version must satisfy `required_version = "~> 1.15"` in every
 #     versions.tf. Every Terraform-touching workflow in this directory pins
 #     the same build; bump them together. (mirror-push.yml runs no Terraform
@@ -124,24 +109,24 @@ on:
   workflow_dispatch:
     inputs:
       environment_name:
-        description: 'Estate environment to destroy the ACR stack in. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
+        description: 'Estate environment holding the registry. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
         type: string
         required: true
         default: dev
 
       acr_name:
-        description: 'Registry at the top of the stack. Must match acr_name in terraform/envs/<env>/06-acr/terraform.tfvars.'
+        description: 'Registry to destroy. Must match acr_name in terraform/envs/<env>/06-acr/terraform.tfvars.'
         type: string
         required: true
         default: rubensdevacr
 
       confirm:
         description: >
-          DESTROYS MODULES 06, 04 AND 01 — the registry and every image in it,
-          the shared managed identity id-<env>-app, and all five resource
-          groups. Basic SKU has no recycle bin and no soft-delete; push any
-          image you care about elsewhere first.
-          SAFEGUARD: type EXACTLY "DESTROY ACR STACK <acr_name>" — e.g. DESTROY ACR STACK rubensdevacr
+          DESTROYS MODULE 06 ONLY — the registry and every image, tag and
+          manifest in it. The shared managed identity and the resource groups
+          are NOT touched. Basic SKU has no recycle bin and no soft-delete;
+          push any image you care about elsewhere first.
+          SAFEGUARD: type EXACTLY "DESTROY ACR <acr_name>" — e.g. DESTROY ACR rubensdevacr
         type: string
         required: true
 
@@ -151,23 +136,23 @@ on:
   # NOTE the deliberate absence of defaults on `acr_name` and `confirm`. On the
   # dispatch path above they are prefilled so the Actions form is usable; here
   # a caller must write both out in full, which is what stops a `uses:` line
-  # from being a one-word estate deletion. Keep them undefaulted.
+  # from being a one-word registry deletion. Keep them undefaulted.
   # -------------------------------------------------------------------------
   workflow_call:
     inputs:
       environment_name:
-        description: 'Estate environment to destroy the ACR stack in. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
+        description: 'Estate environment holding the registry. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
         type: string
         required: false
         default: dev
 
       acr_name:
-        description: 'Registry at the top of the stack. Must match acr_name in terraform/envs/<env>/06-acr/terraform.tfvars.'
+        description: 'Registry to destroy. Must match acr_name in terraform/envs/<env>/06-acr/terraform.tfvars.'
         type: string
         required: true
 
       confirm:
-        description: 'SAFEGUARD: must be EXACTLY "DESTROY ACR STACK <acr_name>". Destroys modules 06, 04 and 01 — the registry and all its images, the shared UAMI, and all five resource groups.'
+        description: 'SAFEGUARD: must be EXACTLY "DESTROY ACR <acr_name>". Destroys module 06 only — the registry and all its images. The shared UAMI and the resource groups are not touched.'
         type: string
         required: true
 
@@ -194,13 +179,12 @@ jobs:
     name: destroy
     runs-on: ubuntu-latest
 
-    # Three init/plan/destroy cycles. The ceiling stops a hung destroy — a
-    # state lease held by another run, say — from burning hours. None of these
-    # three modules is slow: ACR deletes in well under a minute, a UAMI is
-    # instant, and an EMPTY resource group deletes quickly. There is no
-    # PostgreSQL-style child-resource timeout problem here (module 09 is not in
-    # scope; docs/PROVISIONING_PLAN.md §15).
-    timeout-minutes: 30
+    # One init/plan/destroy cycle. The ceiling stops a hung destroy — a state
+    # lease held by another run, say — from burning hours. ACR itself deletes
+    # in well under a minute, and there is no PostgreSQL-style child-resource
+    # timeout problem here (module 09 is not in scope;
+    # docs/PROVISIONING_PLAN.md §15).
+    timeout-minutes: 15
 
     # Environment secrets are only injected into a job that binds the
     # Environment. Also the hook for a required-reviewer approval gate.
@@ -214,7 +198,7 @@ jobs:
 
     # Deliberately the SAME group string as acr-create.yml: a group only
     # serialises runs that name it identically, and the run that must never
-    # overlap this one is a create of the same modules. The name is
+    # overlap this one is a create of the same registry. The name is
     # lifecycle-shaped rather than verb-shaped for exactly that reason — it
     # covers both directions. Change it in one file only and an apply and a
     # destroy can race for the same state blobs.
@@ -251,38 +235,6 @@ jobs:
       # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
       ENV_NAME: ${{ inputs.environment_name }}
 
-      # Optional RG-name suffix, producing rg-<env>-<purpose>-<suffix> instead
-      # of rg-<env>-<purpose>. Sourced from the REPOSITORY-level Actions
-      # VARIABLE of the same name (Settings > Secrets and variables > Actions
-      # > Variables), not from a workflow input — there is deliberately no
-      # per-run knob and no caller-supplied value.
-      #
-      # Unset resolves to the empty string, which is module 01's own default
-      # for `rg_suffix` AND Make's falsy value, so the historical unsuffixed
-      # names stay byte-for-byte what they have always been.
-      #
-      # It matters MORE on the destroy path than it looks. Terraform destroys
-      # what is in state, so the three module destroys below barely consult
-      # it — but `make purge-orphans` builds `rg-<env>-observability<suffix>`
-      # from it (Makefile:203-204) to sweep the Smart Detection action group.
-      # A wrong value makes that sweep a silent no-op (`|| true`), the orphan
-      # survives, and module 01's RG delete then fails on
-      # `prevent_deletion_if_contains_resources`. Step 6 asserts the implied
-      # RG actually exists for exactly that reason.
-      #
-      # THE KEY IS WRITTEN IN EXACTLY THIS CASE. GitHub variable names are
-      # case-insensitive on lookup, so `vars.TF_VAR_rg_suffix` resolves however
-      # the variable is stored — but Terraform variable names are NOT.
-      # TF_VAR_RG_SUFFIX would map to an undeclared variable `RG_SUFFIX` and be
-      # silently ignored.
-      #
-      # workflow_call caveat: `vars` is associated with the CALLER's
-      # repository, so a called run reads the caller's variable rather than
-      # this repository's — the same caller-resolution shape as `environment:`
-      # above. Nothing calls this workflow today; a future caller must define
-      # its own variable of this name.
-      TF_VAR_rg_suffix: ${{ vars.TF_VAR_rg_suffix }}
-
       # Only this GitHub user may run a destructive workflow in this repo.
       # Same gate, and same value, as mirror-push.yml. Update on a rename.
       # This is the repo's only destructive workflow. The state backend has no
@@ -303,27 +255,22 @@ jobs:
         uses: actions/checkout@v7
 
       # -----------------------------------------------------------------------
-      # Step 2: SAFEGUARD — actor allowlist + type-to-confirm + rg_suffix shape
+      # Step 2: SAFEGUARD — actor allowlist + type-to-confirm
       #
       # Runs BEFORE any credential is used, so a failed confirmation never
       # reaches Azure at all. Identical on both triggers: a workflow_call
       # caller passes `acr_name` and `confirm` as inputs and is checked by the
-      # same three comparisons a human typing into the Actions form is.
+      # same two comparisons a human typing into the Actions form is.
       #
       # The expected registry name is read from terraform.tfvars rather than
       # hardcoded here: terraform.tfvars is what the destroy will actually act
       # on, so comparing against anything else would let this guard pass while
       # a different registry gets torn down.
       #
-      # The rg_suffix check rides along here rather than in a step of its own:
-      # it is input validation, it needs no credentials, and folding it in
-      # keeps the step numbering below — which several comments cross-reference
-      # — stable.
-      #
-      # Security: only variable NAMES, the (non-secret) registry name and the
-      # (non-secret) RG suffix are printed.
+      # Security: only variable NAMES and the (non-secret) registry name are
+      # printed.
       # -----------------------------------------------------------------------
-      - name: SAFEGUARD - Validate actor, confirmation phrase and rg_suffix
+      - name: SAFEGUARD - Validate actor and confirmation phrase
         shell: bash
         env:
           # Bound here rather than written into the script body below. A
@@ -369,47 +316,29 @@ jobs:
             exit 1
           fi
 
-          # The phrase says STACK because the run deletes modules 06, 04 AND 01.
-          # It was "DESTROY ACR <name>" while the scope was module 06 alone; a
-          # caller still passing the old phrase is meant to fail here and go
-          # read what changed.
-          expected_phrase="DESTROY ACR STACK ${expected_acr}"
+          # No STACK in the phrase: this run deletes module 06 and nothing
+          # else. It read "DESTROY ACR STACK <name>" while the scope also
+          # covered modules 04 and 01; a caller still passing that phrase is
+          # meant to fail here and go read what changed.
+          expected_phrase="DESTROY ACR ${expected_acr}"
           typed_phrase="${TYPED_CONFIRM}"
           if [ "${typed_phrase}" != "${expected_phrase}" ]; then
             echo "Denied: confirmation phrase did not match exactly."
             echo "Expected: ${expected_phrase}"
             echo "Got:      ${typed_phrase}"
-            echo ""
-            echo "NOTE: the phrase is 'DESTROY ACR STACK <name>', not 'DESTROY ACR <name>'."
-            echo "It changed when this workflow's scope widened from module 06"
-            echo "alone to modules 06 + 04 + 01 (registry, shared UAMI, and all"
-            echo "five resource groups)."
-            exit 1
-          fi
-
-          # rg_suffix arrives from a repository variable, edited in the GitHub
-          # UI with no review and no diff. Validate it here, before any
-          # credential is used and long before `make purge-orphans` pastes it
-          # into a shell command via Make's RG_SUFFIX. Same rule as the
-          # `validation` block in modules/resource-groups/variables.tf; keep
-          # the two regexes in step.
-          #
-          # Echoed because a MISSPELLED variable name resolves to the empty
-          # string, which is indistinguishable from "no suffix wanted". The run
-          # log is the only record of which estate this destroy was aimed at.
-          echo "Resolved rg_suffix: '${TF_VAR_rg_suffix:-}' (empty = unsuffixed RG names)"
-          if [ -n "${TF_VAR_rg_suffix:-}" ] &&
-             ! printf '%s' "$TF_VAR_rg_suffix" | grep -qE '^[a-z][a-z0-9]{0,9}$'; then
-            echo "Denied: rg_suffix must be empty, or 1-10 lowercase alphanumeric"
-            echo "characters starting with a letter."
-            echo "Fix the TF_VAR_rg_suffix repository variable:"
-            echo "  Settings > Secrets and variables > Actions > Variables"
+            if [ "${typed_phrase}" = "DESTROY ACR STACK ${expected_acr}" ]; then
+              echo ""
+              echo "NOTE: the phrase is now 'DESTROY ACR <name>', without STACK."
+              echo "It changed when this workflow's scope narrowed back to module"
+              echo "06 alone. The shared UAMI (module 04) and the resource groups"
+              echo "(module 01) are no longer destroyed here."
+            fi
             exit 1
           fi
 
           echo "ACR_NAME=${expected_acr}" >> "$GITHUB_ENV"
           echo "Safeguard passed. Target registry: ${expected_acr}"
-          echo "Scope: module 06 (ACR) -> module 04 (UAMI) -> module 01 (5 RGs)."
+          echo "Scope: module 06 (acr) only. Modules 04 and 01 are not touched."
 
       # -----------------------------------------------------------------------
       # Step 3: Verify required secrets are present (fail fast)
@@ -441,8 +370,8 @@ jobs:
       # Step 4: Azure login — for the `az` CLI only
       #
       # Terraform does NOT need this; it reads ARM_* from the environment. The
-      # az CLI is used for the pre-flight guard (step 6), the inventory
-      # (step 5), the orphan sweep (step 10) and the verification (step 12).
+      # az CLI is used for the inventory (step 5) and the verification
+      # (step 8).
       # -----------------------------------------------------------------------
       - name: Azure Login (Service Principal Secret)
         uses: azure/login@v3
@@ -463,7 +392,7 @@ jobs:
       #
       # Wholly informational: every command tolerates failure. A registry that
       # is already gone (a re-run of this workflow) must not fail here — the
-      # Terraform destroys below are clean no-ops in that case.
+      # Terraform destroy below is a clean no-op in that case.
       # -----------------------------------------------------------------------
       - name: Inventory repositories and tags (pre-destroy record)
         shell: bash
@@ -489,161 +418,25 @@ jobs:
           done
 
       # -----------------------------------------------------------------------
-      # Step 6: PRE-FLIGHT GUARD — the estate must be nothing but this stack
+      # Step 6: Terraform, plus the plan-scope guard
       #
-      # THIS IS THE GUARD THE WIDENED SCOPE MADE NECESSARY. When this workflow
-      # destroyed module 06 alone, running it against a fully deployed estate
-      # was survivable: the registry went, everything else stood, and
-      # `make apply-acr` put it back. Now the run also deletes the shared UAMI
-      # and the five resource groups — so against a live estate it would tear
-      # down the identity every microservice authenticates with, then fail at
-      # the RG delete (azurerm refuses to delete a non-empty RG via
-      # `prevent_deletion_if_contains_resources`) leaving the estate broken and
-      # half-destroyed, with modules 02/03/05/07-12 still holding state for
-      # resources whose identity is gone.
-      #
-      # So: enumerate everything in the five RGs and refuse to proceed if
-      # anything is there beyond this stack's own footprint. Three types are
-      # allowed:
-      #
-      #   Microsoft.ContainerRegistry/registries          — module 06
-      #   Microsoft.ManagedIdentity/userAssignedIdentities — module 04
-      #   microsoft.insights/actionGroups                 — an Azure-generated
-      #       orphan ("Application Insights Smart Detection"), never owned by
-      #       Terraform, swept in step 10. Tolerated here precisely because it
-      #       is what step 10 exists to remove.
-      #
-      # Anything else means the estate is deployed. The fix is a full teardown
-      # (`make destroy`, docs/PROVISIONING_PLAN.md §15), not a flag on this
-      # workflow.
-      #
-      # RGs are located by the `rg-<env>-` prefix rather than by the fixed
-      # five names, so an RG created with a TF_VAR_rg_suffix is still seen.
-      # Over-matching is the safe direction here: an extra RG in scope makes
-      # the guard MORE likely to deny, never less.
-      # -----------------------------------------------------------------------
-      - name: GUARD - Assert the estate holds nothing but the ACR stack
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # Lowercased for comparison: Azure reports provider namespaces
-          # inconsistently ("microsoft.insights" vs "Microsoft.ContainerRegistry").
-          allowed="microsoft.containerregistry/registries microsoft.managedidentity/userassignedidentities microsoft.insights/actiongroups"
-
-          rgs="$(az group list --query "[?starts_with(name, 'rg-${ENV_NAME}-')].name" -o tsv)"
-          if [ -z "${rgs}" ]; then
-            echo "No rg-${ENV_NAME}-* resource groups exist. Nothing is deployed."
-            echo "The three destroys below will be no-ops."
-            exit 0
-          fi
-
-          # The configured suffix must describe the estate that is standing.
-          #
-          # Terraform destroys from STATE, so a mismatched suffix barely
-          # affects the three module destroys below — but `make purge-orphans`
-          # (step 10) builds `rg-<env>-observability<suffix>` from it, and on a
-          # miss it swallows the error via `|| true`, leaves the Smart
-          # Detection action group in place, and module 01's RG delete then
-          # fails on `prevent_deletion_if_contains_resources` with an error
-          # that says nothing about rg_suffix.
-          #
-          # The check is deliberately shaped as "no module-01 RG contradicts
-          # the suffix" rather than "the observability RG exists". A destroy
-          # that failed part-way leaves a SUBSET of the five behind, and
-          # re-running is the documented way to finish it — requiring one
-          # specific RG would block exactly that resume. A subset is fine; a
-          # subset carrying the WRONG suffix is not.
-          #
-          # Only names that look like module 01's own are judged. Anything else
-          # in an rg-<env>-* group is left to the contents check below, which
-          # is the guard that decides whether a stranger RG is a blocker.
-          #
-          # `${VAR:+-$VAR}` mirrors `local.suffix` in
-          # modules/resource-groups/main.tf — unset contributes nothing.
-          suffix="${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}"
-          purposes="platform|network|data|app|observability"
-          mismatched=""
-          while IFS= read -r rg; do
-            [ -n "${rg}" ] || continue
-            printf '%s' "${rg}" | grep -qE "^rg-${ENV_NAME}-(${purposes})(-[a-z0-9]+)?$" || continue
-            if ! printf '%s' "${rg}" | grep -qE "^rg-${ENV_NAME}-(${purposes})${suffix}$"; then
-              mismatched="${mismatched}  ${rg}"$'\n'
-            fi
-          done <<< "${rgs}"
-
-          if [ -n "${mismatched}" ]; then
-            echo "Denied: TF_VAR_rg_suffix is '${TF_VAR_rg_suffix:-}', so module 01's resource"
-            echo "groups should be named rg-${ENV_NAME}-<purpose>${suffix}. These are not:"
-            printf '%s' "${mismatched}"
-            echo ""
-            echo "Set the TF_VAR_rg_suffix repository variable to match the estate that is"
-            echo "actually deployed, then re-run. Left as it is, the step 10 orphan sweep"
-            echo "would target a resource group that does not exist and silently do nothing."
-            exit 1
-          fi
-          echo "Suffix check: every module 01 RG matches 'rg-${ENV_NAME}-<purpose>${suffix}'."
-
-          blockers=""
-          while IFS= read -r rg; do
-            [ -n "${rg}" ] || continue
-            echo "Resource group '${rg}':"
-            contents="$(az resource list -g "${rg}" --query "[].{t:type,n:name}" -o tsv 2>/dev/null || true)"
-            if [ -z "${contents}" ]; then
-              echo "  (empty)"
-              continue
-            fi
-            while IFS=$'\t' read -r type name; do
-              [ -n "${type}" ] || continue
-              lc="$(echo "${type}" | tr '[:upper:]' '[:lower:]')"
-              case " ${allowed} " in
-                *" ${lc} "*)
-                  echo "  in scope: ${type}/${name}"
-                  ;;
-                *)
-                  echo "  UNEXPECTED: ${type}/${name}"
-                  blockers="${blockers}  ${rg}: ${type}/${name}"$'\n'
-                  ;;
-              esac
-            done <<< "${contents}"
-          done <<< "${rgs}"
-
-          if [ -n "${blockers}" ]; then
-            echo ""
-            echo "DENIED: the resource groups hold resources this workflow does not own:"
-            printf '%s' "${blockers}"
-            echo ""
-            echo "This workflow destroys modules 06, 04 and 01 only. Deleting the"
-            echo "resource groups while the rest of the estate is deployed would"
-            echo "remove the shared managed identity out from under it and then"
-            echo "fail at the RG delete, leaving the estate half-destroyed."
-            echo ""
-            echo "Tear the estate down properly first:"
-            echo "  make destroy        (see docs/PROVISIONING_PLAN.md §15)"
-            exit 1
-          fi
-
-          echo ""
-          echo "Guard passed: the resource groups hold nothing outside the ACR stack."
-
-      # -----------------------------------------------------------------------
-      # Step 7: Terraform, plus the per-module plan-scope guard
-      #
-      # Each of the three destroys below is preceded by `make plan-destroy-<n>`
-      # and then by this script, which reads the resulting plan as JSON and
-      # fails if it proposes deleting any resource type outside that module's
-      # own footprint.
+      # The destroy below is preceded by `make plan-destroy-acr` and then by
+      # this script, which reads the resulting plan as JSON and fails if it
+      # proposes deleting any resource type outside module 06's own footprint.
       #
       # This is belt-and-braces: each module has its own state key, and
       # `terraform destroy` can only remove what is recorded in the state it is
-      # pointed at, so module 06's plan structurally cannot contain an RG. The
-      # check costs nothing and turns "we believe the scope is right" into "the
-      # run refuses to proceed if it isn't".
+      # pointed at, so module 06's plan structurally cannot contain an RG or
+      # the shared identity. The check costs nothing and turns "we believe the
+      # scope is right" into "the run refuses to proceed if it isn't" — and it
+      # is now the ONLY scope guard, since the pre-flight estate check went
+      # with the wider blast radius.
       #
-      # It lives in a script written once rather than inlined three times, so
-      # the three call sites cannot drift apart. `terraform show -json` is used
-      # directly because no make target emits machine-readable plan output, and
-      # a guard must parse the plan rather than eyeball it.
+      # It stays a standalone script, taking the module directory and an
+      # allowlist as arguments, so a second call site can be added without
+      # copy-pasting it. `terraform show -json` is used directly because no
+      # make target emits machine-readable plan output, and a guard must parse
+      # the plan rather than eyeball it.
       # -----------------------------------------------------------------------
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -713,11 +506,11 @@ jobs:
           chmod +x "${RUNNER_TEMP}/assert-plan-scope.sh"
 
       # -----------------------------------------------------------------------
-      # Step 8: Module 06 — the container registry
+      # Step 7: Module 06 — the container registry
       #
-      # First to go: it is the top of the dependency chain. Its AcrPull role
-      # assignment is scoped to the registry and references module 04's
-      # identity, so it must be gone before the identity can be deleted.
+      # The only module this workflow destroys. Its state holds the registry
+      # and the AcrPull role assignment scoped to it; the identity that
+      # assignment references belongs to module 04 and is left alone.
       #
       # `make destroy-acr` re-inits and runs `terraform destroy -auto-approve`.
       # It does NOT consume the tfplan the plan step wrote — it re-plans
@@ -749,105 +542,26 @@ jobs:
           make ENV="$ENV_NAME" destroy-acr
 
       # -----------------------------------------------------------------------
-      # Step 9: Module 04 — the shared user-assigned managed identity
+      # Step 8: Verify the outcome — the registry is gone, everything else is not
       #
-      # id-<env>-app. Every microservice in the ACA environment authenticates
-      # to every Azure service as this principal, so deleting it is only safe
-      # because step 6 proved nothing else is deployed.
+      # Asserts all three halves of this workflow's contract:
+      #   1. the registry no longer exists
+      #   2. the shared UAMI and the resource groups DO still exist — this
+      #      workflow is not allowed to have removed them
+      #   3. the Terraform state backend (rg-tfstate) still does
       #
-      # Role assignments granting it access elsewhere belong to the modules
-      # that created them (06's AcrPull is already gone with the registry);
-      # module 04's state holds the identity and nothing else.
+      # (2) is the assertion that encodes the narrowed scope. Nothing here
+      # plans module 04 or 01, so it should be impossible to fail — which is
+      # exactly why it is worth asserting: if it ever does fail, the scope
+      # leaked. It tolerates their absence only when they were already gone
+      # before the run, which step 5's own inventory cannot tell us, so the
+      # check is reported as a WARNING rather than a failure in that case.
+      #
+      # (3) matters for the same reason it always did: a scoping mistake that
+      # reached rg-tfstate would destroy the state of every module in the
+      # estate and leave nothing able to `terraform init` again.
       # -----------------------------------------------------------------------
-      - name: Plan the destroy - module 04 (managed-identities)
-        shell: bash
-        run: |
-          make ENV="$ENV_NAME" plan-destroy-managed-identities
-
-      - name: GUARD - Assert module 04's plan destroys only the identity
-        shell: bash
-        run: |
-          "${RUNNER_TEMP}/assert-plan-scope.sh" \
-            "${ENV_DIR}/04-managed-identities" \
-            "module 04 (managed-identities)" \
-            azurerm_user_assigned_identity
-
-      - name: Destroy module 04 - managed identities
-        shell: bash
-        run: |
-          make ENV="$ENV_NAME" destroy-managed-identities
-
-      # -----------------------------------------------------------------------
-      # Step 10: Sweep Azure-generated orphans, before the RGs are deleted
-      #
-      # Creating an Application Insights component makes Azure ALSO create an
-      # action group named "Application Insights Smart Detection" in the same
-      # RG. Terraform never manages it, so it survives every module's destroy
-      # and then blocks the RG delete below, because azurerm's
-      # `prevent_deletion_if_contains_resources` (default true) refuses to
-      # delete an RG containing resources it does not know about.
-      #
-      # `make purge-orphans` is the same sweep the repo-root `make destroy`
-      # runs between modules 02 and 01. It is safe here for the same reason it
-      # is safe there: by this point every Terraform-managed resource in these
-      # RGs is gone, and step 6 has already proved nothing but orphans can be
-      # left, so anything still standing is by definition an orphan in an RG
-      # that is about to be deleted regardless.
-      #
-      # Normally a no-op for this stack — acr-create.yml never applies module
-      # 12, so there is no App Insights component to have spawned one. It
-      # matters when the estate was previously stood up in full and torn down.
-      # -----------------------------------------------------------------------
-      - name: Sweep Azure-generated orphans
-        shell: bash
-        run: |
-          make ENV="$ENV_NAME" purge-orphans
-
-      # -----------------------------------------------------------------------
-      # Step 11: Module 01 — the resource groups
-      #
-      # Last, and the only irreversible-feeling one: all five RGs
-      # (rg-<env>-platform, -network, -data, -app, -observability) go together,
-      # because module 01 creates them with a single `for_each` and its state
-      # holds all five.
-      #
-      # rg-tfstate is NOT among them. It belongs to terraform/bootstrap-backend,
-      # has its own local-then-migrated state, and is never read or planned
-      # here — which is what lets this workflow delete resource groups while
-      # still writing its own state to one. Step 12 asserts it survived.
-      # -----------------------------------------------------------------------
-      - name: Plan the destroy - module 01 (resource-groups)
-        shell: bash
-        run: |
-          make ENV="$ENV_NAME" plan-destroy-resource-groups
-
-      - name: GUARD - Assert module 01's plan destroys only resource groups
-        shell: bash
-        run: |
-          "${RUNNER_TEMP}/assert-plan-scope.sh" \
-            "${ENV_DIR}/01-resource-groups" \
-            "module 01 (resource-groups)" \
-            azurerm_resource_group
-
-      - name: Destroy module 01 - resource groups
-        shell: bash
-        run: |
-          make ENV="$ENV_NAME" destroy-resource-groups
-
-      # -----------------------------------------------------------------------
-      # Step 12: Verify the outcome — the stack is gone, the backend is not
-      #
-      # Asserts BOTH halves of this workflow's contract:
-      #   1. the registry, the shared UAMI and the five RGs no longer exist
-      #   2. the Terraform state backend (rg-tfstate) still does
-      #
-      # (2) is the check that matters. This workflow deletes resource groups
-      # while writing its own state into one, so a scoping mistake that reached
-      # rg-tfstate would destroy the state of every module in the estate and
-      # leave nothing able to `terraform init` again. Nothing plans it — but
-      # the assertion is cheap and the failure mode is unrecoverable.
-      # -----------------------------------------------------------------------
-      - name: Verify the stack is destroyed and the state backend survives
+      - name: Verify the registry is destroyed and nothing else was touched
         shell: bash
         run: |
           set -euo pipefail
@@ -860,21 +574,28 @@ jobs:
             echo "OK: registry '${ACR_NAME}' is gone (name released; Basic SKU has no soft-delete)."
           fi
 
+          # Module 04's identity and module 01's resource groups are NOT this
+          # workflow's to delete. Their absence is not failed on — they may
+          # legitimately never have been applied, or have been torn down
+          # earlier by `make destroy` — but it is called out loudly, because
+          # the only other way to reach that state is a scope leak here.
           identity="$(az identity list --query "[?name=='id-${ENV_NAME}-app'].name" -o tsv 2>/dev/null || true)"
           if [ -n "${identity}" ]; then
-            echo "FAIL: managed identity 'id-${ENV_NAME}-app' still exists."
-            rc=1
+            echo "OK: managed identity 'id-${ENV_NAME}-app' still present (module 04 untouched)."
           else
-            echo "OK: managed identity 'id-${ENV_NAME}-app' is gone."
+            echo "WARNING: managed identity 'id-${ENV_NAME}-app' does not exist."
+            echo "         This workflow does not destroy module 04. If it was there"
+            echo "         before this run, the destroy scope leaked — investigate."
           fi
 
           remaining="$(az group list --query "[?starts_with(name, 'rg-${ENV_NAME}-')].name" -o tsv)"
           if [ -n "${remaining}" ]; then
-            echo "FAIL: resource groups still exist:"
+            echo "OK: rg-${ENV_NAME}-* resource groups still present (module 01 untouched):"
             echo "${remaining}" | sed 's/^/  /'
-            rc=1
           else
-            echo "OK: no rg-${ENV_NAME}-* resource groups remain."
+            echo "WARNING: no rg-${ENV_NAME}-* resource groups exist."
+            echo "         This workflow does not destroy module 01. If they were there"
+            echo "         before this run, the destroy scope leaked — investigate."
           fi
 
           # The state backend must be untouched. It is not this workflow's to

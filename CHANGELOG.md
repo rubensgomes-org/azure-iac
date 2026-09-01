@@ -36,6 +36,27 @@ trusts one plans from a false premise.
 
 ### Changed
 
+- **`acr-destroy.yml` now destroys module 06 only.** It briefly destroyed
+  modules 06, 04 and 01 — the registry, the shared UAMI and all five resource
+  groups. The shared identity and the resource groups are no longer touched;
+  tearing those down is `make destroy-managed-identities` /
+  `make destroy-resource-groups`, or a full `make destroy`.
+
+  Removed with the wider scope: the pre-flight guard that aborted whenever the
+  five RGs held anything outside the ACR stack, the `make purge-orphans` sweep,
+  and the `TF_VAR_rg_suffix` job binding (module 06 declares no such variable
+  and touches no resource group). The plan-scope guard remains and is now the
+  only scope guard. The final step additionally asserts that `id-<env>-app` and
+  the `rg-<env>-*` groups *survived*, warning if they did not.
+
+  Dropping the pre-flight guard is what makes the workflow usable against a
+  live estate, which is the point of the narrower scope: removing the registry
+  is survivable and reversible with `make apply-acr`.
+
+  **Breaking for callers:** the confirmation phrase is `DESTROY ACR <name>`
+  again, not `DESTROY ACR STACK <name>`. The safeguard step prints a note when
+  it sees the old phrase.
+
 ### Fixed
 
 ## [0.5.3] - 2026-08-31

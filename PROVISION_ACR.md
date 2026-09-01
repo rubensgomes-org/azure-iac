@@ -148,8 +148,9 @@ not worth a code change.
 - **`TF_VAR_rg_suffix`, optionally** — set it (`export TF_VAR_rg_suffix=blue`)
   and every RG name below gains `-blue`. Leave it unset for the names as
   written throughout this runbook. In CI it comes from the repository Actions
-  variable of the same name; see §4. If you set it here, set it for the
-  destroy in §7 too — `make purge-orphans` builds an RG name from it.
+  variable of the same name; see §4. If you set it here, set it for a full
+  `make destroy` too — `make purge-orphans` builds an RG name from it. The
+  ACR destroy in §7 does not use it.
 
 ---
 
@@ -364,26 +365,25 @@ place costs nothing and saves a step next time.
 From CI, the equivalent is the **ACR Destroy (reusable)** workflow
 (`.github/workflows/acr-destroy.yml`), run from the Actions tab
 (`workflow_dispatch`) or called from another repository (`workflow_call`). It is
-the exact inverse of `acr-create.yml`: it destroys **modules 06, 04 and 01**, in
-that order — the registry and its `AcrPull` grant, then the shared UAMI, then
-all five resource groups. It asks you to type `DESTROY ACR STACK rubensdevacr`
-before it will proceed.
+**not** the inverse of `acr-create.yml`: it destroys **module 06 only** — the
+registry and its `AcrPull` grant. The shared UAMI and the five resource groups
+are left standing, exactly as in the by-hand recipe above. It asks you to type
+`DESTROY ACR rubensdevacr` before it will proceed.
 
-That is wider than the by-hand recipe above, which stops at the registry and the
-identity. Two guards keep it honest:
+Two guards keep it honest:
 
-- **A pre-flight guard enumerates the five resource groups and aborts the run
-  if they hold anything beyond this stack.** So the workflow cannot be pointed
-  at a live estate: destroying the RGs there would pull the shared identity out
-  from under every microservice and then fail at the RG delete, leaving things
-  half-torn-down. Use `make destroy` for a full teardown
-  (`docs/PROVISIONING_PLAN.md` §15).
-- **A per-module plan-scope guard** runs before each of the three destroys and
-  aborts if that module's plan proposes deleting a resource type outside its own
-  footprint.
+- **A plan-scope guard** runs before the destroy and aborts if module 06's plan
+  proposes deleting anything but `azurerm_container_registry` and
+  `azurerm_role_assignment`.
+- **The final verification step asserts what survived**, not just what went:
+  `id-<env>-app` and the `rg-<env>-*` groups should still be there, and
+  `rg-tfstate` — which belongs to `terraform/bootstrap-backend` and is never in
+  any module's scope — must be.
 
-`rg-tfstate` is never in scope — it belongs to `terraform/bootstrap-backend`,
-not to module 01 — and the final verification step asserts it survived.
+There is deliberately no pre-flight check on the wider estate. Running this
+against a live estate is survivable: container apps pulling from the registry
+fail to pull until it is recreated, and nothing else is touched. For a full
+teardown use `make destroy` (`docs/PROVISIONING_PLAN.md` §15).
 
 Called from another repository it looks like this — and note that nothing is
 relaxed for the caller:
@@ -395,7 +395,7 @@ jobs:
     with:
       environment_name: dev
       acr_name: rubensdevacr                # required; no default on this path
-      confirm: DESTROY ACR STACK rubensdevacr   # required; must match exactly
+      confirm: DESTROY ACR rubensdevacr     # required; must match exactly
     secrets:
       AZURE_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -557,9 +557,9 @@ Related docs:
 
 - `.github/workflows/acr-create.yml` — the CI equivalent of §4, reusable
   from an application repository
-- `.github/workflows/acr-destroy.yml` — the CI counterpart of §7, but wider:
-  it destroys modules 06, 04 and 01. Reusable, actor-restricted and
-  type-to-confirm guarded on every trigger
+- `.github/workflows/acr-destroy.yml` — the CI counterpart of §7: it destroys
+  module 06 only. Reusable, actor-restricted and type-to-confirm guarded on
+  every trigger
 - `docs/PROVISIONING_PLAN.md` — §4 dependency map, §12 passwordless auth,
   §15 full-teardown procedure
 - `terraform/envs/dev/06-acr/README.md` — the by-hand `terraform` equivalents

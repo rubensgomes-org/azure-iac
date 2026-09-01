@@ -15,11 +15,12 @@ touch the subscription; keep it that way.
 **`TF_VAR_rg_suffix` is a repository-level Actions *variable*, and the only
 one.** Everything else the CI reads is a secret; this is the repo's first and
 so far only use of the `vars` context. It is bound at job level in
-`acr-create.yml` and `acr-destroy.yml` and nowhere else, and one binding feeds
-two consumers: Terraform reads `TF_VAR_rg_suffix` for module 01's `rg_suffix`
-input, and Make imports the same environment variable to build `RG_SUFFIX`
-(`Makefile:56`) for the orphan sweep. There is deliberately **no workflow
-input** — no per-run knob, and no caller passes it.
+`acr-create.yml` and nowhere else, and that one binding feeds two consumers:
+Terraform reads `TF_VAR_rg_suffix` for module 01's `rg_suffix` input, and Make
+imports the same environment variable to build `RG_SUFFIX` (`Makefile:56`) for
+the orphan sweep. There is deliberately **no workflow input** — no per-run
+knob, and no caller passes it. `acr-destroy.yml` does not bind it: with module
+06 alone in scope it touches no resource group and runs no sweep.
 
 - **Unset means the historical `rg-<env>-<purpose>` names**, byte for byte. The
   empty string is simultaneously module 01's declared default and Make's falsy
@@ -32,25 +33,23 @@ input** — no per-run knob, and no caller passes it.
 - **Changing it on a live estate is a destroy+recreate of all five RGs**, not a
   rename — `name` is ForceNew on `azurerm_resource_group`, and every resource
   inside those RGs is owned by a different state file that knows nothing about
-  it. Both workflows refuse rather than plan it: `acr-create.yml` compares the
-  implied name against module 01's state before planning, and `acr-destroy.yml`
-  fails its pre-flight guard if any resource group that looks like module 01's
-  carries a different suffix. Set it at first provision or after a full
-  teardown, never in between.
-- **On the destroy path it does not change what Terraform removes** — a destroy
-  works from state. What it decides is which RG `make purge-orphans` sweeps. A
-  wrong value makes that a silent no-op (`|| true`), leaves the Smart Detection
-  action group standing, and module 01's RG delete then fails on
+  it. `acr-create.yml` refuses rather than plan it, comparing the implied name
+  against module 01's state before planning. Set it at first provision or after
+  a full teardown, never in between.
+- **It does not change what a destroy removes** — a destroy works from state.
+  What it decides is which RG `make purge-orphans` sweeps, which matters for
+  the repo-root `make destroy` and no longer for any workflow. A wrong value
+  makes that a silent no-op (`|| true`), leaves the Smart Detection action
+  group standing, and module 01's RG delete then fails on
   `prevent_deletion_if_contains_resources` with an error naming none of this.
 - **`vars` resolves in the caller's repository on the `workflow_call` path**,
-  the same caller-resolution shape as `environment:`. Nothing calls either
-  workflow today, so this is a documented caveat rather than a live problem; a
-  future caller has to define its own variable of the same name.
+  the same caller-resolution shape as `environment:`. Nothing calls
+  `acr-create.yml` today, so this is a documented caveat rather than a live
+  problem; a future caller has to define its own variable of the same name.
 - Setting a suffix does **not** by itself give you a second parallel estate.
   `acr_name` in `06-acr/terraform.tfvars` is a fixed global literal and will
-  collide, `acr-destroy.yml`'s final check for `id-<env>-app` is
-  subscription-wide, and every module keeps one state key regardless of suffix
-  — so two suffixes are two configurations of the *same* state.
+  collide, and every module keeps one state key regardless of suffix — so two
+  suffixes are two configurations of the *same* state.
 
 **`main-verify.yml` is `workflow_dispatch`-only.** Three deliberately separate
 jobs — `terraform` (`fmt -check` + `make validate`), `workflows` (every workflow
@@ -181,21 +180,21 @@ Things to know before editing it:
   does not serialise against this repo's own. The azurerm blob lease is the
   real guard — a collision fails with a lock error. Never add `-lock=false`.
   The group string is `acr-lifecycle-<env>`, shared verbatim with
-  `acr-destroy.yml` so a create and a destroy of these modules cannot overlap.
+  `acr-destroy.yml` so a create and a destroy of the registry cannot overlap.
   Lifecycle-shaped, not verb-shaped, for that reason. Changing it in one file
   without the other silently removes the interlock.
 
-**`acr-destroy.yml` is the teardown counterpart, and destroys everything
-`acr-create.yml` applies** — modules 06, 04 and 01, in that order (registry +
-`AcrPull` grant, then the shared UAMI, then all five RGs). It took module 06
-alone until this changed; the wider scope is why the pre-flight guard and the
-renamed confirmation phrase below exist. It takes the same two triggers as
-`acr-create.yml` (`workflow_call` + `workflow_dispatch`) but is asymmetric with
-it in ceremony: gated on `ALLOWED_ACTOR` plus a typed `DESTROY ACR STACK <name>`
-phrase, and bound to the `AZURE` Environment so a required-reviewer gate can be
-added in repo settings without editing the file. None of those guards is relaxed
-on the `workflow_call` path — that is the whole basis on which a destroy is safe
-to expose as reusable:
+**`acr-destroy.yml` destroys the container registry — module 06 and nothing
+else.** It is deliberately *not* the inverse of `acr-create.yml`, which applies
+01, 04 and 06: the shared UAMI and the five RGs are left standing. It briefly
+destroyed all three; the scope was narrowed back, and the pre-flight estate
+guard and the `STACK` confirmation phrase went with it. It takes the same two
+triggers as `acr-create.yml` (`workflow_call` + `workflow_dispatch`) but is
+asymmetric with it in ceremony: gated on `ALLOWED_ACTOR` plus a typed
+`DESTROY ACR <name>` phrase, and bound to the `AZURE` Environment so a
+required-reviewer gate can be added in repo settings without editing the file.
+None of those guards is relaxed on the `workflow_call` path — that is the whole
+basis on which a destroy is safe to expose as reusable:
 
 - **`environment: AZURE` is kept on both triggers, deliberately.** For a
   reusable workflow the binding resolves in the *caller's* repo, so a calling
@@ -216,66 +215,55 @@ to expose as reusable:
   `github.actor` is whoever triggered the *caller's* run, so a push by another
   user or a bot/scheduled upstream trigger is denied at step 2, before any
   credential is touched.
-- **A pre-flight guard aborts the run if the five RGs hold anything outside
-  this stack.** This is the guard the widened scope made necessary and the one
-  to leave alone. While the workflow destroyed module 06 alone, pointing it at a
-  deployed estate was survivable — the registry went and `make apply-acr` put it
-  back. Now it also deletes the shared UAMI and the RGs, so against a live
-  estate it would remove the identity every microservice authenticates with and
-  then fail at the RG delete (`prevent_deletion_if_contains_resources`), leaving
-  the estate half-destroyed with modules 02/03/05/07–12 still holding state. It
-  scans `rg-<env>-*` via `az resource list` and allows exactly three types:
-  `Microsoft.ContainerRegistry/registries`,
-  `Microsoft.ManagedIdentity/userAssignedIdentities`, and
-  `microsoft.insights/actionGroups` (the Smart Detection orphan, which the
-  sweep step removes). A full teardown is `make destroy`, not a flag here.
-  The same step also asserts that no RG matching `rg-<env>-<purpose>` carries a
-  suffix other than the configured one — `make purge-orphans` builds
-  `rg-<env>-observability<suffix>`, and on a miss the sweep silently no-ops.
-  Phrased as "nothing contradicts the suffix" rather than "the observability RG
-  exists" so that re-running a part-finished destroy, which is the documented
-  way to resume one, still works against the subset that is left.
-- **A per-module plan-scope guard runs before each destroy.** One script,
-  written once to `$RUNNER_TEMP` and called three times with an allowlist —
-  `azurerm_container_registry`/`azurerm_role_assignment` for 06,
-  `azurerm_user_assigned_identity` for 04, `azurerm_resource_group` for 01. It
-  parses `terraform show -json tfplan` and fails the run on any other type.
-  Belt-and-braces: each module has its own state key and a destroy can only
-  remove what is in the state it is pointed at. Keep it one script — three
-  inlined copies would drift.
-- **`make purge-orphans` runs between modules 04 and 01**, the same sweep the
-  repo-root `make destroy` does between 02 and 01. Without it the Smart
-  Detection action group blocks the observability RG's delete. Normally a no-op
-  here (module 12 is never applied by `acr-create.yml`), and safe because the
-  pre-flight guard has already proved nothing but orphans can be left.
-- **`rg-tfstate` is never in scope**, and the final step asserts it survived.
-  The workflow deletes resource groups while writing its own state into one, so
-  a scoping mistake reaching the backend would destroy every module's state with
-  no way to `terraform init` again. The assertion is cheap; the failure is not
-  recoverable.
+- **There is no pre-flight estate check, and that is a decision.** One used to
+  abort the run if the five RGs held anything outside the ACR stack. It existed
+  because the run deleted the RGs and the shared UAMI, which against a live
+  estate would remove the identity every microservice authenticates with and
+  then fail at the RG delete, leaving the estate half-destroyed. With module 06
+  alone in scope there is no such outcome: dropping the registry is survivable
+  and reversible with `make apply-acr`. Do not reintroduce the guard without
+  also rewidening the scope — as an abort it would refuse every run against a
+  deployed estate, which is the case this workflow now exists for.
+- **The plan-scope guard is now the only scope guard.** A script written to
+  `$RUNNER_TEMP` parses `terraform show -json tfplan` and fails the run if the
+  plan deletes anything other than `azurerm_container_registry` or
+  `azurerm_role_assignment`. Belt-and-braces — module 06 has its own state key
+  and a destroy can only remove what is in the state it is pointed at — but it
+  is what turns "we believe the scope is right" into a run that refuses to
+  proceed if it isn't. It takes the module directory and the allowlist as
+  arguments, so a second call site can be added without copying it.
+- **`TF_VAR_rg_suffix` is not bound here.** It mattered only for
+  `make purge-orphans`, which ran between modules 04 and 01; module 06 neither
+  declares that variable nor touches a resource group. `acr-create.yml` still
+  binds it. The sweep step is gone with module 01.
+- **The final step asserts what survived, not just what went.** `rg-tfstate`
+  must still exist — a scoping mistake reaching the backend would destroy every
+  module's state with no way to `terraform init` again — and so must
+  `id-<env>-app` and the `rg-<env>-*` groups. Their absence is reported as a
+  WARNING rather than a failure, since they may legitimately never have been
+  applied, but it is the signal that the destroy scope leaked.
 - The expected registry name is read from
   `terraform/envs/<env>/06-acr/terraform.tfvars`, not hardcoded in the
   workflow — comparing the typed confirmation against anything else would let
   the guard pass while a different registry was torn down.
-- **The confirmation phrase is `DESTROY ACR STACK <name>`, not
-  `DESTROY ACR <name>`.** It was renamed when the scope widened, which is a
-  breaking change for any caller, on purpose: a phrase naming only the registry
-  no longer describes what the run deletes, and informed consent is the entire
-  point of a type-to-confirm gate. The safeguard step prints a note explaining
-  the change when it sees the old phrase.
+- **The confirmation phrase is `DESTROY ACR <name>`.** It was
+  `DESTROY ACR STACK <name>` while the workflow destroyed 06, 04 and 01, and
+  the word went when that scope did: the phrase has to describe what the run
+  deletes, since informed consent is the entire point of a type-to-confirm
+  gate. Both renames are breaking changes for a caller, on purpose. The
+  safeguard step prints a note when it sees the old phrase.
 - Its `concurrency.group` is `acr-lifecycle-<env>` — the *same string* as
   `acr-create.yml`, on purpose. A group only serialises runs that name it
-  identically, and the run that must never overlap a destroy is a create of
-  the same modules. (It was `provision-acr-<env>` before the workflow files
-  were renamed; both files changed together.)
+  identically, and the run that must never overlap a destroy is a create of the
+  same registry. Changing it in one file without the other silently removes the
+  interlock.
 - Deleting the registry deletes every repository, tag, and manifest with it.
   Basic SKU has no soft-delete, so there is no purge step and the name is
   released immediately. The pre-destroy inventory step logs what was in the
   registry because the run log is the only surviving record.
-- It uses `make plan-destroy-<name>` / `make destroy-<name>` for `acr`,
-  `managed-identities` and `resource-groups`, plus `make purge-orphans`. All
-  are generated by the same Makefile factory as the other per-module targets;
-  the workflow reimplements nothing.
+- It uses `make plan-destroy-acr` and `make destroy-acr`, generated by the same
+  Makefile factory as the other per-module targets; the workflow reimplements
+  nothing.
 
 **The state backend has no CI at all, deliberately.** Creating and destroying it
 are hand-operated procedures — `terraform/bootstrap-backend/TF_PROVISION.md` for
