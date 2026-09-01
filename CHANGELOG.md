@@ -24,6 +24,14 @@ trusts one plans from a false premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.5.3] - 2026-08-31
+
+### Added
+
 - **`TF_VAR_rg_suffix` is now read by CI**, from a repository-level Actions
   **variable** of that exact name. `acr-create.yml` and `acr-destroy.yml` bind
   it once at job level; every resource group either workflow creates or
