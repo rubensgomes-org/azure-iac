@@ -145,6 +145,11 @@ not worth a code change.
 - **`az login`** as yourself, for the verification steps and for pushing
   images. This is a *different* identity from the Terraform service
   principal.
+- **`TF_VAR_rg_suffix`, optionally** — set it (`export TF_VAR_rg_suffix=blue`)
+  and every RG name below gains `-blue`. Leave it unset for the names as
+  written throughout this runbook. In CI it comes from the repository Actions
+  variable of the same name; see §4. If you set it here, set it for the
+  destroy in §7 too — `make purge-orphans` builds an RG name from it.
 
 ---
 
@@ -234,6 +239,16 @@ Notes on the mechanics:
 runs the identical `make init/plan/apply` targets for modules 01, 04, and 06
 in the same order — it reimplements nothing, it just exports `ARM_*` from
 GitHub secrets and calls the Makefile.
+
+It also exports `TF_VAR_rg_suffix` from the repository Actions **variable** of
+the same name, so resource groups created by CI are named
+`rg-<env>-<purpose>-<suffix>` when that variable is set and
+`rg-<env>-<purpose>` when it is not. It is a variable rather than an input, so
+there is nothing to supply per run and a caller cannot pass it. Locally the
+same effect comes from `export TF_VAR_rg_suffix=<suffix>` before the `make`
+commands in this section. Either way, set it before the estate exists — the
+workflow refuses to run when the value disagrees with what module 01's state
+already holds, because a resource group cannot be renamed in place.
 
 Run it standalone from the **Actions** tab (`workflow_dispatch`), or call it
 from an application repository and gate the image push on its outputs:

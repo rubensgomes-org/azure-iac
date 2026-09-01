@@ -84,6 +84,15 @@
 #   which is the only way a caller finds out cheaply rather than inside
 #   `terraform init`.
 #
+# Configuration:
+#   TF_VAR_rg_suffix — a repository-level Actions VARIABLE (not a secret, not
+#   an input). Bound at job level below; see the comment there. It must match
+#   the estate that is actually deployed: step 2 validates its shape, and
+#   step 6 refuses the run if any resource group shaped like module 01's
+#   carries a different suffix. The
+#   value does not widen or narrow what Terraform destroys — state decides
+#   that — it decides which RG the step 10 orphan sweep is aimed at.
+#
 # Notes:
 #   - No post-destroy purge exists or is needed for the registry. Basic-SKU ACR
 #     has no soft-delete, so the name is released immediately — unlike Key Vault
@@ -242,6 +251,38 @@ jobs:
       # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
       ENV_NAME: ${{ inputs.environment_name }}
 
+      # Optional RG-name suffix, producing rg-<env>-<purpose>-<suffix> instead
+      # of rg-<env>-<purpose>. Sourced from the REPOSITORY-level Actions
+      # VARIABLE of the same name (Settings > Secrets and variables > Actions
+      # > Variables), not from a workflow input — there is deliberately no
+      # per-run knob and no caller-supplied value.
+      #
+      # Unset resolves to the empty string, which is module 01's own default
+      # for `rg_suffix` AND Make's falsy value, so the historical unsuffixed
+      # names stay byte-for-byte what they have always been.
+      #
+      # It matters MORE on the destroy path than it looks. Terraform destroys
+      # what is in state, so the three module destroys below barely consult
+      # it — but `make purge-orphans` builds `rg-<env>-observability<suffix>`
+      # from it (Makefile:203-204) to sweep the Smart Detection action group.
+      # A wrong value makes that sweep a silent no-op (`|| true`), the orphan
+      # survives, and module 01's RG delete then fails on
+      # `prevent_deletion_if_contains_resources`. Step 6 asserts the implied
+      # RG actually exists for exactly that reason.
+      #
+      # THE KEY IS WRITTEN IN EXACTLY THIS CASE. GitHub variable names are
+      # case-insensitive on lookup, so `vars.TF_VAR_rg_suffix` resolves however
+      # the variable is stored — but Terraform variable names are NOT.
+      # TF_VAR_RG_SUFFIX would map to an undeclared variable `RG_SUFFIX` and be
+      # silently ignored.
+      #
+      # workflow_call caveat: `vars` is associated with the CALLER's
+      # repository, so a called run reads the caller's variable rather than
+      # this repository's — the same caller-resolution shape as `environment:`
+      # above. Nothing calls this workflow today; a future caller must define
+      # its own variable of this name.
+      TF_VAR_rg_suffix: ${{ vars.TF_VAR_rg_suffix }}
+
       # Only this GitHub user may run a destructive workflow in this repo.
       # Same gate, and same value, as mirror-push.yml. Update on a rename.
       # This is the repo's only destructive workflow. The state backend has no
@@ -262,7 +303,7 @@ jobs:
         uses: actions/checkout@v7
 
       # -----------------------------------------------------------------------
-      # Step 2: SAFEGUARD — actor allowlist + type-to-confirm
+      # Step 2: SAFEGUARD — actor allowlist + type-to-confirm + rg_suffix shape
       #
       # Runs BEFORE any credential is used, so a failed confirmation never
       # reaches Azure at all. Identical on both triggers: a workflow_call
@@ -274,10 +315,15 @@ jobs:
       # on, so comparing against anything else would let this guard pass while
       # a different registry gets torn down.
       #
-      # Security: only variable NAMES and the (non-secret) registry name are
-      # printed.
+      # The rg_suffix check rides along here rather than in a step of its own:
+      # it is input validation, it needs no credentials, and folding it in
+      # keeps the step numbering below — which several comments cross-reference
+      # — stable.
+      #
+      # Security: only variable NAMES, the (non-secret) registry name and the
+      # (non-secret) RG suffix are printed.
       # -----------------------------------------------------------------------
-      - name: SAFEGUARD - Validate actor and confirmation phrase
+      - name: SAFEGUARD - Validate actor, confirmation phrase and rg_suffix
         shell: bash
         env:
           # Bound here rather than written into the script body below. A
@@ -338,6 +384,26 @@ jobs:
             echo "It changed when this workflow's scope widened from module 06"
             echo "alone to modules 06 + 04 + 01 (registry, shared UAMI, and all"
             echo "five resource groups)."
+            exit 1
+          fi
+
+          # rg_suffix arrives from a repository variable, edited in the GitHub
+          # UI with no review and no diff. Validate it here, before any
+          # credential is used and long before `make purge-orphans` pastes it
+          # into a shell command via Make's RG_SUFFIX. Same rule as the
+          # `validation` block in modules/resource-groups/variables.tf; keep
+          # the two regexes in step.
+          #
+          # Echoed because a MISSPELLED variable name resolves to the empty
+          # string, which is indistinguishable from "no suffix wanted". The run
+          # log is the only record of which estate this destroy was aimed at.
+          echo "Resolved rg_suffix: '${TF_VAR_rg_suffix:-}' (empty = unsuffixed RG names)"
+          if [ -n "${TF_VAR_rg_suffix:-}" ] &&
+             ! printf '%s' "$TF_VAR_rg_suffix" | grep -qE '^[a-z][a-z0-9]{0,9}$'; then
+            echo "Denied: rg_suffix must be empty, or 1-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            echo "Fix the TF_VAR_rg_suffix repository variable:"
+            echo "  Settings > Secrets and variables > Actions > Variables"
             exit 1
           fi
 
@@ -471,6 +537,52 @@ jobs:
             echo "The three destroys below will be no-ops."
             exit 0
           fi
+
+          # The configured suffix must describe the estate that is standing.
+          #
+          # Terraform destroys from STATE, so a mismatched suffix barely
+          # affects the three module destroys below — but `make purge-orphans`
+          # (step 10) builds `rg-<env>-observability<suffix>` from it, and on a
+          # miss it swallows the error via `|| true`, leaves the Smart
+          # Detection action group in place, and module 01's RG delete then
+          # fails on `prevent_deletion_if_contains_resources` with an error
+          # that says nothing about rg_suffix.
+          #
+          # The check is deliberately shaped as "no module-01 RG contradicts
+          # the suffix" rather than "the observability RG exists". A destroy
+          # that failed part-way leaves a SUBSET of the five behind, and
+          # re-running is the documented way to finish it — requiring one
+          # specific RG would block exactly that resume. A subset is fine; a
+          # subset carrying the WRONG suffix is not.
+          #
+          # Only names that look like module 01's own are judged. Anything else
+          # in an rg-<env>-* group is left to the contents check below, which
+          # is the guard that decides whether a stranger RG is a blocker.
+          #
+          # `${VAR:+-$VAR}` mirrors `local.suffix` in
+          # modules/resource-groups/main.tf — unset contributes nothing.
+          suffix="${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}"
+          purposes="platform|network|data|app|observability"
+          mismatched=""
+          while IFS= read -r rg; do
+            [ -n "${rg}" ] || continue
+            printf '%s' "${rg}" | grep -qE "^rg-${ENV_NAME}-(${purposes})(-[a-z0-9]+)?$" || continue
+            if ! printf '%s' "${rg}" | grep -qE "^rg-${ENV_NAME}-(${purposes})${suffix}$"; then
+              mismatched="${mismatched}  ${rg}"$'\n'
+            fi
+          done <<< "${rgs}"
+
+          if [ -n "${mismatched}" ]; then
+            echo "Denied: TF_VAR_rg_suffix is '${TF_VAR_rg_suffix:-}', so module 01's resource"
+            echo "groups should be named rg-${ENV_NAME}-<purpose>${suffix}. These are not:"
+            printf '%s' "${mismatched}"
+            echo ""
+            echo "Set the TF_VAR_rg_suffix repository variable to match the estate that is"
+            echo "actually deployed, then re-run. Left as it is, the step 10 orphan sweep"
+            echo "would target a resource group that does not exist and silently do nothing."
+            exit 1
+          fi
+          echo "Suffix check: every module 01 RG matches 'rg-${ENV_NAME}-<purpose>${suffix}'."
 
           blockers=""
           while IFS= read -r rg; do

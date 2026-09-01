@@ -130,6 +130,38 @@ PAT for one private repository in a work GitHub namespace.
 The middle column is the `name:` each workflow declares — that is the label in
 the repository's **Actions** sidebar, which is where you start the manual ones.
 
+### Resource group naming — the `TF_VAR_rg_suffix` repository variable
+
+The two Azure-touching workflows read one repository-level Actions **variable**
+(*Settings → Secrets and variables → Actions → Variables*), the only one this
+repo uses:
+
+| Name | Value | Effect |
+| --- | --- | --- |
+| `TF_VAR_rg_suffix` | unset or empty | Resource groups are named `rg-<env>-<purpose>` — the historical names. |
+| `TF_VAR_rg_suffix` | e.g. `blue` | Resource groups are named `rg-<env>-<purpose>-blue`. |
+
+It is a variable rather than a secret because the value is not sensitive, and a
+variable rather than a workflow input because it describes the estate, not the
+run — there is nothing to re-type each time and no caller supplies it. Both
+workflows bind it once at job level, which is all it takes: Terraform reads
+`TF_VAR_rg_suffix` for module 01's `rg_suffix`, and `make` picks the same
+variable up out of the environment for the orphan sweep. The other eleven
+modules read their resource group names out of module 01's state, so they
+follow with no configuration at all.
+
+Accepted values are empty, or 1–10 lowercase alphanumeric characters starting
+with a letter. Anything else is rejected in the first few seconds of the run.
+
+**Set it before the estate exists, not after.** A resource group's name cannot
+be changed in place, so editing this variable while an estate is standing means
+destroying and recreating all five resource groups — and the resources inside
+them belong to other state files that would know nothing about it. Both
+workflows check and refuse: `acr-create.yml` compares the variable against what
+module 01's state already holds, and `acr-destroy.yml` refuses to proceed if any
+resource group in the estate carries a different suffix from the one
+configured. Change it only at first provision or after a full teardown.
+
 `acr-destroy.yml` is the inverse of `acr-create.yml` and is reachable the same
 two ways. It now mirrors it in **scope** — the same three modules, destroyed in
 reverse order (06 → 04 → 01) — but deliberately not in ceremony. Four guards
@@ -213,6 +245,12 @@ The four secrets are organization-level Actions secrets on `rubensgomes-org`
 and must be **shared with the calling repository**. Pass them explicitly rather
 than using `secrets: inherit` — this SP has subscription-wide write access, and
 the explicit list is the only record of which credentials cross a repo boundary.
+
+One thing does **not** cross that boundary: `TF_VAR_rg_suffix`. Configuration
+variables resolve against the repository that owns the run, so a called run
+reads the *caller's* variable, not this one's — the same caller-resolution
+behaviour that governs the `environment:` key. A calling repository that needs
+suffixed resource group names must define a variable of the same name itself.
 
 ### Destroying the ACR from another pipeline
 

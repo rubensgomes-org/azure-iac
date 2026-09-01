@@ -119,6 +119,46 @@ reaches sonarcloud.io and nothing else, and `WORK_GITHUB_PAT`, which reaches
 one private repository in a work GitHub namespace and nothing else. Neither can
 touch the subscription; keep it that way.
 
+**`TF_VAR_rg_suffix` is a repository-level Actions *variable*, and the only
+one.** Everything else the CI reads is a secret; this is the repo's first and
+so far only use of the `vars` context. It is bound at job level in
+`acr-create.yml` and `acr-destroy.yml` and nowhere else, and one binding feeds
+two consumers: Terraform reads `TF_VAR_rg_suffix` for module 01's `rg_suffix`
+input, and Make imports the same environment variable to build `RG_SUFFIX`
+(`Makefile:56`) for the orphan sweep. There is deliberately **no workflow
+input** — no per-run knob, and no caller passes it.
+
+- **Unset means the historical `rg-<env>-<purpose>` names**, byte for byte. The
+  empty string is simultaneously module 01's declared default and Make's falsy
+  value, so no code path needs a conditional for it.
+- **Write the `env:` key in exactly that case.** GitHub variable names are
+  case-insensitive on lookup, so `vars.TF_VAR_rg_suffix` resolves however the
+  variable happens to be stored — but Terraform's are not. `TF_VAR_RG_SUFFIX`
+  maps to an undeclared variable `RG_SUFFIX`, which Terraform ignores *without
+  warning*, and the run quietly produces unsuffixed names.
+- **Changing it on a live estate is a destroy+recreate of all five RGs**, not a
+  rename — `name` is ForceNew on `azurerm_resource_group`, and every resource
+  inside those RGs is owned by a different state file that knows nothing about
+  it. Both workflows refuse rather than plan it: `acr-create.yml` compares the
+  implied name against module 01's state before planning, and `acr-destroy.yml`
+  fails its pre-flight guard if any resource group that looks like module 01's
+  carries a different suffix. Set it at first provision or after a full
+  teardown, never in between.
+- **On the destroy path it does not change what Terraform removes** — a destroy
+  works from state. What it decides is which RG `make purge-orphans` sweeps. A
+  wrong value makes that a silent no-op (`|| true`), leaves the Smart Detection
+  action group standing, and module 01's RG delete then fails on
+  `prevent_deletion_if_contains_resources` with an error naming none of this.
+- **`vars` resolves in the caller's repository on the `workflow_call` path**,
+  the same caller-resolution shape as `environment:`. Nothing calls either
+  workflow today, so this is a documented caveat rather than a live problem; a
+  future caller has to define its own variable of the same name.
+- Setting a suffix does **not** by itself give you a second parallel estate.
+  `acr_name` in `06-acr/terraform.tfvars` is a fixed global literal and will
+  collide, `acr-destroy.yml`'s final check for `id-<env>-app` is
+  subscription-wide, and every module keeps one state key regardless of suffix
+  — so two suffixes are two configurations of the *same* state.
+
 **`main-verify.yml` is `workflow_dispatch`-only.** Three deliberately separate
 jobs — `terraform` (`fmt -check` + `make validate`), `workflows` (every workflow
 file parses; no GitHub expression inside a `run:` body), `sonar` (analysis of
@@ -218,8 +258,12 @@ shell only ever sees a variable) and reference `"$VAR"`. This is Sonar rule
 **`acr-create.yml` is a reusable workflow** — the CI equivalent of
 `PROVISION_ACR.md`. It runs `make init/plan/apply` for modules 01, 04, and 06
 in order and publishes `acr_name` / `acr_login_server` as workflow outputs, so
-an application repo can gate its image push on it with `needs:`. First
-consumer: `rubensgomes-org/spring-blueprint`.
+an application repo can gate its image push on it with `needs:`. **No
+repository calls it today** — it is a published interface waiting for a
+consumer, not a live dependency of one. `rubensgomes-org/spring-blueprint` was
+long documented here as the first consumer; it is not, and calls
+`rubensgomes-org/azure-workflows` instead. Verify before relying on that claim
+again — the `workflow_call` design decisions below rest on it.
 
 Things to know before editing it:
 
@@ -235,6 +279,11 @@ Things to know before editing it:
 - Its `plan-*` steps **gate nothing** — `apply-<name>` re-plans internally
   under `-auto-approve` and never reads the `tfplan` that `plan-<name>` wrote.
   They exist for log visibility only.
+- **Module 01 is split across three steps** — `init-resource-groups`, then the
+  `rg_suffix` drift guard, then `plan`/`apply`. The split exists so the guard
+  can read module 01's current state via `terraform output -raw
+  rg_platform_name` before anything is planned against it. The extra `init` is
+  cached and idempotent. Do not recombine them.
 - `concurrency` is evaluated in the repo that owns the run, so a caller's run
   does not serialise against this repo's own. The azurerm blob lease is the
   real guard — a collision fails with a lock error. Never add `-lock=false`.
@@ -287,6 +336,12 @@ to expose as reusable:
   `Microsoft.ManagedIdentity/userAssignedIdentities`, and
   `microsoft.insights/actionGroups` (the Smart Detection orphan, which the
   sweep step removes). A full teardown is `make destroy`, not a flag here.
+  The same step also asserts that no RG matching `rg-<env>-<purpose>` carries a
+  suffix other than the configured one — `make purge-orphans` builds
+  `rg-<env>-observability<suffix>`, and on a miss the sweep silently no-ops.
+  Phrased as "nothing contradicts the suffix" rather than "the observability RG
+  exists" so that re-running a part-finished destroy, which is the documented
+  way to resume one, still works against the subset that is left.
 - **A per-module plan-scope guard runs before each destroy.** One script,
   written once to `$RUNNER_TEMP` and called three times with an allowlist —
   `azurerm_container_registry`/`azurerm_role_assignment` for 06,

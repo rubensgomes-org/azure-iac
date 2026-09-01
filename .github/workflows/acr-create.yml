@@ -16,11 +16,14 @@
 #   maintainer runs by hand.
 #
 # Trigger:
-#   workflow_call     — the intended path. An application repository declares
-#                       this as a job and gates its deploy on it with `needs:`.
-#                       The first consumer is rubensgomes-org/spring-blueprint.
-#   workflow_dispatch — manual, for exercising the path standalone from the
-#                       Actions tab without a caller.
+#   workflow_call     — the path this workflow is SHAPED for. An application
+#                       repository declares it as a job and gates its image
+#                       push on it with `needs:`. No repository calls it
+#                       today; it is a published interface awaiting a
+#                       consumer, not a live dependency of one.
+#   workflow_dispatch — manual, and currently the only path actually used.
+#                       Exercises the whole thing from the Actions tab
+#                       without a caller.
 #
 # Authentication:
 #   Service Principal + client secret, read from ORGANIZATION-level Actions
@@ -49,6 +52,14 @@
 #   `secrets: inherit` also works but hides which credentials cross the repo
 #   boundary, which is the wrong default for an SP with subscription-wide
 #   write access.
+#
+# Configuration:
+#   TF_VAR_rg_suffix — a repository-level Actions VARIABLE (not a secret, not
+#   an input). Bound at job level below; see the comment there. Unset means
+#   the historical rg-<env>-<purpose> names. Set means every resource group
+#   this workflow creates is named rg-<env>-<purpose>-<suffix>, and the guard
+#   in step 6 refuses the run if that disagrees with the estate that already
+#   exists.
 #
 # Notes:
 #   - THE `plan-*` TARGETS GATE NOTHING. `apply-<name>` does not consume the
@@ -193,6 +204,40 @@ jobs:
       # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
       ENV_NAME: ${{ inputs.environment_name }}
 
+      # Optional RG-name suffix, producing rg-<env>-<purpose>-<suffix> instead
+      # of rg-<env>-<purpose>. Sourced from the REPOSITORY-level Actions
+      # VARIABLE of the same name (Settings > Secrets and variables > Actions
+      # > Variables), not from a workflow input -- there is deliberately no
+      # per-run knob and no caller-supplied value.
+      #
+      # Unset resolves to the empty string, which is module 01's own default
+      # for `rg_suffix` AND Make's falsy value, so the historical unsuffixed
+      # names stay byte-for-byte what they have always been. No conditional is
+      # needed anywhere for the empty case.
+      #
+      # ONE binding serves both tools. Terraform reads TF_VAR_rg_suffix for
+      # module 01's `rg_suffix` input; Make imports the same variable from the
+      # environment to build RG_SUFFIX (Makefile:56), which names the
+      # observability RG in the orphan sweep. Neither needs a second knob.
+      #
+      # The other eleven module roots do not declare `rg_suffix` and do not
+      # need to -- they read RG names out of module 01's remote state, so the
+      # suffix reaches them for free. Terraform ignores an undeclared TF_VAR_*
+      # without warning, so exporting it job-wide does not disturb 04 or 06.
+      #
+      # THE KEY IS WRITTEN IN EXACTLY THIS CASE. GitHub variable names are
+      # case-insensitive on lookup, so `vars.TF_VAR_rg_suffix` resolves however
+      # the variable is stored -- but Terraform variable names are NOT.
+      # TF_VAR_RG_SUFFIX would map to an undeclared variable `RG_SUFFIX` and be
+      # silently ignored, producing unsuffixed names with no error anywhere.
+      #
+      # workflow_call caveat: `vars` is associated with the CALLER's
+      # repository, so a called run reads the caller's variable rather than
+      # this repository's. That is the same caller-resolution shape as the
+      # `environment:` key discussed above. Nothing calls this workflow today;
+      # a future caller must define its own variable of this name.
+      TF_VAR_rg_suffix: ${{ vars.TF_VAR_rg_suffix }}
+
     steps:
       # -----------------------------------------------------------------------
       # Step 1: Checkout repository content
@@ -231,7 +276,48 @@ jobs:
           exit $missing
 
       # -----------------------------------------------------------------------
-      # Step 3: Install Terraform on the runner
+      # Step 3: Validate the rg_suffix repository variable (fail fast)
+      #
+      # Why:
+      #   The value comes from a repository VARIABLE, which is edited in the
+      #   GitHub UI with no review and no diff. Two failure modes are worth
+      #   catching here rather than deep in a run:
+      #
+      #     1. A malformed value. "-blue" would produce
+      #        rg-dev-observability--blue; "Blue" fails module 01's own
+      #        validation, but only after init and plan have already run.
+      #        Worse, Make interpolates the value into the SWEEP_ORPHANS
+      #        recipe TEXT (Makefile:203-204) before the shell parses it, so
+      #        a malformed value reaches a shell before Terraform ever sees it.
+      #     2. A misspelled variable NAME resolves to the empty string, which
+      #        is indistinguishable from "no suffix wanted". Echoing the
+      #        resolved value makes the run log the record of what was used.
+      #
+      #   The regex is the same rule as modules/resource-groups/variables.tf's
+      #   `validation` block. Keep the two in step.
+      #
+      # Security:
+      #   "$TF_VAR_rg_suffix" is referenced as a SHELL VARIABLE. Never write
+      #   `${{ vars.* }}` inside a run: body -- it is substituted as raw text
+      #   before the shell parses the script. Same rule as ENV_NAME above,
+      #   and enforced by main-verify.yml's `workflows` job.
+      # -----------------------------------------------------------------------
+      - name: GUARD - Validate rg_suffix
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Resolved rg_suffix: '${TF_VAR_rg_suffix:-}' (empty = unsuffixed RG names)"
+          if [ -n "${TF_VAR_rg_suffix:-}" ] &&
+             ! printf '%s' "$TF_VAR_rg_suffix" | grep -qE '^[a-z][a-z0-9]{0,9}$'; then
+            echo "FAIL: rg_suffix must be empty, or 1-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            echo "Fix the TF_VAR_rg_suffix repository variable:"
+            echo "  Settings > Secrets and variables > Actions > Variables"
+            exit 1
+          fi
+
+      # -----------------------------------------------------------------------
+      # Step 4: Install Terraform on the runner
       #
       # Notes:
       #   - The Makefile shells out to `terraform`; it does not install it.
@@ -244,7 +330,73 @@ jobs:
           terraform_wrapper: false
 
       # -----------------------------------------------------------------------
-      # Step 4: Module 01 -- the resource groups
+      # Step 5: Module 01 -- init only
+      #
+      # Split out from the plan/apply below so the drift guard in step 6 can
+      # read module 01's CURRENT state before anything is planned against it.
+      # `plan-resource-groups` depends on `init-resource-groups` anyway, so the
+      # split costs one redundant (cached, idempotent) init and nothing else.
+      # -----------------------------------------------------------------------
+      - name: Module 01 - init
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" init-resource-groups
+
+      # -----------------------------------------------------------------------
+      # Step 6: Assert the requested suffix matches what module 01 already has
+      #
+      # Why this guard exists:
+      #   `name` is ForceNew on azurerm_resource_group. Changing rg_suffix on a
+      #   LIVE estate is therefore a destroy+recreate of all five RGs, NOT a
+      #   rename -- and every resource inside them belongs to a different state
+      #   file that knows nothing about it. The result is a broken estate.
+      #
+      #   Locally that is a deliberate act by someone who read the warning in
+      #   modules/resource-groups/variables.tf. Here the value arrives from a
+      #   repository variable, so it can change because someone edited one
+      #   field in the GitHub UI. This step turns that into a named refusal.
+      #
+      #   Terraform would fail the apply regardless -- the RGs hold the ACR and
+      #   the UAMI, and `prevent_deletion_if_contains_resources` defaults to
+      #   true -- but it fails several minutes in with an error that does not
+      #   mention rg_suffix.
+      #
+      # Empty state means first provision (or a completed teardown), which is
+      # exactly when setting a suffix IS safe. That path is allowed.
+      #
+      # The `${VAR:+-$VAR}` expansion mirrors `local.suffix` in
+      # modules/resource-groups/main.tf -- an unset suffix contributes nothing,
+      # a set one contributes a leading dash.
+      # -----------------------------------------------------------------------
+      - name: GUARD - Assert rg_suffix matches module 01's state
+        shell: bash
+        working-directory: ${{ env.ENV_DIR }}/01-resource-groups
+        run: |
+          set -euo pipefail
+          current="$(terraform output -raw rg_platform_name 2>/dev/null || true)"
+          expected="rg-${ENV_NAME}-platform${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}"
+
+          if [ -z "$current" ]; then
+            echo "Module 01 state is empty -- first provision."
+            echo "Will create ${expected} and its four siblings."
+          elif [ "$current" != "$expected" ]; then
+            echo "FAIL: module 01's state holds '${current}',"
+            echo "      but TF_VAR_rg_suffix asks for '${expected}'."
+            echo ""
+            echo "rg_suffix is ForceNew on azurerm_resource_group. Applying this"
+            echo "would plan a destroy+recreate of all five resource groups, not"
+            echo "a rename, and every resource inside them is owned by a"
+            echo "different state file that knows nothing about the change."
+            echo ""
+            echo "Tear the estate down first (docs/PROVISIONING_PLAN.md 15),"
+            echo "then change the TF_VAR_rg_suffix repository variable."
+            exit 1
+          else
+            echo "OK: suffix matches state (${current})."
+          fi
+
+      # -----------------------------------------------------------------------
+      # Step 7: Module 01 -- the resource groups
       #
       # Creates/confirms the 5 RGs, including rg-dev-platform, which modules 04
       # and 06 place their resources into. Must run first.
@@ -253,10 +405,10 @@ jobs:
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
-            init-resource-groups plan-resource-groups apply-resource-groups
+            plan-resource-groups apply-resource-groups
 
       # -----------------------------------------------------------------------
-      # Step 5: Module 04 -- the shared user-assigned managed identity
+      # Step 8: Module 04 -- the shared user-assigned managed identity
       #
       # Creates id-dev-app in rg-dev-platform. Module 06 grants AcrPull to this
       # principal, so it must exist before the registry module runs.
@@ -268,10 +420,10 @@ jobs:
             init-managed-identities plan-managed-identities apply-managed-identities
 
       # -----------------------------------------------------------------------
-      # Step 6: Module 06 -- the container registry
+      # Step 9: Module 06 -- the container registry
       #
       # Creates the registry and the AcrPull role assignment for the UAMI from
-      # step 5. This is the step the calling pipeline actually depends on.
+      # step 8. This is the step the calling pipeline actually depends on.
       # -----------------------------------------------------------------------
       - name: Module 06 - container registry
         shell: bash
@@ -280,7 +432,7 @@ jobs:
             init-acr plan-acr apply-acr
 
       # -----------------------------------------------------------------------
-      # Step 7: Publish the registry coordinates as workflow outputs
+      # Step 10: Publish the registry coordinates as workflow outputs
       #
       # Why:
       #   So callers reference the registry by output rather than hardcoding
@@ -289,7 +441,7 @@ jobs:
       #   instead of failing at `docker push` with a stale hostname.
       #
       # Notes:
-      #   - No `terraform init` needed: step 6 initialised this directory in
+      #   - No `terraform init` needed: step 9 initialised this directory in
       #     the runner workspace.
       #   - -raw so the value has no surrounding quotes and can be used
       #     directly in an image reference.

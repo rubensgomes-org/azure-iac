@@ -24,9 +24,61 @@ trusts one plans from a false premise.
 
 ### Added
 
+- **`TF_VAR_rg_suffix` is now read by CI**, from a repository-level Actions
+  **variable** of that exact name. `acr-create.yml` and `acr-destroy.yml` bind
+  it once at job level; every resource group either workflow creates or
+  destroys is therefore named `rg-<env>-<purpose>-<suffix>` when the variable
+  is set, and `rg-<env>-<purpose>` when it is not.
+
+  The variable is the repo's first use of the `vars` context — every other
+  piece of CI configuration here is a secret. Deliberately **not** a workflow
+  input: it describes the estate rather than the run, so there is nothing to
+  re-type and no caller supplies it.
+
+  One binding covers both consumers. Terraform reads `TF_VAR_rg_suffix` for
+  module 01's `rg_suffix` input, and Make imports the same environment
+  variable to build `RG_SUFFIX` for the orphan sweep. No Terraform or Makefile
+  change was needed: the machinery landed in v0.5.2, and the eleven downstream
+  module roots read RG names out of module 01's remote state, so the suffix
+  reaches them for free.
+
+  Write the `env:` key in exactly that case. GitHub variable names are
+  case-insensitive on lookup, but Terraform's are not — `TF_VAR_RG_SUFFIX`
+  would map to an undeclared variable and be ignored without warning.
+
+- **Three guards around the new variable.**
+  - Shape validation in both workflows, mirroring module 01's own `validation`
+    block (empty, or 1–10 lowercase alphanumeric characters starting with a
+    letter). It runs before any credential is used, and echoes the resolved
+    value — a misspelled variable name resolves to the empty string, which is
+    otherwise indistinguishable from "no suffix wanted".
+  - A drift guard in `acr-create.yml`: module 01 is now split into
+    `init` → guard → `plan`/`apply`, and the guard compares the implied RG name
+    against `terraform output -raw rg_platform_name` before anything is planned.
+    `name` is ForceNew on `azurerm_resource_group`, so changing the variable on
+    a live estate is a destroy+recreate of all five RGs, not a rename. Empty
+    state means first provision and is allowed.
+  - An assertion inside `acr-destroy.yml`'s existing pre-flight guard that no
+    resource group shaped like module 01's carries a suffix other than the
+    configured one. `make purge-orphans` builds
+    `rg-<env>-observability<suffix>`; on a miss the sweep no-ops behind its
+    `|| true`, the Smart Detection action group survives, and module 01's RG
+    delete then fails on `prevent_deletion_if_contains_resources` with an error
+    that names none of this. Deliberately *not* "the observability RG must
+    exist" — a destroy that failed part-way leaves a subset of the five, and
+    re-running is the documented way to finish it.
+
 ### Changed
 
 ### Fixed
+
+- **Corrected a false claim about `acr-create.yml`'s consumers** in `CLAUDE.md`
+  and the workflow's own header. Both stated that
+  `rubensgomes-org/spring-blueprint` was its first consumer. It is not — that
+  repository calls `rubensgomes-org/azure-workflows`, and nothing calls this
+  workflow at all. The `workflow_call` path is a published interface awaiting a
+  consumer, which matters because `vars` resolves in the *caller's* repository:
+  a called run would read the caller's `TF_VAR_rg_suffix`, not this one's.
 
 ## [0.5.2] - 2026-08-31
 
