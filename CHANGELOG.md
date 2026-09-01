@@ -26,6 +26,23 @@ trusts one plans from a false premise.
 
 ### Changed
 
+### Removed
+
+- **`mirror-push.yml`, and the whole work-repository mirror.** The mirror is no
+  longer wanted, so the workflow is deleted rather than left dispatch-only and
+  unused. `.github/workflows/` is now four workflows, all of which run
+  Terraform, which collapses the CI credential models from three to two —
+  `WORK_GITHUB_PAT` has no remaining consumer. Deleted with it: README.md's
+  *Mirroring to the work repository* section and its workflow-table row,
+  `docs/CI.md`'s `mirror-push.yml` section and table row, and the "runs no
+  Terraform, carries no pin" caveat that four other files attached to the
+  Terraform version-pin rule. Counts corrected from five workflows to four in
+  README.md, `docs/CI.md`, `docs/PROJECT_SUMMARY.md` and
+  `docs/PROVISIONING_PLAN.md` §16.
+
+  **Delete the `WORK_GITHUB_PAT` repository secret** (Settings → Secrets and
+  variables → Actions) and revoke the underlying PAT — nothing reads it now.
+
 ### Fixed
 
 ## [0.5.4] - 2026-09-01

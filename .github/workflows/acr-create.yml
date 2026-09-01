@@ -75,7 +75,6 @@
 #   - terraform_version must satisfy the `required_version = "~> 1.15"`
 #     declared in every versions.tf in the repo. Every Terraform-touching
 #     workflow in this directory pins the same build; bump them together.
-#     (mirror-push.yml runs no Terraform and carries no pin.)
 #   - The teardown counterpart is acr-destroy.yml, which is reusable too and
 #     removes exactly what this workflow creates -- the same three modules,
 #     destroyed in reverse order (06 -> 04 -> 01). It is guarded where this one

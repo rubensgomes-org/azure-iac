@@ -1,16 +1,15 @@
 # CI — GitHub Actions
 
-Reference for the five workflows in `.github/workflows/`. Read this before
+Reference for the four workflows in `.github/workflows/`. Read this before
 editing any workflow file. SonarCloud configuration is in `SONAR.md`.
 
 ## Overview
 
-Five workflows, three credential models. All Azure-touching workflows get
+Four workflows, two credential models. All Azure-touching workflows get
 `ARM_*` from GitHub secrets holding the same `terraform-sp` Service Principal
-documented under *Auth model* in `CLAUDE.md`. The other two models are `SONAR_TOKEN`, which
-reaches sonarcloud.io and nothing else, and `WORK_GITHUB_PAT`, which reaches
-one private repository in a work GitHub namespace and nothing else. Neither can
-touch the subscription; keep it that way.
+documented under *Auth model* in `CLAUDE.md`. The other model is `SONAR_TOKEN`,
+which reaches sonarcloud.io and nothing else. It cannot touch the subscription;
+keep it that way.
 
 **`TF_VAR_rg_suffix` is a repository-level Actions *variable*, and the only
 one.** Everything else the CI reads is a secret; this is the repo's first and
@@ -91,7 +90,6 @@ is harmless.
 | --- | --- | --- | --- | --- |
 | `main-verify.yml` | Main Verify | `workflow_dispatch` | **no** | **org**-level `SONAR_TOKEN` (not Azure) |
 | `release.yml` | Release (tag push) | tag `v*.*.*` | **no** | **org**-level `SONAR_TOKEN` (not Azure) |
-| `mirror-push.yml` | Mirror Push (work repo) | `workflow_dispatch` | **no** | **repo**-level `WORK_GITHUB_PAT` (not Azure) |
 | `acr-create.yml` | ACR Create (reusable) | `workflow_call` + `workflow_dispatch` | yes | **org**-level Actions secrets |
 | `acr-destroy.yml` | ACR Destroy (reusable) | `workflow_call` + `workflow_dispatch` | yes | **Environment** `AZURE` (caller-resolved on `workflow_call`) |
 
@@ -102,9 +100,8 @@ keys off a workflow's display name.
 
 Filenames are `<subject>-<verb>.yml` (`acr-create`, `acr-destroy`) so a
 subject's pair sorts together in the directory listing. Keep new workflows to
-that shape even when they have no counterpart yet — `mirror-push` follows it
-with no `mirror-pull` in sight. The convention is what leaves room for one, not
-a requirement to have one.
+that shape even when they have no counterpart yet — the convention is what
+leaves room for one, not a requirement to have one.
 
 **Never write a `${{ ... }}` expression inside a `run:` body.** GitHub
 substitutes it as raw text before the shell parses the script, so a value
@@ -114,38 +111,6 @@ destroy, with credentials already in scope. Bind the expression to an `env:` key
 shell only ever sees a variable) and reference `"$VAR"`. This is Sonar rule
 `githubactions:S7630`; every workflow here is currently clean, and a scan of
 `run:` bodies for `${{` should stay empty.
-
-**`mirror-push.yml` force-pushes `main` to a private work repository**
-(`rubens-gomes_3CC/azure-iac`, a GitHub Enterprise Managed Users namespace).
-`main` only — no tags, no `--mirror`, no other branch.
-
-- **It is `workflow_dispatch`-only, deliberately.** `push: branches: [main]` is
-  the obvious shape for a mirror and is what every example shows; it is not
-  what is wanted. Mirroring publishes into a corporate namespace, and the whole
-  point is that *when* stays a decision rather than a side effect of
-  committing. Do not "improve" it into an automatic trigger.
-- The guards are the `ALLOWED_ACTOR` gate and a check that `github.ref` is
-  `refs/heads/main` — the dispatch form's branch selector accepts any branch,
-  and whatever it checks out is what gets force-pushed over the mirror's
-  `main`. There is no type-to-confirm phrase: unlike the destroys, everything
-  in the blast radius is reproducible from here.
-- The token is a **repo-level** `WORK_GITHUB_PAT`, and its requirements are
-  EMU-specific — see README.md → *Mirroring to the work repository*. It needs
-  `Workflows: Read and write` on top of `Contents: Read and write`, because the
-  mirrored commits touch `.github/workflows/`; without it the push fails with
-  *"refusing to allow a Personal Access Token to create or update workflow"*.
-  That is the failure to check first.
-- **The work repo receives this directory**, but nothing in it fires there on
-  a mirror push: every workflow is either dispatch-only or tag-triggered, and
-  no tags are pushed to the mirror. `mirror-push.yml`'s own mirrored copy
-  denies at its actor gate. Disable Actions in the work repo anyway — it costs
-  nothing, and it means a future automatic trigger cannot surprise you there
-  (a dispatch-only `main-verify.yml` would otherwise start failing on every
-  mirror push the moment it gained a `push:` trigger, for want of a
-  `SONAR_TOKEN` in a different org).
-- The push is one-directional and lossy: anything committed directly to the
-  mirror's `main` is gone on the next run. Step 4 logs the overwritten SHA
-  because the run log is the only record it existed.
 
 **`acr-create.yml` is a reusable workflow** — the CI equivalent of
 `PROVISION_ACR.md`. It runs `make init/plan/apply` for modules 01, 04, and 06
@@ -301,9 +266,8 @@ a guard ever stopped holding, a failed import would fall through to planning a
 
 ## Terraform version pin
 
-All four Terraform-touching workflows pin `terraform_version: "1.15.8"` and
-`terraform_wrapper: false` (the wrapper intercepts stdout and would break
-`terraform output -raw`). Bump the pin in all four together: `main-verify.yml`,
-`release.yml`, `acr-create.yml`, `acr-destroy.yml`. `mirror-push.yml` is the
-fifth workflow and runs no Terraform, so it carries no pin and is not part of
-that bump.
+All four workflows run Terraform, and all four pin
+`terraform_version: "1.15.8"` and `terraform_wrapper: false` (the wrapper
+intercepts stdout and would break `terraform output -raw`). Bump the pin in all
+four together: `main-verify.yml`, `release.yml`, `acr-create.yml`,
+`acr-destroy.yml`.

@@ -94,8 +94,7 @@
 #     it would be dead configuration. acr-create.yml still binds it.
 #   - terraform_version must satisfy `required_version = "~> 1.15"` in every
 #     versions.tf. Every Terraform-touching workflow in this directory pins
-#     the same build; bump them together. (mirror-push.yml runs no Terraform
-#     and carries no pin.)
+#     the same build; bump them together.
 #   - terraform_wrapper is false — the wrapper intercepts stdout and would
 #     break `terraform output -raw`.
 # =============================================================================
@@ -236,7 +235,7 @@ jobs:
       ENV_NAME: ${{ inputs.environment_name }}
 
       # Only this GitHub user may run a destructive workflow in this repo.
-      # Same gate, and same value, as mirror-push.yml. Update on a rename.
+      # Update on a rename.
       # This is the repo's only destructive workflow. The state backend has no
       # destroy workflow, deliberately — its teardown is a manual procedure
       # (terraform/bootstrap-backend/TF_DESTROY.md).

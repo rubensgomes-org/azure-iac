@@ -1443,15 +1443,13 @@ recording:
   runs first and leaves a `.terraform/modules/` copy of every local module's
   `.tf` files; without the exclusion `sonar.sources=.` indexes both copies.
 
-**Terraform CLI pin in CI.** The four Terraform-touching workflows in
-`.github/workflows/` (`main-verify.yml`, `release.yml`, `acr-create.yml`,
-`acr-destroy.yml`) pin `terraform_version: "1.15.8"`, which is the minimum
-needed to satisfy the `required_version = "~> 1.15"` declared in every
-`versions.tf` in the repo — roots, child modules, and `bootstrap-backend/`.
-Bump all four together. They also all set `terraform_wrapper: false`, because
-the wrapper intercepts stdout and would break `terraform output -raw`.
-`mirror-push.yml` runs no Terraform, so it carries neither setting and is not
-part of the bump.
+**Terraform CLI pin in CI.** All four workflows in `.github/workflows/`
+(`main-verify.yml`, `release.yml`, `acr-create.yml`, `acr-destroy.yml`) run
+Terraform and pin `terraform_version: "1.15.8"`, which is the minimum needed to
+satisfy the `required_version = "~> 1.15"` declared in every `versions.tf` in
+the repo — roots, child modules, and `bootstrap-backend/`. Bump all four
+together. They also all set `terraform_wrapper: false`, because the wrapper
+intercepts stdout and would break `terraform output -raw`.
 
 ## Files each phase creates
 

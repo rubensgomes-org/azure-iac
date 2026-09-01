@@ -61,11 +61,11 @@ all apps (acceptable for a playground).
 - `docs/PROVISIONING_PLAN.md` — the master plan (naming conventions, per-module
   command reference §13, passwordless wiring §12)
 - `Makefile` — whole-estate + per-module `apply`/`destroy`/`reprovision`
-- `.github/workflows/` — five workflows: `acr-create.yml` / `acr-destroy.yml`
-  (both `workflow_call` + `workflow_dispatch`), `release.yml`, `main-verify.yml`,
-  and `mirror-push.yml`. Only the two Azure-touching ones hold credentials;
-  `release.yml`, `main-verify.yml` and `mirror-push.yml` do not. The Terraform
-  ones each shell out to repo-root `make` targets. The state backend has no CI,
+- `.github/workflows/` — four workflows: `acr-create.yml` / `acr-destroy.yml`
+  (both `workflow_call` + `workflow_dispatch`), `release.yml` and
+  `main-verify.yml`. Only the two Azure-touching ones hold credentials;
+  `release.yml` and `main-verify.yml` do not. Each shells out to repo-root
+  `make` targets. The state backend has no CI,
   deliberately — create and destroy are hand-operated
   (`terraform/bootstrap-backend/TF_PROVISION.md` and `TF_DESTROY.md`).
   See README.md

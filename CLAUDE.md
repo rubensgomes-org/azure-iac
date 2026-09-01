@@ -35,7 +35,7 @@ Apps, Monitoring; APIM deferred to a second iteration).
 |-----------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | `docs/PROVISIONING_PLAN.md`                                     | The master plan. §12 auth wiring, **§15 the authoritative teardown procedure**, §16 release rationale. |
 | `docs/MODULES_DEPENDENCY.md`                                    | Which module depends on which, and why.                                                                |
-| `docs/CI.md`                                                    | The five workflows, their credential models and guards. Read before editing any workflow.              |
+| `docs/CI.md`                                                    | The four workflows, their credential models and guards. Read before editing any workflow.              |
 | `docs/SONAR.md`                                                 | SonarCloud config, the suppression list, and the Automatic Analysis constraint.                        |
 | `docs/GOTCHAS.md`                                               | Things that have already cost time. Read when something behaves inexplicably.                          |
 | `RELEASING.md`                                                  | Read before touching anything release-related.                                                         |
@@ -45,7 +45,7 @@ Apps, Monitoring; APIM deferred to a second iteration).
 
 ## Repo layout
 
-- `.github/workflows/` — five workflows; see `docs/CI.md`. No composite actions.
+- `.github/workflows/` — four workflows; see `docs/CI.md`. No composite actions.
 - `terraform/bootstrap-backend/` — the state backend module (`rg-tfstate`,
   `sttfstaterubens01`, `tfstate` container). Do not touch unless
   re-bootstrapping.
