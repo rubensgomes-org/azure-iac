@@ -4,8 +4,8 @@
 #   - 01-resource-groups → platform RG name (where ACR lives)
 #   - 04-managed-identities → shared UAMI principal_id (target of AcrPull grant)
 #
-# See docs/PROVISIONING_PLAN.md §4 for the full dependency map and §12 for
-# the passwordless-auth wiring (Container Apps pull via this shared UAMI).
+# See docs/MODULES_DEPENDENCY.md for the full dependency map. Container
+# Apps pull from this registry via the shared UAMI.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -15,9 +15,9 @@ data "terraform_remote_state" "resource_groups" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "resource-groups/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -30,9 +30,9 @@ data "terraform_remote_state" "managed_identities" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "managed-identities/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -49,5 +49,5 @@ module "acr" {
   location            = var.location
   resource_group_name = data.terraform_remote_state.resource_groups.outputs.rg_platform_name
   uami_principal_id   = data.terraform_remote_state.managed_identities.outputs.uami_app_principal_id
-  tags                = merge(var.tags, { release = local.release })
+  tags                = local.tags
 }

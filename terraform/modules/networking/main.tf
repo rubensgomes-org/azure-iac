@@ -5,7 +5,7 @@
 #
 # The subnet set and the DNS zone set are BOTH fixed on purpose — every
 # downstream module reads them by key via `data.terraform_remote_state`.
-# See docs/PROVISIONING_PLAN.md §4 for the full consumption map.
+# See docs/MODULES_DEPENDENCY.md for the full consumption map.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------

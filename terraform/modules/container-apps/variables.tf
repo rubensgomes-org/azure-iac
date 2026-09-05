@@ -15,8 +15,8 @@
 # vary per app or per env (image reference, replica counts, target port,
 # CPU/memory) are variables.
 #
-# See docs/PROVISIONING_PLAN.md §4 row 11 and §12 for the passwordless wiring
-# this module implements.
+# See the module README for the passwordless wiring this module
+# implements.
 # -----------------------------------------------------------------------------
 
 variable "env" {

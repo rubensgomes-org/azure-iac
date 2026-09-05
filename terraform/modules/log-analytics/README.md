@@ -28,7 +28,7 @@ caller — this module has no `backend` block.
 
 - `law_id` — full Azure Resource ID (`/subscriptions/.../workspaces/log-...`)
 - `law_name`
-- `law_workspace_id` — customer_id GUID; what CAE consumes
+- `law_workspace_id` — customer_id GUID; for tools that talk to the ingestion/query endpoints (CAE consumes `law_id` instead)
 - `law_primary_shared_key` — sensitive; legacy agent auth
 - `law_location`
 
@@ -43,8 +43,7 @@ caller — this module has no `backend` block.
   Azure Budgets instead.
 - **Random suffix in the name.** LAW names go into a 30-day soft-delete
   recycle bin per RG. A stable random suffix lets destroy+recreate land on
-  a fresh name without waiting out the block. See
-  `docs/PROVISIONING_PLAN.md` §9.
+  a fresh name without waiting out the block.
 - **Sensitive output `law_primary_shared_key`.** The passwordless model
   doesn't need it, but some downstream integrations (e.g. Container App
   Environment on some azurerm 4.x versions) still expect a key at

@@ -2,8 +2,8 @@
 
 Root Terraform config that provisions the shared Key Vault for the `dev`
 environment plus the single RBAC role assignment (`Key Vault Secrets User`)
-granted to the shared UAMI. State lives in `tfstate/key-vault/terraform.tfstate`
-on the bootstrap storage account.
+granted to the shared UAMI. State lives at key `key-vault/terraform.tfstate`
+in the backend blob container.
 
 Wraps [`../../../modules/key-vault/`](../../../modules/key-vault/README.md).
 
@@ -15,7 +15,11 @@ Wraps [`../../../modules/key-vault/`](../../../modules/key-vault/README.md).
   `uami_app_principal_id` from its remote state.
 - `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`
   exported in the current shell.
-- `../env.tfvars` populated with `env`, `location`, `prefix`, `tags`.
+- `../env.tfvars` populated with `env`, `location` and `prefix`.
+- Both `.tfvars` files are gitignored and are NOT in a fresh clone. Create them
+  once — see [`INITIAL_SETUP.md`](../../../INITIAL_SETUP.md) § Terraform
+  Variable Files. Tags are not among their values: they come from the committed
+  [`../tags.json`](../tags.json), with `TF_VAR_owner` overriding `owner`.
 
 ## Provision
 
@@ -27,8 +31,6 @@ terraform init \
   -backend-config="key=key-vault/terraform.tfstate"
 
 terraform plan \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars \
   -out=tfplan
 
 terraform apply tfplan
@@ -38,7 +40,7 @@ terraform apply tfplan
 
 ```bash
 # Vault exists and is provisioned
-az keyvault list -g rg-dev-platform -o table
+az keyvault list -g "rg-dev-platform${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}" -o table
 KV_NAME=$(terraform output -raw kv_name)
 az keyvault show -n "$KV_NAME" \
   --query "{name:name, sku:properties.sku.name, rbac:properties.enableRbacAuthorization, purgeProt:properties.enablePurgeProtection, softDeleteDays:properties.softDeleteRetentionInDays}" \
@@ -70,9 +72,7 @@ cd terraform/envs/dev/05-key-vault
 # Capture the name BEFORE destroy — needed for the purge below.
 KV_NAME=$(terraform output -raw kv_name)
 
-terraform destroy \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars
+terraform destroy
 
 # Post-destroy purge — required because we set purge_protection_enabled = false
 # and the vault sits in a 7-day soft-delete window after destroy. Purging lets
@@ -97,12 +97,13 @@ tombstone). Options:
 3. Ignore — the random suffix regenerates on reprovision, so the new name
    won't collide with the tombstone. This is the recommended path.
 
-See [`docs/PROVISIONING_PLAN.md`](../../../../docs/PROVISIONING_PLAN.md) §8
-for the reprovision shortcut.
-
 ## Notes
 
-- No `terraform.tfvars` values needed. Scaffolding consistency only.
+- No `terraform.tfvars` values needed, and no file needed either. Nothing is
+  passed unconditionally any more: `terraform.tfvars` is auto-loaded when
+  present, and every value can come from a `TF_VAR_*` environment variable
+  instead. See
+  [INITIAL_SETUP](../../../INITIAL_SETUP.md#terraform-environment).
 - SKU, RBAC mode, and dev safety toggles are hard-coded in the child
   module (`modules/key-vault/main.tf`). Change there if you need to.
 - No private endpoint yet — the `privatelink.vaultcore.azure.net` zone

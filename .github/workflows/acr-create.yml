@@ -26,16 +26,15 @@
 #                       without a caller.
 #
 # Authentication:
-#   Service Principal + client secret, read from ORGANIZATION-level Actions
-#   secrets on rubensgomes-org (AZURE_CLIENT_ID / AZURE_CLIENT_SECRET /
-#   AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID), shared with this repository and
-#   with each calling repository.
+#   Service Principal identifiers come from repository-level Actions variables
+#   (AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID).
+#   AZURE_CLIENT_SECRET is the only credential and comes from an Actions
+#   secret.
 #
 #   This job is deliberately NOT bound to a GitHub Environment, unlike
 #   acr-destroy.yml. Two reasons:
 #
-#     1. Organization secrets are not Environment secrets. A job with no
-#        `environment:` resolves them fine.
+#     1. Repository variables and secrets resolve without an Environment.
 #     2. For a REUSABLE workflow the `environment:` key is resolved in the
 #        CALLER's repository, not this one. Binding "AZURE" here would silently
 #        require every caller to define an environment of that name.
@@ -48,17 +47,17 @@
 #   caller to stand up an Environment is friction, and friction is unwanted in
 #   front of a create and wanted in front of a destroy.
 #
-#   Callers must pass the four secrets explicitly (see `secrets:` below).
-#   `secrets: inherit` also works but hides which credentials cross the repo
-#   boundary, which is the wrong default for an SP with subscription-wide
-#   write access.
+#   On workflow_call, `vars.*` resolves in the caller's repository. Each caller
+#   must define the three AZURE_* identifier variables there and pass only
+#   AZURE_CLIENT_SECRET explicitly (see `secrets:` below). `secrets: inherit`
+#   also works but hides which credential crosses the repo boundary.
 #
 # Configuration:
 #   TF_VAR_rg_suffix — a repository-level Actions VARIABLE (not a secret, not
 #   an input). Bound at job level below; see the comment there. Unset means
 #   the historical rg-<env>-<purpose> names. Set means every resource group
 #   this workflow creates is named rg-<env>-<purpose>-<suffix>, and the guard
-#   in step 6 refuses the run if that disagrees with the estate that already
+#   in step 7 refuses the run if that disagrees with the estate that already
 #   exists.
 #
 # Notes:
@@ -70,8 +69,7 @@
 #   - `plan-<name>` and `apply-<name>` each already depend on `init-<name>`,
 #     so naming all three targets re-runs `terraform init -reconfigure` three
 #     times. It is idempotent and cheap (provider plugins are cached), and
-#     naming them explicitly keeps these lines matching the documented
-#     sequence in PROVISION_ACR.md.
+#     naming them explicitly keeps the intended sequence visible in one place.
 #   - terraform_version must satisfy the `required_version = "~> 1.15"`
 #     declared in every versions.tf in the repo. Every Terraform-touching
 #     workflow in this directory pins the same build; bump them together.
@@ -96,8 +94,8 @@ name: ACR Create (reusable)
 
 on:
   # -------------------------------------------------------------------------
-  # Reusable entry point. Callers supply the credentials; this repository
-  # supplies the Terraform.
+  # Reusable entry point. Callers supply the secret and define the three
+  # AZURE_* identifier variables; this repository supplies the Terraform.
   # -------------------------------------------------------------------------
   workflow_call:
     inputs:
@@ -106,6 +104,12 @@ on:
         type: string
         required: false
         default: dev
+
+      acr_name:
+        description: 'Registry to provision. Passed to Terraform as TF_VAR_acr_name.'
+        type: string
+        required: false
+        default: rubensdevacr
 
     outputs:
       acr_name:
@@ -116,13 +120,7 @@ on:
         value: ${{ jobs.provision.outputs.acr_login_server }}
 
     secrets:
-      AZURE_CLIENT_ID:
-        required: true
       AZURE_CLIENT_SECRET:
-        required: true
-      AZURE_TENANT_ID:
-        required: true
-      AZURE_SUBSCRIPTION_ID:
         required: true
 
   # -------------------------------------------------------------------------
@@ -135,6 +133,12 @@ on:
         type: string
         required: false
         default: dev
+
+      acr_name:
+        description: 'Registry to provision'
+        type: string
+        required: false
+        default: rubensdevacr
 
 # Reads the repository. Creates no commits, tags or releases.
 permissions:
@@ -172,18 +176,19 @@ jobs:
       acr_login_server: ${{ steps.acr_outputs.outputs.acr_login_server }}
 
     env:
-      # The Makefile header states the contract: these four must be exported
-      # in the shell. Declared at JOB level so every `make` step below
-      # inherits them -- the recipes read the ambient environment and take no
-      # arguments for credentials.
+      # The Makefile header states the contract: these four ARM_* values must
+      # be exported in the shell. The three identifiers are repository Actions
+      # variables; only the client secret is an Actions secret. Declared at JOB
+      # level so every `make` step below inherits them -- the recipes read the
+      # ambient environment and take no arguments for authentication.
       #
       # backend.hcl sets use_azuread_auth = false, so this same SP also
       # authenticates the state blob data plane, not just the ARM control
       # plane.
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       # Tells Terraform it is running in CI: no interactive prompts, and
       # output tuned for a log rather than a terminal.
@@ -202,17 +207,24 @@ jobs:
       # like this is safe -- the shell only ever sees it as a variable.
       # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
       ENV_NAME: ${{ inputs.environment_name }}
+      REQUESTED_ACR_NAME: ${{ inputs.acr_name }}
 
-      # Optional RG-name suffix, producing rg-<env>-<purpose>-<suffix> instead
-      # of rg-<env>-<purpose>. Sourced from the REPOSITORY-level Actions
-      # VARIABLE of the same name (Settings > Secrets and variables > Actions
-      # > Variables), not from a workflow input -- there is deliberately no
-      # per-run knob and no caller-supplied value.
+      # RG-name suffix, producing rg-<env>-<purpose>-<suffix>. Sourced from the
+      # REPOSITORY-level Actions VARIABLE of the same name (Settings > Secrets
+      # and variables > Actions > Variables), not from a workflow input --
+      # there is deliberately no per-run knob and no caller-supplied value.
       #
-      # Unset resolves to the empty string, which is module 01's own default
-      # for `rg_suffix` AND Make's falsy value, so the historical unsuffixed
-      # names stay byte-for-byte what they have always been. No conditional is
-      # needed anywhere for the empty case.
+      # There is deliberately NO `|| default` fallback. An UNDEFINED repository
+      # variable resolves to the empty string here, and empty is exactly what
+      # this estate wants: module 01's `rg_suffix` default is "" and its
+      # `local.suffix` turns that into no suffix at all, so a CI run with the
+      # variable undefined names the RGs `rg-dev-platform`, `rg-dev-network`,
+      # ... -- identical to a local run with nothing exported. That agreement
+      # is what makes the empty case safe here; `name` is ForceNew on
+      # azurerm_resource_group, so a divergence would destroy and recreate five
+      # RGs rather than report a mismatch. Three places must keep agreeing:
+      # module 01's variable default, modules/resource-groups' `local.suffix`,
+      # and Make's RG_SUFFIX.
       #
       # ONE binding serves both tools. Terraform reads TF_VAR_rg_suffix for
       # module 01's `rg_suffix` input; Make imports the same variable from the
@@ -237,6 +249,72 @@ jobs:
       # a future caller must define its own variable of this name.
       TF_VAR_rg_suffix: ${{ vars.TF_VAR_rg_suffix }}
 
+      # Module configuration, as environment variables rather than files.
+      #
+      # env.tfvars and the per-module terraform.tfvars files are gitignored
+      # (.gitignore: *.tfvars), so a hosted runner never receives them. This
+      # workflow used to reconstruct them on disk; it no longer does. The
+      # Makefile passes -var-file only when the file exists (Makefile:61), and
+      # Terraform reads TF_VAR_<name> for any variable a file does not supply.
+      # Configuration therefore lives in repository settings and workflow
+      # inputs, never in the repository tree.
+      #
+      # Precedence matters: -var-file OUTRANKS TF_VAR_*. These bindings are
+      # authoritative on a runner only because no tfvars file is present there.
+      # A developer's local checkout keeps its files and keeps winning.
+      #
+      # Same raw-text rule as ENV_NAME above -- interpolate into an `env:`
+      # VALUE, never into a `run:` body.
+      #
+      # TF_VAR_location comes from a repository VARIABLE; TF_VAR_env and
+      # TF_VAR_acr_name come from workflow INPUTS, so one repository can drive
+      # several environments and registries from one set of settings. The
+      # repository variable is named for the Terraform variable it feeds --
+      # nothing but Terraform ever reads it, and the `az` CLI steps take their
+      # region from the resources themselves.
+      #
+      # THE KEY IS WRITTEN IN EXACTLY THIS CASE, for the reason spelled out
+      # under TF_VAR_rg_suffix above: `vars.TF_VAR_location` resolves however
+      # GitHub stored the name, but Terraform would read TF_VAR_LOCATION as an
+      # undeclared variable `LOCATION` and ignore it without a word.
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_acr_name: ${{ inputs.acr_name }}
+
+      # Contact for the `owner` tag, overriding the `owner` key of
+      # terraform/envs/dev/tags.json for this run only.
+      #
+      # Without this binding CI tagged everything with the committed default
+      # while a local `make apply` tagged it with the operator's exported
+      # TF_VAR_owner, so the same resource carried a different owner depending
+      # on who applied it -- and `owner` is the contact for cost and cleanup
+      # queries, the one tag worth being unambiguous.
+      #
+      # No `|| default` needed and no fail-fast entry: an undefined repository
+      # variable resolves to the empty string, and locals.tf coalesces on the
+      # first non-null, NON-EMPTY value, so an unset variable falls through to
+      # tags.json exactly as it did before. That is the one place in this
+      # workflow where an empty TF_VAR_ is harmless rather than dangerous.
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      # Where the module roots READ each other's state from -- the `config`
+      # block of every `data "terraform_remote_state"`. A backend block cannot
+      # take variables, so Terraform needs these told to it twice: once through
+      # -backend-config for this root's own state (Makefile:75), and once as
+      # ordinary variables for everyone else's. Both sides read these same
+      # three names, so one set of repository variables drives both.
+      #
+      # NO `|| default` fallback here, unlike TF_VAR_rg_suffix. An undefined
+      # repository variable resolves to the empty string, and an EMPTY TF_VAR_
+      # still counts as a value -- it would override the module default with
+      # "" and send the state read at a nameless storage account. The fail-fast
+      # step below rejects that explicitly rather than papering over it: a
+      # silently wrong state account is the failure this workflow exists to
+      # prevent.
+      TF_VAR_backend_resource_group_name: ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
     steps:
       # -----------------------------------------------------------------------
       # Step 1: Checkout repository content
@@ -245,7 +323,7 @@ jobs:
         uses: actions/checkout@v7
 
       # -----------------------------------------------------------------------
-      # Step 2: Verify required secrets are present (fail fast)
+      # Step 2: Verify required Azure configuration is present (fail fast)
       #
       # Why:
       #   If a caller forgets a `secrets:` entry, or the organization secret is
@@ -257,25 +335,78 @@ jobs:
       # Security:
       #   Only the NAME of a missing variable is printed. Never the value.
       # -----------------------------------------------------------------------
-      - name: Verify required secrets are present (no output)
+      - name: Verify required Azure configuration is present
         shell: bash
         run: |
           set -euo pipefail
           missing=0
-          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID; do
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID \
+                   TF_VAR_env TF_VAR_location TF_VAR_acr_name \
+                   TF_VAR_backend_resource_group_name TF_VAR_storage_account_id \
+                   TF_VAR_container_name; do
             if [ -z "${!v:-}" ]; then
               echo "Missing required secret/env var: ${v}"
               missing=1
             fi
           done
           if [ "$missing" -ne 0 ]; then
-            echo "Check the organization Actions secrets on rubensgomes-org and"
-            echo "confirm they are shared with the calling repository."
+            echo "Check the calling repository's Actions configuration:"
+            echo "  Variables: AZURE_CLIENT_ID, AZURE_TENANT_ID,"
+            echo "             AZURE_SUBSCRIPTION_ID, TF_VAR_location,"
+            echo "             TF_VAR_backend_resource_group_name,"
+            echo "             TF_VAR_storage_account_id, TF_VAR_container_name"
+            echo "  Secret:    AZURE_CLIENT_SECRET"
+            echo "  TF_VAR_env and TF_VAR_acr_name are derived from the"
+            echo "  workflow inputs, not from repository variables."
           fi
           exit $missing
 
       # -----------------------------------------------------------------------
-      # Step 3: Validate the rg_suffix repository variable (fail fast)
+      # Step 3: Validate the caller-supplied Terraform inputs (fail fast)
+      #
+      # Why:
+      #   These three values are bound into TF_VAR_env, TF_VAR_location and
+      #   TF_VAR_acr_name in the job `env:` block and reach Terraform directly.
+      #   Nothing writes them to a file first any more, so this step is the
+      #   only place their SHAPE is checked before they name Azure resources.
+      #   A malformed environment_name would produce resource groups nobody
+      #   can find; a malformed acr_name fails deep inside apply, after module
+      #   01 and 04 have already run.
+      #
+      #   `location` is checked here rather than trusted because TF_VAR_location
+      #   is a repository variable, edited in the GitHub UI with no review and
+      #   no diff -- the same argument as the rg_suffix guard below.
+      #
+      # Security:
+      #   Every value is read as a SHELL variable. Never write `${{ inputs.* }}`
+      #   or `${{ vars.* }}` inside a run: body -- it is substituted as raw text
+      #   before the shell parses the script. Enforced by main-verify.yml's
+      #   `workflows` job.
+      # -----------------------------------------------------------------------
+      - name: GUARD - Validate Terraform inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "FAIL: environment_name must be 2-10 lowercase alphanumeric characters"
+            echo "starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_location}" | grep -qE '^[a-z][a-z0-9]*$'; then
+            echo "FAIL: TF_VAR_location must be a lowercase Azure region identifier"
+            echo "such as 'centralus'."
+            exit 1
+          fi
+          if ! printf '%s' "${REQUESTED_ACR_NAME}" | grep -qE '^[A-Za-z0-9]{5,50}$'; then
+            echo "FAIL: acr_name must be 5-50 alphanumeric characters."
+            exit 1
+          fi
+
+          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}' acr='${REQUESTED_ACR_NAME}'."
+
+      # -----------------------------------------------------------------------
+      # Step 4: Validate the rg_suffix repository variable (fail fast)
       #
       # Why:
       #   The value comes from a repository VARIABLE, which is edited in the
@@ -288,9 +419,10 @@ jobs:
       #        Worse, Make interpolates the value into the SWEEP_ORPHANS
       #        recipe TEXT (Makefile:203-204) before the shell parses it, so
       #        a malformed value reaches a shell before Terraform ever sees it.
-      #     2. A misspelled variable NAME resolves to the empty string, which
-      #        is indistinguishable from "no suffix wanted". Echoing the
-      #        resolved value makes the run log the record of what was used.
+      #     2. A misspelled variable NAME resolves to the empty string, so the
+      #        run succeeds with NO suffix rather than the intended one.
+      #        Echoing the resolved value makes the run log the record of what
+      #        was used.
       #
       #   The regex is the same rule as modules/resource-groups/variables.tf's
       #   `validation` block. Keep the two in step.
@@ -301,22 +433,47 @@ jobs:
       #   before the shell parses the script. Same rule as ENV_NAME above,
       #   and enforced by main-verify.yml's `workflows` job.
       # -----------------------------------------------------------------------
-      - name: GUARD - Validate rg_suffix
+      - name: GUARD - Validate rg_suffix and backend coordinates
         shell: bash
         run: |
           set -euo pipefail
-          echo "Resolved rg_suffix: '${TF_VAR_rg_suffix:-}' (empty = unsuffixed RG names)"
-          if [ -n "${TF_VAR_rg_suffix:-}" ] &&
-             ! printf '%s' "$TF_VAR_rg_suffix" | grep -qE '^[a-z][a-z0-9]{0,9}$'; then
-            echo "FAIL: rg_suffix must be empty, or 1-10 lowercase alphanumeric"
-            echo "characters starting with a letter."
+          echo "Resolved rg_suffix: '${TF_VAR_rg_suffix:-}' (RG names end '${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}')"
+          if [ -n "${TF_VAR_rg_suffix:-}" ] \
+             && ! printf '%s' "${TF_VAR_rg_suffix}" | grep -qE '^[a-z][a-z0-9]{0,9}$'; then
+            echo "FAIL: rg_suffix must be EMPTY (= no suffix, the normal case),"
+            echo "or 1-10 lowercase alphanumeric characters starting with a letter."
             echo "Fix the TF_VAR_rg_suffix repository variable:"
             echo "  Settings > Secrets and variables > Actions > Variables"
             exit 1
           fi
 
+          # Backend coordinates. These name the storage account the state blobs
+          # live in and the container that reads every upstream module's
+          # outputs, so a typo here is not a cosmetic naming error -- it points
+          # Terraform at a DIFFERENT (or nonexistent) state, where it sees an
+          # empty world and proposes to create the estate a second time. The
+          # regexes are Azure's own rules for the two resource types, and match
+          # the `validation` blocks on the like-named Terraform variables.
+          if ! printf '%s' "${TF_VAR_storage_account_id}" | grep -qE '^[a-z0-9]{3,24}$'; then
+            echo "FAIL: TF_VAR_storage_account_id must be 3-24 lowercase"
+            echo "alphanumeric characters (an Azure storage account name)."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_container_name}" | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
+            echo "FAIL: TF_VAR_container_name must be 3-63 lowercase"
+            echo "alphanumeric/hyphen characters starting with alphanumeric."
+            exit 1
+          fi
+          if [ "${TF_VAR_backend_resource_group_name: -1}" = "." ] \
+             || [ "${#TF_VAR_backend_resource_group_name}" -gt 90 ]; then
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with a"
+            echo "period or exceed 90 characters."
+            exit 1
+          fi
+          echo "Backend: ${TF_VAR_backend_resource_group_name}/${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
+
       # -----------------------------------------------------------------------
-      # Step 4: Install Terraform on the runner
+      # Step 5: Install Terraform on the runner
       #
       # Notes:
       #   - The Makefile shells out to `terraform`; it does not install it.
@@ -329,9 +486,9 @@ jobs:
           terraform_wrapper: false
 
       # -----------------------------------------------------------------------
-      # Step 5: Module 01 -- init only
+      # Step 6: Module 01 -- init only
       #
-      # Split out from the plan/apply below so the drift guard in step 6 can
+      # Split out from the plan/apply below so the drift guard in step 7 can
       # read module 01's CURRENT state before anything is planned against it.
       # `plan-resource-groups` depends on `init-resource-groups` anyway, so the
       # split costs one redundant (cached, idempotent) init and nothing else.
@@ -342,7 +499,7 @@ jobs:
           make ENV="$ENV_NAME" init-resource-groups
 
       # -----------------------------------------------------------------------
-      # Step 6: Assert the requested suffix matches what module 01 already has
+      # Step 7: Assert the requested suffix matches what module 01 already has
       #
       # Why this guard exists:
       #   `name` is ForceNew on azurerm_resource_group. Changing rg_suffix on a
@@ -364,8 +521,8 @@ jobs:
       # exactly when setting a suffix IS safe. That path is allowed.
       #
       # The `${VAR:+-$VAR}` expansion mirrors `local.suffix` in
-      # modules/resource-groups/main.tf -- an unset suffix contributes nothing,
-      # a set one contributes a leading dash.
+      # modules/resource-groups/main.tf: empty expands to nothing, a set value
+      # gains the leading dash. Empty is the normal case here.
       # -----------------------------------------------------------------------
       - name: GUARD - Assert rg_suffix matches module 01's state
         shell: bash
@@ -387,7 +544,7 @@ jobs:
             echo "a rename, and every resource inside them is owned by a"
             echo "different state file that knows nothing about the change."
             echo ""
-            echo "Tear the estate down first (docs/PROVISIONING_PLAN.md 15),"
+            echo "Tear the estate down first with make destroy,"
             echo "then change the TF_VAR_rg_suffix repository variable."
             exit 1
           else
@@ -395,7 +552,7 @@ jobs:
           fi
 
       # -----------------------------------------------------------------------
-      # Step 7: Module 01 -- the resource groups
+      # Step 8: Module 01 -- the resource groups
       #
       # Creates/confirms the 5 RGs, including rg-dev-platform, which modules 04
       # and 06 place their resources into. Must run first.
@@ -407,7 +564,7 @@ jobs:
             plan-resource-groups apply-resource-groups
 
       # -----------------------------------------------------------------------
-      # Step 8: Module 04 -- the shared user-assigned managed identity
+      # Step 9: Module 04 -- the shared user-assigned managed identity
       #
       # Creates id-dev-app in rg-dev-platform. Module 06 grants AcrPull to this
       # principal, so it must exist before the registry module runs.
@@ -419,10 +576,10 @@ jobs:
             init-managed-identities plan-managed-identities apply-managed-identities
 
       # -----------------------------------------------------------------------
-      # Step 9: Module 06 -- the container registry
+      # Step 10: Module 06 -- the container registry
       #
       # Creates the registry and the AcrPull role assignment for the UAMI from
-      # step 8. This is the step the calling pipeline actually depends on.
+      # step 9. This is the step the calling pipeline actually depends on.
       # -----------------------------------------------------------------------
       - name: Module 06 - container registry
         shell: bash
@@ -431,16 +588,16 @@ jobs:
             init-acr plan-acr apply-acr
 
       # -----------------------------------------------------------------------
-      # Step 10: Publish the registry coordinates as workflow outputs
+      # Step 11: Publish the registry coordinates as workflow outputs
       #
       # Why:
       #   So callers reference the registry by output rather than hardcoding
       #   "rubensdevacr.azurecr.io" in an application repository. If the ACR is
-      #   ever renamed in terraform.tfvars, callers follow automatically
+      #   ever renamed via the acr_name input, callers follow automatically
       #   instead of failing at `docker push` with a stale hostname.
       #
       # Notes:
-      #   - No `terraform init` needed: step 9 initialised this directory in
+      #   - No `terraform init` needed: step 10 initialised this directory in
       #     the runner workspace.
       #   - -raw so the value has no surrounding quotes and can be used
       #     directly in an image reference.

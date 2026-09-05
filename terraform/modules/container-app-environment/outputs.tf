@@ -4,7 +4,7 @@
 # (container-apps) consumes `cae_id`; DNS wiring and browser-facing docs
 # consume `cae_default_domain` and `cae_static_ip_address`.
 #
-# See docs/PROVISIONING_PLAN.md §4 for who consumes what.
+# See docs/MODULES_DEPENDENCY.md for who consumes what.
 # -----------------------------------------------------------------------------
 
 output "cae_id" {

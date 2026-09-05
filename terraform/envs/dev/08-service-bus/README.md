@@ -2,10 +2,9 @@
 
 Root Terraform config that provisions the shared Service Bus namespace for
 the `dev` environment, any queues listed in `terraform.tfvars`, and the two
-RBAC role assignments (`Azure Service Bus Data Sender` +
-`Azure Service Bus Data Receiver`) granted to the shared UAMI. State lives
-in `tfstate/service-bus/terraform.tfstate` on the bootstrap storage
-account.
+RBAC role assignments (`Azure Service Bus Data Sender` + `Azure Service Bus
+Data Receiver`) granted to the shared UAMI. State lives at key
+`service-bus/terraform.tfstate` in the backend blob container.
 
 Wraps [`../../../modules/service-bus/`](../../../modules/service-bus/README.md).
 
@@ -17,7 +16,11 @@ Wraps [`../../../modules/service-bus/`](../../../modules/service-bus/README.md).
   `uami_app_principal_id` from its remote state.
 - `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`
   exported in the current shell.
-- `../env.tfvars` populated with `env`, `location`, `tags`.
+- `../env.tfvars` populated with `env` and `location`.
+- Both `.tfvars` files are gitignored and are NOT in a fresh clone. Create them
+  once — see [`INITIAL_SETUP.md`](../../../INITIAL_SETUP.md) § Terraform
+  Variable Files. Tags are not among their values: they come from the committed
+  [`../tags.json`](../tags.json), with `TF_VAR_owner` overriding `owner`.
 
 ## Provision
 
@@ -29,8 +32,6 @@ terraform init \
   -backend-config="key=service-bus/terraform.tfstate"
 
 terraform plan \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars \
   -out=tfplan
 
 terraform apply tfplan
@@ -41,7 +42,7 @@ terraform apply tfplan
 ```bash
 # Namespace exists with the expected posture
 SB_NAME=$(terraform output -raw sb_namespace_name)
-az servicebus namespace show -g rg-dev-data -n "$SB_NAME" \
+az servicebus namespace show -g "rg-dev-data${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}" -n "$SB_NAME" \
   --query "{name:name, status:status, sku:sku.name, tls:minimumTlsVersion, localAuth:disableLocalAuth, publicNet:publicNetworkAccess}" \
   -o table
 # Expect status=Active, sku=Standard, tls=1.2, localAuth=false
@@ -49,7 +50,7 @@ az servicebus namespace show -g rg-dev-data -n "$SB_NAME" \
 # publicNet=Enabled.
 
 # Queues, if any (empty output means `queues = []`)
-az servicebus queue list -g rg-dev-data --namespace-name "$SB_NAME" \
+az servicebus queue list -g "rg-dev-data${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}" --namespace-name "$SB_NAME" \
   --query "[].name" -o tsv
 
 # RBAC assignments granted to the shared UAMI
@@ -76,9 +77,7 @@ terraform output sb_queue_names
 ```bash
 cd terraform/envs/dev/08-service-bus
 
-terraform destroy \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars
+terraform destroy
 ```
 
 No post-destroy purge needed — the namespace name is released immediately
@@ -94,16 +93,13 @@ Same commands as **Provision**. The `random_id` suffix is keyed on `env`,
 so reprovisioning the same env lands on a fresh name
 (`sb-dev-msg-<newhex>`).
 
-See [`docs/PROVISIONING_PLAN.md`](../../../../docs/PROVISIONING_PLAN.md) §8
-for the reprovision shortcut.
-
 ## Notes
 
 - SKU (`Standard`), local-auth flag, TLS min, and public-network flag are
   hard-coded in the child module (`modules/service-bus/main.tf`). Change
   there if you need to move to Premium (dedicated capacity, PE, geo-DR)
   or flip local auth off.
-- `local_auth_enabled = true` for now (§9 of the master plan). All *apps*
+- `local_auth_enabled = true` for now. All *apps*
   use AAD via the shared UAMI regardless — local SAS is a debugging
   escape hatch. Flip to `false` in `modules/service-bus/main.tf` once
   every app is confirmed passwordless.
@@ -115,7 +111,7 @@ for the reprovision shortcut.
 - No customer-managed key (encryption-at-rest uses the Microsoft-managed
   key). If we add CMK later, wire remote state from `05-key-vault`
   following the pattern in this root's `main.tf`.
-- No private endpoint yet. Adding one requires wiring remote state from
-  `02-networking` for `subnet_pe_id` and provisioning the
-  `privatelink.servicebus.windows.net` zone (not yet created in module
-  02). Small future change.
+- No private endpoint yet. The `privatelink.servicebus.windows.net` zone
+  is already provisioned by module 02 and linked to the VNet; adding a PE
+  means wiring remote state from `02-networking` for `subnet_pe_id` and
+  `dns_zone_sb_id`. Small future change.

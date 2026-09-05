@@ -16,13 +16,13 @@
 # `Group.Read.All` on the Terraform SP — a playground SP typically lacks
 # both, and granting them needs tenant admin consent.
 #
-# See docs/PROVISIONING_PLAN.md §4 for the full dependency map and §12 for
-# the passwordless-auth wiring (apps auth to PG via `DefaultAzureCredential`
-# using the same shared UAMI). Master plan §12 item 5 documents the
-# public-bootstrap posture used here — flip to VNet-only later.
+# See docs/MODULES_DEPENDENCY.md for the full dependency map. Apps auth to
+# PG via `DefaultAzureCredential` using the same shared UAMI. The module
+# README documents the public-bootstrap posture used here — flip to
+# VNet-only later.
 #
 # Modules 02 (network) and 05 (Key Vault) are listed as postgresql
-# dependencies in §4 but are not consumed here:
+# dependencies but are not consumed here:
 #   - 02: `delegated_subnet_id = snet-pg` is unused during the public
 #     bootstrap phase. Wire remote state to module 02 when we flip to
 #     VNet-only.
@@ -37,9 +37,9 @@ data "terraform_remote_state" "resource_groups" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "resource-groups/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -52,9 +52,9 @@ data "terraform_remote_state" "managed_identities" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "managed-identities/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -97,7 +97,7 @@ module "postgresql" {
   runner_public_ip               = trimspace(data.http.myip.response_body)
   apps                           = var.apps
   uami_name                      = data.terraform_remote_state.managed_identities.outputs.uami_app_name
-  tags                           = merge(var.tags, { release = local.release })
+  tags                           = local.tags
 
   # Data-plane bootstrap OFF by default. This runner's network blocks
   # outbound TCP 5432 (both to Azure and everywhere), so an in-line
@@ -106,7 +106,6 @@ module "postgresql" {
   # the `allow-azure-services` firewall rule). See README →
   # "Data-plane bootstrap" for the exact commands. A follow-on refactor
   # will move this into a Container Apps Job triggered by GitHub
-  # Actions — see docs/PROVISIONING_PLAN.md §12a — at which point this
-  # variable and the null_resource go away.
+  # Actions, at which point this variable and the null_resource go away.
   run_bootstrap = false
 }

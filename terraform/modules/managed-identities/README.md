@@ -35,8 +35,8 @@ caller — this module has no `backend` block.
 ## Design decisions
 
 - **One UAMI, not per-app.** Every microservice shares this identity. Simpler
-  RBAC, uniform blast-radius. See `docs/PROVISIONING_PLAN.md` §12 for the
-  trade-off writeup.
+  RBAC and uniform grants; the trade-off is a blast radius shared across
+  every app.
 - **Lives in `rg-<env>-platform`.** Long-lived and shared across workloads —
   belongs with Key Vault and ACR, not with the fast-iterating app RG.
 - **No random suffix.** UAMI names are scoped to their RG, not globally

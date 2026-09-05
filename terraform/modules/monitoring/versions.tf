@@ -10,7 +10,6 @@
 # name is fixed `appi-<env>`; the action group name is fixed
 # `ag-<env>-ops`; diagnostic settings inherit their target's uniqueness).
 #
-# See docs/PROVISIONING_PLAN.md §5 for the standard scaffolding.
 # -----------------------------------------------------------------------------
 
 terraform {

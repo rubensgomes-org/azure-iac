@@ -12,7 +12,7 @@
 #      fields per entry. Use this when a consumer iterates or when adding
 #      an RG shouldn't require touching every consumer.
 #
-# See docs/PROVISIONING_PLAN.md §4 for which downstream modules read which
+# See docs/MODULES_DEPENDENCY.md for which downstream modules read which
 # outputs.
 # -----------------------------------------------------------------------------
 

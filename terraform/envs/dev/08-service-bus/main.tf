@@ -5,10 +5,10 @@
 #   - 04-managed-identities → shared UAMI principal_id (target of the two
 #     RBAC grants: Data Sender + Data Receiver)
 #
-# See docs/PROVISIONING_PLAN.md §4 for the full dependency map and §12 for
-# the passwordless-auth wiring (apps send/receive via this shared UAMI).
+# See docs/MODULES_DEPENDENCY.md for the full dependency map.
+# Apps send and receive via the shared UAMI.
 #
-# Module 05 (key-vault) is listed as a dependency in §4 but is not consumed
+# Module 05 (key-vault) reads like a dependency but is not consumed
 # here — there is no customer-managed key for encryption-at-rest in this
 # iteration, and there are no SAS keys to stash (apps auth via AAD). If
 # CMK is added later, wire a `data.terraform_remote_state.key_vault` block
@@ -22,9 +22,9 @@ data "terraform_remote_state" "resource_groups" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "resource-groups/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -37,9 +37,9 @@ data "terraform_remote_state" "managed_identities" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "managed-identities/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -56,5 +56,5 @@ module "service_bus" {
   resource_group_name = data.terraform_remote_state.resource_groups.outputs.rg_data_name
   uami_principal_id   = data.terraform_remote_state.managed_identities.outputs.uami_app_principal_id
   queues              = var.queues
-  tags                = merge(var.tags, { release = local.release })
+  tags                = local.tags
 }

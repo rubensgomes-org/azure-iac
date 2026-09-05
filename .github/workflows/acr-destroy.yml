@@ -14,13 +14,12 @@
 #
 #   Tearing down 04 and 01 as well is `make destroy-managed-identities` and
 #   `make destroy-resource-groups` locally, or a full teardown with
-#   `make destroy` (docs/PROVISIONING_PLAN.md §15). It is not available here,
+#   `make destroy`. It is not available here,
 #   on purpose.
 #
 #   What survives, and must:
-#     * rg-tfstate / sttfstaterubens01 — the Terraform state backend. Torn down
-#       only by the manual procedure in
-#       terraform/bootstrap-backend/TF_DESTROY.md. Step 8 asserts it is there.
+#     * the Terraform state backend. Torn down only by the manual procedure in
+#       terraform/bootstrap-backend/TF_BOOTSTRAP_DESTROY.md.
 #     * Every other module's state blob and every other module's resources.
 #       Only 06-acr is ever planned.
 #
@@ -40,7 +39,7 @@
 #   Making a DESTROY reusable is a deliberate decision. Three guards apply
 #   identically on both paths, and none is relaxed for a caller:
 #
-#     1. ALLOWED_ACTOR — `github.actor` on a called run is whoever triggered the
+#     1. ALLOWED_ACTORS — `github.actor` on a called run is whoever triggered the
 #        CALLER's run, so a pipeline kicked off by anyone else, by a bot, or by
 #        a schedule is denied at step 2 before a credential is touched.
 #     2. The typed `DESTROY ACR <name>` phrase is a REQUIRED input with no
@@ -49,24 +48,19 @@
 #     3. A plan-scope guard runs before the destroy and fails closed on any
 #        resource type outside module 06's footprint.
 #
-#   THE CONFIRMATION PHRASE IS `DESTROY ACR <name>`. It was briefly
-#   `DESTROY ACR STACK <name>` while this workflow also destroyed modules 04
-#   and 01; the word STACK went when that scope did, because the phrase must
-#   describe what the run actually deletes. Step 2 prints a note if the old
-#   phrase is typed.
-#
 # Relationship to acr-create.yml:
 #   NOT a mirror image. acr-create.yml applies 01 -> 04 -> 06; this destroys 06.
-#   Re-creating the registry afterwards is `make apply-acr` locally (01 and 04
+#   Re-creating the registry afterward is `make apply-acr` locally (01 and 04
 #   are still there), or a full acr-create.yml run, which no-ops on 01 and 04.
-#   The registry name is fixed in terraform.tfvars, so everything returns with
-#   the same name and every image reference stays valid. Only the IMAGES
-#   themselves are unrecoverable.
+#   The registry name is an input, not a generated value, so re-running with
+#   the same acr_name returns everything under the same name and every image
+#   reference stays valid. Only the IMAGES themselves are unrecoverable.
 #
 # Authentication:
-#   Service Principal + client secret from the GitHub Environment named "AZURE",
-#   rather than the organization secrets acr-create.yml uses. This is the only
-#   workflow in the repo bound to an Environment.
+#   Service Principal identifiers come from repository-level Actions variables
+#   (AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID).
+#   AZURE_CLIENT_SECRET is the only credential and comes from an Actions
+#   secret. This is the only workflow in the repo bound to an Environment.
 #
 #   THE ENVIRONMENT BINDING IS KEPT ON BOTH PATHS, AND THAT HAS A COST WORTH
 #   UNDERSTANDING. For a reusable workflow `environment:` is resolved in the
@@ -78,20 +72,18 @@
 #   no Environment precisely to avoid imposing this on callers; here the
 #   imposition IS the guard.
 #
-#   Consequently the four `secrets:` below are declared `required: false`. A
-#   caller may pass them explicitly, or let its own AZURE Environment supply
-#   them. Step 3 fails fast, naming the missing variable, if neither happened —
-#   which is the only way a caller finds out cheaply rather than inside
-#   `terraform init`.
+#   On workflow_call, `vars.*` resolves in the caller's repository. Each caller
+#   must define the three AZURE_* identifier variables there. The one secret
+#   below is optional because the caller may pass AZURE_CLIENT_SECRET or let
+#   its own AZURE Environment supply it. Step 4 fails fast if any required
+#   value is missing rather than failing later inside `terraform init`.
 #
 # Notes:
-#   - No post-destroy purge exists or is needed. Basic-SKU ACR has no
-#     soft-delete, so the name is released immediately — unlike Key Vault
-#     (docs/PROVISIONING_PLAN.md §15), which is module 05 and not in scope.
-#   - TF_VAR_rg_suffix is deliberately NOT bound here. It mattered while this
-#     workflow destroyed module 01 and ran `make purge-orphans`; module 06
-#     neither declares that variable nor touches a resource group, so binding
-#     it would be dead configuration. acr-create.yml still binds it.
+#   - TF_VAR_rg_suffix is not consumed by module 06, but the post-destroy
+#     verification uses it to identify this estate's resource groups without
+#     confusing them with unrelated rg-<env>-* groups.
+#   - TF_VAR_backend_resource_group_name identifies the state backend resource
+#     group that the post-destroy verification must prove still exists.
 #   - terraform_version must satisfy `required_version = "~> 1.15"` in every
 #     versions.tf. Every Terraform-touching workflow in this directory pins
 #     the same build; bump them together.
@@ -114,7 +106,7 @@ on:
         default: dev
 
       acr_name:
-        description: 'Registry to destroy. Must match acr_name in terraform/envs/<env>/06-acr/terraform.tfvars.'
+        description: 'Registry to destroy. Must match the acr_name recorded in module 06 state.'
         type: string
         required: true
         default: rubensdevacr
@@ -146,7 +138,7 @@ on:
         default: dev
 
       acr_name:
-        description: 'Registry to destroy. Must match acr_name in terraform/envs/<env>/06-acr/terraform.tfvars.'
+        description: 'Registry to destroy. Must match the acr_name recorded in module 06 state.'
         type: string
         required: true
 
@@ -156,17 +148,11 @@ on:
         required: true
 
     # Optional because the job binds the "AZURE" Environment, which the CALLER
-    # resolves — a caller with that Environment configured needs to pass
-    # nothing. A caller without one must pass all four. Either way step 3
-    # verifies them before Terraform runs.
+    # resolves. A caller may pass this secret explicitly or define it in that
+    # Environment. The three identifiers are caller repository variables, not
+    # secrets, and therefore are not part of this workflow_call contract.
     secrets:
-      AZURE_CLIENT_ID:
-        required: false
       AZURE_CLIENT_SECRET:
-        required: false
-      AZURE_TENANT_ID:
-        required: false
-      AZURE_SUBSCRIPTION_ID:
         required: false
 
 # Reads the repository. Creates no commits, tags or releases.
@@ -182,7 +168,7 @@ jobs:
     # lease held by another run, say — from burning hours. ACR itself deletes
     # in well under a minute, and there is no PostgreSQL-style child-resource
     # timeout problem here (module 09 is not in scope;
-    # docs/PROVISIONING_PLAN.md §15).
+    # via `make destroy`).
     timeout-minutes: 15
 
     # Environment secrets are only injected into a job that binds the
@@ -212,10 +198,77 @@ jobs:
       cancel-in-progress: false
 
     env:
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      # The three identifiers are repository Actions variables. On a reusable
+      # call they resolve in the caller's repository. Only the client secret is
+      # read from Actions secrets.
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_rg_suffix: ${{ vars.TF_VAR_rg_suffix }}
+
+      # Module configuration, as environment variables rather than files.
+      #
+      # env.tfvars and 06-acr/terraform.tfvars are gitignored (.gitignore:
+      # *.tfvars) and never reach a hosted runner. This workflow used to
+      # reconstruct them on disk; it no longer does. The Makefile passes
+      # -var-file only when the file exists (Makefile:61), and Terraform reads
+      # TF_VAR_<name> for anything a file does not supply.
+      #
+      # Precedence matters: -var-file OUTRANKS TF_VAR_*. These bindings are
+      # authoritative on a runner only because no tfvars file is present there.
+      #
+      # Same raw-text rule as ENV_NAME below -- interpolate into an `env:`
+      # VALUE, never into a `run:` body.
+      #
+      # TF_VAR_location comes from a repository VARIABLE; TF_VAR_env and
+      # TF_VAR_acr_name come from workflow INPUTS, so one repository can drive
+      # several environments and registries from one set of settings. The
+      # repository variable is named for the Terraform variable it feeds --
+      # nothing but Terraform ever reads it, and the `az` CLI steps take their
+      # region from the resources themselves.
+      #
+      # THE KEY IS WRITTEN IN EXACTLY THIS CASE, for the reason spelled out
+      # under TF_VAR_rg_suffix above: `vars.TF_VAR_location` resolves however
+      # GitHub stored the name, but Terraform would read TF_VAR_LOCATION as an
+      # undeclared variable `LOCATION` and ignore it without a word.
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_acr_name: ${{ inputs.acr_name }}
+
+      # Contact for the `owner` tag, overriding the `owner` key of
+      # terraform/envs/dev/tags.json for this run only.
+      #
+      # Without this binding CI tagged everything with the committed default
+      # while a local `make apply` tagged it with the operator's exported
+      # TF_VAR_owner, so the same resource carried a different owner depending
+      # on who applied it -- and `owner` is the contact for cost and cleanup
+      # queries, the one tag worth being unambiguous.
+      #
+      # No `|| default` needed and no fail-fast entry: an undefined repository
+      # variable resolves to the empty string, and locals.tf coalesces on the
+      # first non-null, NON-EMPTY value, so an unset variable falls through to
+      # tags.json exactly as it did before. That is the one place in this
+      # workflow where an empty TF_VAR_ is harmless rather than dangerous.
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      # Where module 06 READS modules 01 and 04 state from -- the `config`
+      # block of its `data "terraform_remote_state"` blocks. A backend block
+      # cannot take variables, so Terraform needs these told to it twice: once
+      # through -backend-config for module 06's own state (Makefile:75), and
+      # once as ordinary variables for the upstream reads. One set of
+      # repository variables drives both.
+      #
+      # NO `|| default` fallback, unlike TF_VAR_rg_suffix. An undefined
+      # repository variable resolves to the empty string, and an EMPTY TF_VAR_
+      # still counts as a value -- it would override the module default with ""
+      # and aim the state read at a nameless account. On a DESTROY workflow
+      # that is the worst possible failure mode: an empty state reads as
+      # "nothing exists", and the guards that compare plan scope against state
+      # lose their footing. The fail-fast step below rejects it outright.
+      TF_VAR_backend_resource_group_name: ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
 
       TF_IN_AUTOMATION: "true"
 
@@ -233,18 +286,19 @@ jobs:
       # `env:` VALUE like this is safe: the shell only ever sees a variable.
       # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
       ENV_NAME: ${{ inputs.environment_name }}
+      REQUESTED_ACR_NAME: ${{ inputs.acr_name }}
 
-      # Only this GitHub user may run a destructive workflow in this repo.
-      # Update on a rename.
+      # Only this GitHub account may run a destructive workflow in this repo.
+      # Update on a rename; add further accounts space-separated.
       # This is the repo's only destructive workflow. The state backend has no
       # destroy workflow, deliberately — its teardown is a manual procedure
-      # (terraform/bootstrap-backend/TF_DESTROY.md).
+      # (terraform/bootstrap-backend/TF_BOOTSTRAP_DESTROY.md).
       #
       # Enforced on BOTH triggers. On workflow_call `github.actor` is the user
       # who triggered the caller's run, so a called destroy only proceeds when
-      # that person is this user — a push by anyone else, or a bot/scheduled
-      # trigger upstream, is denied.
-      ALLOWED_ACTOR: "rubensgomes"
+      # that person is one of these accounts — a push by anyone else, or a
+      # bot/scheduled trigger upstream, is denied.
+      ALLOWED_ACTORS: "rubensgomes"
 
     steps:
       # -----------------------------------------------------------------------
@@ -260,11 +314,6 @@ jobs:
       # reaches Azure at all. Identical on both triggers: a workflow_call
       # caller passes `acr_name` and `confirm` as inputs and is checked by the
       # same two comparisons a human typing into the Actions form is.
-      #
-      # The expected registry name is read from terraform.tfvars rather than
-      # hardcoded here: terraform.tfvars is what the destroy will actually act
-      # on, so comparing against anything else would let this guard pass while
-      # a different registry gets torn down.
       #
       # Security: only variable NAMES and the (non-secret) registry name are
       # printed.
@@ -288,33 +337,29 @@ jobs:
           set -euo pipefail
 
           actor="${ACTOR}"
-          if [ "${actor}" != "${ALLOWED_ACTOR}" ]; then
-            echo "Denied: only '${ALLOWED_ACTOR}' may run this workflow. Actor: '${actor}'."
+          allowed=false
+          for allowed_actor in ${ALLOWED_ACTORS}; do
+            if [ "${actor}" = "${allowed_actor}" ]; then
+              allowed=true
+              break
+            fi
+          done
+          if [ "${allowed}" != "true" ]; then
+            echo "Denied: this is a personal workflow currently being used by 'Rubens Gomes' only. Actor: '${actor}'."
             exit 1
           fi
 
-          tfvars="${ENV_DIR}/06-acr/terraform.tfvars"
-          if [ ! -f "${tfvars}" ]; then
-            echo "Denied: ${tfvars} not found."
-            echo "Is environment_name='${ENV_NAME}' correct?"
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "Denied: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TYPED_ACR}" | grep -qE '^[A-Za-z0-9]{5,50}$'; then
+            echo "Denied: acr_name must be 5-50 alphanumeric characters."
             exit 1
           fi
 
-          # acr_name = "rubensdevacr"  ->  rubensdevacr
-          expected_acr="$(sed -nE 's/^[[:space:]]*acr_name[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "${tfvars}" | head -n1)"
-          if [ -z "${expected_acr}" ]; then
-            echo "Denied: could not read acr_name from ${tfvars}."
-            exit 1
-          fi
-
-          typed_acr="${TYPED_ACR}"
-          if [ "${typed_acr}" != "${expected_acr}" ]; then
-            echo "Denied: acr_name mismatch."
-            echo "Expected (from ${tfvars}): '${expected_acr}'"
-            echo "Got:                       '${typed_acr}'"
-            exit 1
-          fi
-
+          expected_acr="${TYPED_ACR}"
           # No STACK in the phrase: this run deletes module 06 and nothing
           # else. It read "DESTROY ACR STACK <name>" while the scope also
           # covered modules 04 and 01; a caller still passing that phrase is
@@ -340,50 +385,135 @@ jobs:
           echo "Scope: module 06 (acr) only. Modules 04 and 01 are not touched."
 
       # -----------------------------------------------------------------------
-      # Step 3: Verify required secrets are present (fail fast)
+      # Step 3: Validate the caller-supplied Terraform inputs (fail fast)
       #
-      # If an Environment secret is missing or the Environment is misnamed, the
-      # ARM_* values above resolve to EMPTY STRINGS and Terraform dies deep
-      # inside init with an opaque auth error. Fail here, naming the cause.
+      # These values are bound into TF_VAR_env, TF_VAR_location and
+      # TF_VAR_acr_name in the job `env:` block and reach Terraform directly.
+      # Nothing writes them to a file first any more, so this is the only place
+      # their SHAPE is checked. TF_VAR_location in particular is a repository
+      # variable, edited in the GitHub UI with no review and no diff.
+      #
+      # The typed-confirmation guard above has already matched acr_name against
+      # the phrase the operator typed, so this is a shape check, not the
+      # authorization check.
+      #
+      # Every value is read as a SHELL variable -- never `${{ }}` inside a
+      # run: body, which would substitute as raw text before the shell parses.
       # -----------------------------------------------------------------------
-      - name: Verify required secrets are present (no output)
+      - name: GUARD - Validate Terraform inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "FAIL: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_location}" | grep -qE '^[a-z][a-z0-9]*$'; then
+            echo "FAIL: TF_VAR_location must be a lowercase Azure region identifier"
+            echo "such as 'centralus'."
+            exit 1
+          fi
+          if ! printf '%s' "${REQUESTED_ACR_NAME}" | grep -qE '^[A-Za-z0-9]{5,50}$'; then
+            echo "FAIL: acr_name must be 5-50 alphanumeric characters."
+            exit 1
+          fi
+
+          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}' acr='${REQUESTED_ACR_NAME}'."
+
+      # -----------------------------------------------------------------------
+      # Step 4: Verify required Azure configuration is present (fail fast)
+      #
+      # If a repository variable or the client secret is missing, the ARM_*
+      # values above resolve to EMPTY STRINGS and Terraform dies deep inside
+      # init with an opaque auth error. Fail here, naming the cause.
+      # -----------------------------------------------------------------------
+      - name: Verify required Azure configuration is present
         shell: bash
         run: |
           set -euo pipefail
           missing=0
-          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID; do
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID \
+                   TF_VAR_env TF_VAR_location TF_VAR_acr_name \
+                   TF_VAR_backend_resource_group_name TF_VAR_storage_account_id \
+                   TF_VAR_container_name; do
             if [ -z "${!v:-}" ]; then
               echo "Missing required secret/env var: ${v}"
               missing=1
             fi
           done
           if [ "$missing" -ne 0 ]; then
-            echo "Check the GitHub Environment named 'AZURE' and its secrets."
-            echo "If this run was invoked via workflow_call, the Environment is"
-            echo "resolved in the CALLING repository — define it there, or pass"
-            echo "the four secrets explicitly in the caller's \`secrets:\` block."
+            echo "Check the calling repository's Actions configuration:"
+            echo "  Variables: AZURE_CLIENT_ID, AZURE_TENANT_ID,"
+            echo "             AZURE_SUBSCRIPTION_ID, TF_VAR_location,"
+            echo "             TF_VAR_backend_resource_group_name, TF_VAR_rg_suffix,"
+            echo "             TF_VAR_storage_account_id, TF_VAR_container_name"
+            echo "  Secret:    AZURE_CLIENT_SECRET"
+            echo "For workflow_call, variables resolve in the caller's repository;"
+            echo "pass the secret explicitly or define it in its AZURE Environment."
           fi
           exit $missing
 
+      - name: Validate resource naming variables
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -n "${TF_VAR_rg_suffix:-}" ] \
+             && ! printf '%s' "${TF_VAR_rg_suffix}" | grep -qE '^[a-z][a-z0-9]{0,9}$'; then
+            echo "FAIL: TF_VAR_rg_suffix must be EMPTY (= no suffix, the normal"
+            echo "case), or 1-10 lowercase alphanumeric characters starting with"
+            echo "a letter."
+            exit 1
+          fi
+          if [ "${TF_VAR_backend_resource_group_name: -1}" = "." ]; then
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with a period."
+            exit 1
+          fi
+          if [ "${#TF_VAR_backend_resource_group_name}" -gt 90 ]; then
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot exceed 90 characters."
+            exit 1
+          fi
+
+          # Backend coordinates. These name the storage account the state blobs
+          # live in and the container that reads every upstream module's
+          # outputs, so a typo here is not a cosmetic naming error -- it points
+          # Terraform at a DIFFERENT (or nonexistent) state, where it sees an
+          # empty world and proposes to create the estate a second time. The
+          # regexes are Azure's own rules for the two resource types, and match
+          # the `validation` blocks on the like-named Terraform variables.
+          if ! printf '%s' "${TF_VAR_storage_account_id}" | grep -qE '^[a-z0-9]{3,24}$'; then
+            echo "FAIL: TF_VAR_storage_account_id must be 3-24 lowercase"
+            echo "alphanumeric characters (an Azure storage account name)."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_container_name}" | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
+            echo "FAIL: TF_VAR_container_name must be 3-63 lowercase"
+            echo "alphanumeric/hyphen characters starting with alphanumeric."
+            exit 1
+          fi
+          echo "Backend: ${TF_VAR_backend_resource_group_name}/${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
+
       # -----------------------------------------------------------------------
-      # Step 4: Azure login — for the `az` CLI only
+      # Step 5: Azure login — for the `az` CLI only
       #
       # Terraform does NOT need this; it reads ARM_* from the environment. The
-      # az CLI is used for the inventory (step 5) and the verification
-      # (step 8).
+      # az CLI is used for the inventory (step 6) and the verification
+      # (step 9).
       # -----------------------------------------------------------------------
       - name: Azure Login (Service Principal Secret)
         uses: azure/login@v3
         with:
           auth-type: SERVICE_PRINCIPAL
           creds: >-
-            {"clientId":"${{ secrets.AZURE_CLIENT_ID }}",
+            {"clientId":"${{ vars.AZURE_CLIENT_ID }}",
              "clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}",
-             "tenantId":"${{ secrets.AZURE_TENANT_ID }}",
-             "subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}"}
+             "tenantId":"${{ vars.AZURE_TENANT_ID }}",
+             "subscriptionId":"${{ vars.AZURE_SUBSCRIPTION_ID }}"}
 
       # -----------------------------------------------------------------------
-      # Step 5: Record what is about to be destroyed
+      # Step 6: Record what is about to be destroyed
       #
       # Writes the repository/tag inventory into the run log BEFORE deletion, so
       # the job output is the only surviving record of what the registry held.
@@ -417,7 +547,7 @@ jobs:
           done
 
       # -----------------------------------------------------------------------
-      # Step 6: Terraform, plus the plan-scope guard
+      # Step 7: Terraform, plus the plan-scope guard
       #
       # The destroy below is preceded by `make plan-destroy-acr` and then by
       # this script, which reads the resulting plan as JSON and fails if it
@@ -442,6 +572,24 @@ jobs:
         with:
           terraform_version: "1.15.8"
           terraform_wrapper: false
+
+      - name: GUARD - Assert requested registry matches Terraform state
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          make ENV="$ENV_NAME" init-acr
+          outputs="$(cd "${ENV_DIR}/06-acr" && terraform output -json)"
+          state_acr="$(jq -r '.acr_name.value // empty' <<< "${outputs}")"
+          if [ -z "${state_acr}" ]; then
+            echo "Module 06 state has no acr_name output; treating this as an already-destroyed run."
+          elif [ "${state_acr}" != "${REQUESTED_ACR_NAME}" ]; then
+            echo "DENIED: module 06 state contains registry '${state_acr}',"
+            echo "but this run requested '${REQUESTED_ACR_NAME}'."
+            exit 1
+          else
+            echo "OK: requested registry matches Terraform state (${state_acr})."
+          fi
 
       - name: Install the plan-scope guard
         shell: bash
@@ -505,7 +653,7 @@ jobs:
           chmod +x "${RUNNER_TEMP}/assert-plan-scope.sh"
 
       # -----------------------------------------------------------------------
-      # Step 7: Module 06 — the container registry
+      # Step 8: Module 06 — the container registry
       #
       # The only module this workflow destroys. Its state holds the registry
       # and the AcrPull role assignment scoped to it; the identity that
@@ -541,24 +689,24 @@ jobs:
           make ENV="$ENV_NAME" destroy-acr
 
       # -----------------------------------------------------------------------
-      # Step 8: Verify the outcome — the registry is gone, everything else is not
+      # Step 9: Verify the outcome — the registry is gone, everything else is not
       #
       # Asserts all three halves of this workflow's contract:
       #   1. the registry no longer exists
       #   2. the shared UAMI and the resource groups DO still exist — this
       #      workflow is not allowed to have removed them
-      #   3. the Terraform state backend (rg-tfstate) still does
+      #   3. the configured Terraform state backend resource group still does
       #
       # (2) is the assertion that encodes the narrowed scope. Nothing here
       # plans module 04 or 01, so it should be impossible to fail — which is
       # exactly why it is worth asserting: if it ever does fail, the scope
       # leaked. It tolerates their absence only when they were already gone
-      # before the run, which step 5's own inventory cannot tell us, so the
+      # before the run, which step 6's own inventory cannot tell us, so the
       # check is reported as a WARNING rather than a failure in that case.
       #
       # (3) matters for the same reason it always did: a scoping mistake that
-      # reached rg-tfstate would destroy the state of every module in the
-      # estate and leave nothing able to `terraform init` again.
+      # reached the configured backend resource group would destroy the state
+      # of every module in the estate and leave nothing able to init again.
       # -----------------------------------------------------------------------
       - name: Verify the registry is destroyed and nothing else was touched
         shell: bash
@@ -578,31 +726,42 @@ jobs:
           # legitimately never have been applied, or have been torn down
           # earlier by `make destroy` — but it is called out loudly, because
           # the only other way to reach that state is a scope leak here.
-          identity="$(az identity list --query "[?name=='id-${ENV_NAME}-app'].name" -o tsv 2>/dev/null || true)"
+          platform_rg="rg-${ENV_NAME}-platform${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}"
+          identity="$(az identity show \
+            --resource-group "${platform_rg}" \
+            --name "id-${ENV_NAME}-app" \
+            --query name -o tsv 2>/dev/null || true)"
           if [ -n "${identity}" ]; then
-            echo "OK: managed identity 'id-${ENV_NAME}-app' still present (module 04 untouched)."
+            echo "OK: managed identity 'id-${ENV_NAME}-app' still present in '${platform_rg}' (module 04 untouched)."
           else
-            echo "WARNING: managed identity 'id-${ENV_NAME}-app' does not exist."
+            echo "WARNING: managed identity 'id-${ENV_NAME}-app' does not exist in '${platform_rg}'."
             echo "         This workflow does not destroy module 04. If it was there"
             echo "         before this run, the destroy scope leaked — investigate."
           fi
 
-          remaining="$(az group list --query "[?starts_with(name, 'rg-${ENV_NAME}-')].name" -o tsv)"
+          # With an empty suffix every RG is `rg-<env>-<purpose>`, so the
+          # ends_with() filter is only applied when a suffix is actually set.
+          if [ -n "${TF_VAR_rg_suffix:-}" ]; then
+            rg_query="[?starts_with(name, 'rg-${ENV_NAME}-') && ends_with(name, '-${TF_VAR_rg_suffix}')].name"
+          else
+            rg_query="[?starts_with(name, 'rg-${ENV_NAME}-')].name"
+          fi
+          remaining="$(az group list --query "${rg_query}" -o tsv)"
           if [ -n "${remaining}" ]; then
-            echo "OK: rg-${ENV_NAME}-* resource groups still present (module 01 untouched):"
+            echo "OK: rg-${ENV_NAME}-*${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix} resource groups still present (module 01 untouched):"
             echo "${remaining}" | sed 's/^/  /'
           else
-            echo "WARNING: no rg-${ENV_NAME}-* resource groups exist."
+            echo "WARNING: no rg-${ENV_NAME}-*${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix} resource groups exist."
             echo "         This workflow does not destroy module 01. If they were there"
             echo "         before this run, the destroy scope leaked — investigate."
           fi
 
           # The state backend must be untouched. It is not this workflow's to
-          # delete — see terraform/bootstrap-backend/TF_DESTROY.md.
-          if az group show -n rg-tfstate -o none 2>/dev/null; then
-            echo "OK: state backend resource group 'rg-tfstate' preserved."
+          # delete — see terraform/bootstrap-backend/TF_BOOTSTRAP_DESTROY.md.
+          if az group show -n "${TF_VAR_backend_resource_group_name}" -o none 2>/dev/null; then
+            echo "OK: state backend resource group '${TF_VAR_backend_resource_group_name}' preserved."
           else
-            echo "FAIL: 'rg-tfstate' is missing — the Terraform state backend is gone."
+            echo "FAIL: '${TF_VAR_backend_resource_group_name}' is missing — the Terraform state backend is gone."
             rc=1
           fi
 

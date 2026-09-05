@@ -17,8 +17,8 @@
 # LAW directly on the environment (container stdout/stderr streams
 # automatically); 11's apps stream through 10.
 #
-# See docs/PROVISIONING_PLAN.md §4 row 12 and §12 for the observability
-# posture.
+# See docs/MODULES_DEPENDENCY.md for the dependency map, and the module
+# README for the observability posture.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -28,9 +28,9 @@ data "terraform_remote_state" "resource_groups" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "resource-groups/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -43,9 +43,9 @@ data "terraform_remote_state" "log_analytics" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "log-analytics/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -58,9 +58,9 @@ data "terraform_remote_state" "key_vault" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "key-vault/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -73,9 +73,9 @@ data "terraform_remote_state" "acr" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "acr/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -88,9 +88,9 @@ data "terraform_remote_state" "storage" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "storage/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -103,9 +103,9 @@ data "terraform_remote_state" "service_bus" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "service-bus/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -118,9 +118,9 @@ data "terraform_remote_state" "postgresql" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "postgresql/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -151,5 +151,5 @@ module "monitoring" {
   service_bus_namespace_id = data.terraform_remote_state.service_bus.outputs.sb_namespace_id
   postgresql_server_id     = data.terraform_remote_state.postgresql.outputs.pg_server_id
 
-  tags = merge(var.tags, { release = local.release })
+  tags = local.tags
 }

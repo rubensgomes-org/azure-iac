@@ -22,24 +22,40 @@ variable "location" {
 }
 
 variable "tags" {
-  description = "Common tag map. Applied to every RG. Sourced from ../env.tfvars."
+  description = "Common tag map. Applied to every RG. Per-run override; committed defaults live in ../tags.json."
   type        = map(string)
   default     = {}
 }
 
+# Contact stamped into the `owner` tag. Declared here — not just read from
+# `../tags.json` — because Terraform silently drops `TF_VAR_*` for variables a
+# module does not declare, so without this declaration `TF_VAR_owner` would be
+# ignored outside bootstrap-backend. `null` rather than a literal default so an
+# unset environment falls through to the committed value in `../tags.json`
+# instead of shadowing it; see locals.tf for the merge.
+variable "owner" {
+  description = "Contact for the `owner` tag. Overrides ../tags.json when set."
+  type        = string
+  default     = null
+}
+
 # ---- Consumed by this module, sourced from the ENVIRONMENT -----------------
 
-# Deliberately NOT in ../env.tfvars, and deliberately without a value anywhere
-# on disk. It is supplied — when it is supplied at all — as an environment
-# variable:
+# Defaults to EMPTY (-> rg-dev-platform, rg-dev-network, ...), which is this
+# estate's normal mode. Deliberately NOT in ../env.tfvars and deliberately
+# without a value anywhere on disk, so the default here is what applies unless
+# the environment overrides it:
 #
 #   export TF_VAR_rg_suffix=blue
 #   make apply-resource-groups        # -> rg-dev-platform-blue, ...
 #
-# Keeping it out of the tfvars files is what makes that work: `-var-file`
-# OUTRANKS `TF_VAR_*` in Terraform's precedence order, so the moment
-# `rg_suffix` appears in env.tfvars the environment variable is silently
+# Keeping it out of the tfvars files is what makes that override work:
+# `-var-file` OUTRANKS `TF_VAR_*` in Terraform's precedence order, so the
+# moment `rg_suffix` appears in env.tfvars the environment variable is silently
 # ignored. Pick one mechanism; this repo picks the environment.
+#
+# The default matches modules/resource-groups/variables.tf because this root
+# passes the value through unconditionally (main.tf), so the two must agree.
 #
 # The other eleven module roots do not declare this and do not need to — they
 # read RG names out of module 01's remote state, so the suffix reaches them
@@ -50,7 +66,7 @@ variable "tags" {
 # See modules/resource-groups/variables.tf for the ForceNew warning: this is
 # safe to set at first provision or after a full teardown, NOT on a live estate.
 variable "rg_suffix" {
-  description = "Optional suffix appended to every RG name. Set via TF_VAR_rg_suffix, not tfvars."
+  description = "Optional suffix appended to every RG name. Empty by default; override via TF_VAR_rg_suffix, not tfvars."
   type        = string
   default     = ""
 }

@@ -48,6 +48,19 @@ provider "azurerm" {
 data "azurerm_client_config" "current" {}
 
 # -----------------------------------------------------------------------------
+# Locals
+# -----------------------------------------------------------------------------
+# Single tag map applied to every taggable resource below. `var.owner` is
+# merged over `var.tags` so the per-operator contact can be overridden on its
+# own (`TF_VAR_owner`) without restating the whole map — and so it wins if a
+# caller happens to pass an `owner` key inside `var.tags` as well.
+locals {
+  tags = merge(var.tags, {
+    owner = var.owner
+  })
+}
+
+# -----------------------------------------------------------------------------
 # Resource Group
 # -----------------------------------------------------------------------------
 # Holds every resource created by this module. Name and location come from
@@ -57,7 +70,7 @@ data "azurerm_client_config" "current" {}
 resource "azurerm_resource_group" "tfstate" {
   name     = var.backend_resource_group_name
   location = var.location
-  tags     = var.tags
+  tags     = local.tags
 }
 
 # -----------------------------------------------------------------------------
@@ -125,7 +138,7 @@ resource "azurerm_storage_account" "tfstate" {
     }
   }
 
-  tags = var.tags
+  tags = local.tags
 }
 
 # -----------------------------------------------------------------------------

@@ -10,7 +10,6 @@
 # fixed `ca-<env>-<app>` derived from `var.apps`, and Container Apps have no
 # soft-delete window on the name.
 #
-# See docs/PROVISIONING_PLAN.md §5 for the standard scaffolding.
 # -----------------------------------------------------------------------------
 
 terraform {

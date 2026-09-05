@@ -68,14 +68,13 @@ this module has no `backend` block.
   just read. Scope is the SA — every container inherits. Tighten to
   per-container scope later if isolation matters.
 - **RBAC scope = storage account, not container.** Dev-friendly: one
-  assignment covers every current and future container. Trade-off flagged
-  in `docs/PROVISIONING_PLAN.md` §12 (shared blast radius across apps).
+  assignment covers every current and future container. The trade-off is a
+  blast radius shared across every app.
 
-## Skipped dependencies (vs. the plan)
+## Not dependencies
 
-`docs/PROVISIONING_PLAN.md` §4 lists modules 02 (network) and 05
-(Key Vault) as storage dependencies. Neither has a structural dep in the
-current design:
+Modules 02 (network) and 05 (Key Vault) read like storage dependencies,
+but neither has a structural dep in the current design:
 
 - **02 network:** No private endpoint in this iteration. If we add a PE,
   wire remote state to module 02 for `subnet_pe_id` and `dns_zone_blob_id`.

@@ -3,8 +3,8 @@
 # Calls the resource-groups child module. This root has no other resources —
 # every downstream module reads its outputs via `data.terraform_remote_state`.
 #
-# See docs/PROVISIONING_PLAN.md §3 for the 5 RGs and their lifecycle
-# rationale, and §4 for which downstream modules consume which outputs.
+# See the module README for the 5 RGs and their lifecycle rationale, and
+# docs/MODULES_DEPENDENCY.md for which modules consume which outputs.
 # -----------------------------------------------------------------------------
 
 module "resource_groups" {
@@ -13,5 +13,5 @@ module "resource_groups" {
   env       = var.env
   location  = var.location
   rg_suffix = var.rg_suffix
-  tags      = merge(var.tags, { release = local.release })
+  tags      = local.tags
 }

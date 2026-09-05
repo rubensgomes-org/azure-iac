@@ -11,7 +11,13 @@
 #   push of a tag matching v*.*.* — normally produced by:
 #       make release-minor      (bump, roll changelog, commit, tag; LOCAL)
 #       make release-push       (pushes main + the tag; fires this workflow)
-#   See RELEASING.md.
+#
+#   Also workflow_dispatch, which exists for ONE reason: an Actions input has
+#   to hang off a dispatch trigger, and `run_sonar` is that input. A tag push
+#   cannot supply one, so on the normal path `inputs` is empty and the Sonar
+#   steps skip. Dispatching from a branch fails step 2 straight away (the ref
+#   name is not v$(cat VERSION)); dispatch from the TAG ref when you want to
+#   re-run a release with the gate on.
 #
 # Authentication:
 #   This workflow deliberately holds no Azure credentials and is not bound to
@@ -21,10 +27,11 @@
 #   deliberate `make apply` from a workstation.
 #
 #   The one secret it does hold is SONAR_TOKEN (step-scoped, organization
-#   Actions secret on rubensgomes-org). That is a SonarCloud analysis token:
-#   it reaches sonarcloud.io and nothing else, and cannot touch the Azure
-#   subscription. The no-Azure-credentials rule is unchanged — keep it that
-#   way.
+#   Actions secret on rubensgomes-org), read only by the two opt-in Sonar
+#   steps and so not read at all on a bare tag push. It is a SonarCloud
+#   analysis token: it reaches sonarcloud.io and nothing else, and cannot
+#   touch the Azure subscription. The no-Azure-credentials rule is unchanged
+#   — keep it that way.
 #
 # Notes:
 #   - terraform_version must satisfy the `required_version = "~> 1.15"`
@@ -34,19 +41,23 @@
 #     the CLI rather than a third-party action. GH_TOKEN comes from the
 #     built-in github.token, which the `contents: write` permission below
 #     upgrades enough to create a release.
-#   - The Sonar quality gate (step 7) is configured entirely by
-#     sonar-project.properties at the repo root, including the
+#   - The Sonar quality gate (steps 6 and 7) is OPT-IN and OFF by default.
+#     Both steps carry `if: ${{ inputs.run_sonar }}`, and a tag push supplies
+#     no inputs at all, so the ordinary release path skips them and publishes
+#     without a Sonar analysis. Nothing else in this workflow is conditional.
+#   - When it IS asked for, the gate still blocks. Every scanner setting lives
+#     in sonar-project.properties at the repo root, including the
 #     `sonar.qualitygate.wait=true` that makes it blocking and the
 #     `sonar.branch.name=main` that stops a tag push being analysed as a
 #     short-lived branch. This workflow passes the scanner no arguments of its
-#     own. Never add `continue-on-error` to that step: a release that publishes
-#     over a red gate defeats the point of having one.
-#   - main-verify.yml runs the same three checks, but only on
-#     workflow_dispatch, and its sonar job is off unless run_sonar=true.
-#     Unless someone dispatched it that way, THIS workflow is the first and
-#     only Sonar analysis of the release commit -- not a formality. Run
+#     own. Never add `continue-on-error` to that step: having asked for the
+#     gate, publishing over a red one defeats the point of having it.
+#   - Because the gate is opt-in on BOTH sides now -- here and in
+#     main-verify.yml, whose sonar job is likewise off unless run_sonar=true
+#     -- a release commit can reach a published Release having never been
+#     scanned. If you want the analysis, run
 #     `gh workflow run main-verify.yml --ref main -f run_sonar=true` before
-#     tagging to find out early.
+#     tagging, which is the cheaper place to find out.
 # =============================================================================
 
 name: Release (tag push)
@@ -55,6 +66,33 @@ on:
   push:
     tags:
       - "v*.*.*"
+
+  # Manual re-run, carrying the one knob this workflow has. See the Trigger
+  # note above for why a dispatch trigger exists here at all.
+  workflow_dispatch:
+    inputs:
+      # -----------------------------------------------------------------------
+      # run_sonar
+      #
+      # Defaults to false, so the SonarCloud scan and its blocking quality gate
+      # are skipped unless someone deliberately ticks the box. A tag push --
+      # the normal trigger -- carries no inputs, which reads as false here and
+      # skips them too.
+      #
+      # Setting it true adds a full SonarCloud analysis, the org-level
+      # SONAR_TOKEN, a network round trip, and a PUBLISHED analysis that
+      # overwrites main's quality gate status; a red gate then stops the
+      # release from being published.
+      #
+      # `type: boolean` renders a checkbox and arrives in the `inputs` context
+      # as a real boolean, so the `if:` on steps 6 and 7 needs no string
+      # comparison.
+      # -----------------------------------------------------------------------
+      run_sonar:
+        description: "Also run the SonarCloud scan (blocking quality gate)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   # contents: write is required to create the GitHub Release. Everything else
@@ -72,17 +110,17 @@ jobs:
     name: Validate and publish
     runs-on: ubuntu-latest
 
-    # No ceiling existed here before the Sonar gate landed. Step 7 blocks
-    # waiting on SonarCloud to finish computing the gate, which is exactly the
-    # kind of step that can hang, so give the job the same kind of ceiling the
-    # other workflows in this directory carry.
+    # No ceiling existed here before the Sonar gate landed. Step 7, when
+    # run_sonar is true, blocks waiting on SonarCloud to finish computing the
+    # gate, which is exactly the kind of step that can hang, so give the job
+    # the same kind of ceiling the other workflows in this directory carry.
     timeout-minutes: 20
 
     env:
       # Tell Terraform it's running in CI (avoids interactive prompts / improves logs)
       TF_IN_AUTOMATION: "true"
 
-      # The pushed tag, e.g. "v0.2.0". github.ref_name is the short ref.
+      # The pushed tag, e.g. "vX.Y.Z". github.ref_name is the short ref.
       RELEASE_TAG: ${{ github.ref_name }}
 
     steps:
@@ -172,6 +210,9 @@ jobs:
       # -----------------------------------------------------------------------
       # Step 6: Verify the SonarCloud token is present (no output)
       #
+      # Opt-in, with the same `if:` as step 7 -- there is no point demanding a
+      # token for a scan that is not going to run.
+      #
       # Why:
       #   Without SONAR_TOKEN the scanner still downloads a JRE and the scanner
       #   binaries before dying on an opaque 401. Fail here instead, naming the
@@ -182,6 +223,9 @@ jobs:
       #   Only the NAME of the missing variable is printed. Never the value.
       # -----------------------------------------------------------------------
       - name: Verify required secrets are present (no output)
+        # A step-level `if:` is not a `run:` body, so the ${{ }} rule that
+        # governs this repo does not apply: nothing is pasted into a shell.
+        if: ${{ inputs.run_sonar }}
         shell: bash
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -204,10 +248,15 @@ jobs:
       # Step 7: SonarCloud static analysis + quality gate
       #
       # Why:
-      #   The tag is the last honest checkpoint before a release exists. A red
-      #   quality gate must stop the GitHub Release from ever appearing, so
-      #   this runs ahead of steps 8 and 9. There are no `if:` conditions
-      #   anywhere in this workflow, so a failure here stops the job outright.
+      #   The tag is the last honest checkpoint before a release exists, so
+      #   when this is asked for it runs ahead of steps 8 and 9: a red quality
+      #   gate stops the GitHub Release from ever appearing. Nothing else here
+      #   is conditional, so a failure stops the job outright.
+      #
+      # Opt-in:
+      #   Runs only on a workflow_dispatch with run_sonar=true. A tag push
+      #   supplies no inputs, so the release publishes without a scan. That is
+      #   deliberate -- and it means a skipped scan is NOT a green gate.
       #
       # Notes:
       #   - Every scanner setting lives in sonar-project.properties at the repo
@@ -218,13 +267,16 @@ jobs:
       #   - SONAR_HOST_URL is deliberately unset. It exists for self-hosted
       #     SonarQube Server; this is SonarQube Cloud and sonar.host.url is
       #     already in the properties file.
-      #   - Do NOT guard this with `if: env.SONAR_TOKEN != ''`. That silently
-      #     skips the gate exactly when the secret is misconfigured, which is
-      #     the opposite of what a gate is for. Step 6 is the guard.
+      #   - The only guard on this step is `inputs.run_sonar`. Do NOT add
+      #     `if: env.SONAR_TOKEN != ''` on top of it: that skips the gate
+      #     exactly when the secret is misconfigured -- silently, and having
+      #     been asked for the gate -- which is the opposite of what a gate is
+      #     for. Step 6 is the guard for a missing token.
       #   - Step 1 checks out with fetch-depth: 0, which the scanner needs for
       #     new-code blame attribution. Do not reduce it.
       # -----------------------------------------------------------------------
       - name: SonarCloud scan (quality gate blocks the release)
+        if: ${{ inputs.run_sonar }}
         uses: SonarSource/sonarqube-scan-action@v8
         # No `args:`. sonar.branch.name=main is pinned in
         # sonar-project.properties, which is load-bearing here: without it the

@@ -7,7 +7,7 @@
 #     app values (DB name, blob container) resolved from the maps modules 09
 #     and 07 already produce.
 #
-# This is the module where §12 of docs/PROVISIONING_PLAN.md finally comes
+# This is the module where the passwordless model finally comes
 # together: every downstream service the apps consume was RBAC'd to the shared
 # UAMI in its own module (05..09), and here we attach that identity and inject
 # the env vars app code needs to reach each service via
@@ -37,7 +37,7 @@
 #   known hostname or the UAMI's client_id. None are secrets — the UAMI
 #   itself is the auth material, held by the platform.
 #
-# See docs/PROVISIONING_PLAN.md §12 for the passwordless auth model and
+# See the module README for the passwordless auth model and the
 # per-service env-var contract.
 # -----------------------------------------------------------------------------
 

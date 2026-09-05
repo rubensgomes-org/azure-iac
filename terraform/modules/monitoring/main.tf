@@ -42,8 +42,7 @@
 #   workspace level (module 03) if the whole estate needs to change; per-
 #   AI overrides would drift the two apart.
 #
-# See docs/PROVISIONING_PLAN.md §4 row 12 and §9 (dev safety toggles) for
-# the observability posture.
+# See the module README for the observability posture.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------

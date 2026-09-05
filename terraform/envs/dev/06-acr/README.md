@@ -1,9 +1,9 @@
 # 06-acr (envs/dev)
 
-Root Terraform config that provisions the shared Azure Container Registry for
-the `dev` environment plus the single RBAC role assignment (`AcrPull`)
-granted to the shared UAMI. State lives in `tfstate/acr/terraform.tfstate`
-on the bootstrap storage account.
+Root Terraform config that provisions the shared Azure Container Registry
+for the `dev` environment plus the single RBAC role assignment (`AcrPull`)
+granted to the shared UAMI. State lives at key `acr/terraform.tfstate` in
+the backend blob container.
 
 Wraps [`../../../modules/acr/`](../../../modules/acr/README.md).
 
@@ -15,8 +15,13 @@ Wraps [`../../../modules/acr/`](../../../modules/acr/README.md).
   `uami_app_principal_id` from its remote state.
 - `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`
   exported in the current shell.
-- `../env.tfvars` populated with `env`, `location`, `tags`.
+- `../env.tfvars` populated with `env` and `location`.
 - `./terraform.tfvars` populated with `acr_name` (dev: `rubensdevacr`).
+  Required; this root has no default for it.
+- Both `.tfvars` files are gitignored and are NOT in a fresh clone. Create them
+  once — see [`INITIAL_SETUP.md`](../../../INITIAL_SETUP.md) § Terraform
+  Variable Files. Tags are not among their values: they come from the committed
+  [`../tags.json`](../tags.json), with `TF_VAR_owner` overriding `owner`.
 
 ## Provision
 
@@ -28,8 +33,6 @@ terraform init \
   -backend-config="key=acr/terraform.tfstate"
 
 terraform plan \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars \
   -out=tfplan
 
 terraform apply tfplan
@@ -39,7 +42,7 @@ terraform apply tfplan
 
 ```bash
 # Registry exists with the expected posture
-az acr list -g rg-dev-platform -o table
+az acr list -g "rg-dev-platform${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}" -o table
 ACR_NAME=$(terraform output -raw acr_name)
 az acr show -n "$ACR_NAME" \
   --query "{name:name, sku:sku.name, adminEnabled:adminUserEnabled, publicNet:publicNetworkAccess, loginServer:loginServer}" \
@@ -68,14 +71,12 @@ terraform output acr_login_server
 ```bash
 cd terraform/envs/dev/06-acr
 
-terraform destroy \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars
+terraform destroy
 ```
 
 No post-destroy purge needed — Basic-SKU ACR has no soft-delete concept.
-The name is released immediately and the random suffix regenerates on the
-next apply, so name collisions are impossible.
+The name is released immediately, so the same `acr_name` can be applied
+again straight away.
 
 **Order matters.** Container Apps (module 11) pull images from this
 registry using the shared UAMI. Destroy module 11 first — otherwise the
@@ -88,9 +89,6 @@ Same commands as **Provision**, and the registry comes back with the SAME
 name — `acr_name` is a fixed input (`rubensdevacr` in dev), not a generated
 one. Basic SKU has no soft-delete, so the name is released on destroy and
 immediately reusable. Image *contents* are not recoverable; only the name is.
-
-See [`docs/PROVISIONING_PLAN.md`](../../../../docs/PROVISIONING_PLAN.md) §8
-for the reprovision shortcut.
 
 ## Notes
 

@@ -46,17 +46,22 @@ this module has no `backend` block.
   contradicts the passwordless model.
 - **Public network enabled.** Matches the playground posture. Basic can't
   gate access to a PE anyway.
-- **Random suffix in the name.** ACR names are globally unique across
-  every Azure tenant. Random keeps the module collision-safe.
+- **Explicit name, no random suffix.** ACR names are globally unique
+  across every Azure tenant, but the registry name is a memorable literal
+  passed in as `var.acr_name` (`rubensdevacr` in dev) rather than the
+  `acr<env><random>` pattern the rest of the estate uses. A random suffix
+  would change the image references in `apps_image_map` on every
+  destroy+recreate. The trade-off is that a name collision fails the apply
+  with an availability error instead of being routed around — Basic ACR
+  has no soft-delete, so the name is free again the moment you destroy.
 - **AcrPull only, no AcrPush.** Apps pull at runtime; push happens from
   CI or `docker push` with an ad-hoc token. Adding push permission to
   the shared UAMI would let a compromised app overwrite images.
 
-## Skipped dependencies (vs. the plan)
+## Not dependencies
 
-`docs/PROVISIONING_PLAN.md` §4 lists modules 02 (network) and 05
-(Key Vault) as ACR dependencies. Neither has a structural dep in the
-current design:
+Modules 02 (network) and 05 (Key Vault) read like ACR dependencies, but
+neither has a structural dep in the current design:
 
 - **02 network:** Basic SKU can't host a private endpoint, so nothing to
   wire. If we upgrade to Premium and add a PE, wire remote state to

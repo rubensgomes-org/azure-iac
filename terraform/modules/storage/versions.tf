@@ -6,9 +6,6 @@
 # child module. Child modules declare providers they USE via
 # `required_providers`, but they do NOT configure providers — the root config
 # that calls this module is responsible for provider configuration.
-#
-# See docs/PROVISIONING_PLAN.md §5 for the standard scaffolding across every
-# module.
 # -----------------------------------------------------------------------------
 
 terraform {

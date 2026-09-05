@@ -157,6 +157,24 @@ variable "enable_rg_lock" {
 }
 
 # -----------------------------------------------------------------------------
+# owner
+# -----------------------------------------------------------------------------
+# Contact address stamped into the `owner` tag on every resource this module
+# creates. Split out of `var.tags` as its own variable because it is the one
+# tag that changes per operator: a map-typed `TF_VAR_tags` override would have
+# to restate every other key to change just this one, and omitting a key there
+# silently drops the tag. As a plain string it can be overridden per run with
+# `TF_VAR_owner` or `-var owner=...` without touching the rest of the map.
+#
+# `main.tf` merges this over `var.tags`, so this value always wins even if a
+# caller also passes an `owner` key inside the tag map.
+variable "owner" {
+  type        = string
+  description = "Contact for cost and cleanup queries; applied as the `owner` tag."
+  default     = "rubens.s.gomes@gmail.com"
+}
+
+# -----------------------------------------------------------------------------
 # tags
 # -----------------------------------------------------------------------------
 # Free-form key/value tags applied to every resource this module creates
@@ -168,8 +186,8 @@ variable "enable_rg_lock" {
 # hand-edit the resources; `purpose = "tfstate"` marks them as backend
 # infrastructure; `createdBy` is the provenance key queried by tag policy (it
 # duplicates `managedBy` deliberately — see the same note in
-# `terraform/envs/dev/env.tfvars`); `owner` is the contact for cost and cleanup
-# queries.
+# `terraform/envs/dev/env.tfvars`). The `owner` tag is NOT set here — it comes
+# from `var.owner`, which `main.tf` merges over this map.
 #
 # There is deliberately NO `environment` key here, unlike the estate's tag map.
 # The backend is subscription-level shared infrastructure that outlives and
@@ -179,7 +197,8 @@ variable "enable_rg_lock" {
 # Callers can extend or replace this map entirely. Note that setting `tags` in
 # `terraform.tfvars` REPLACES this default wholesale rather than merging with
 # it, which would silently drop whichever keys the caller omitted — edit this
-# default instead.
+# default instead. The `owner` tag is exempt from that trap: it lives in
+# `var.owner` and is merged in separately.
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to backend resources."
@@ -187,6 +206,5 @@ variable "tags" {
     managedBy = "terraform"
     createdBy = "terraform"
     purpose   = "tfstate"
-    owner     = "rubens.s.gomes@gmail.com"
   }
 }

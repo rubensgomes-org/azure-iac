@@ -3,8 +3,8 @@
 Root Terraform config that provisions the shared Storage Account for the
 `dev` environment, one blob container per microservice, and the single RBAC
 role assignment (`Storage Blob Data Contributor`) granted to the shared
-UAMI. State lives in `tfstate/storage/terraform.tfstate` on the bootstrap
-storage account.
+UAMI. State lives at key `storage/terraform.tfstate` in the backend blob
+container.
 
 Wraps [`../../../modules/storage/`](../../../modules/storage/README.md).
 
@@ -16,7 +16,11 @@ Wraps [`../../../modules/storage/`](../../../modules/storage/README.md).
   `uami_app_principal_id` from its remote state.
 - `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`
   exported in the current shell.
-- `../env.tfvars` populated with `env`, `location`, `apps`, `tags`.
+- `../env.tfvars` populated with `env`, `location` and `apps`.
+- Both `.tfvars` files are gitignored and are NOT in a fresh clone. Create them
+  once — see [`INITIAL_SETUP.md`](../../../INITIAL_SETUP.md) § Terraform
+  Variable Files. Tags are not among their values: they come from the committed
+  [`../tags.json`](../tags.json), with `TF_VAR_owner` overriding `owner`.
 
 ## Provision
 
@@ -28,8 +32,6 @@ terraform init \
   -backend-config="key=storage/terraform.tfstate"
 
 terraform plan \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars \
   -out=tfplan
 
 terraform apply tfplan
@@ -39,7 +41,7 @@ terraform apply tfplan
 
 ```bash
 # Account exists with the expected posture
-az storage account list -g rg-dev-data -o table
+az storage account list -g "rg-dev-data${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}" -o table
 SA_NAME=$(terraform output -raw sa_name)
 az storage account show -n "$SA_NAME" \
   --query "{name:name, sku:sku.name, kind:kind, tls:minimumTlsVersion, sharedKey:allowSharedKeyAccess, publicNet:publicNetworkAccess}" \
@@ -84,9 +86,7 @@ terraform output container_names
 ```bash
 cd terraform/envs/dev/07-storage
 
-terraform destroy \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars
+terraform destroy
 ```
 
 No post-destroy purge needed — the SA name is released immediately (no
@@ -102,12 +102,13 @@ shared UAMI. Destroy module 11 first — otherwise running apps will see
 Same commands as **Provision**. The `random_id` suffix is keyed on `env`,
 so reprovisioning the same env lands on a fresh name (`stdevapp<newhex>`).
 
-See [`docs/PROVISIONING_PLAN.md`](../../../../docs/PROVISIONING_PLAN.md) §8
-for the reprovision shortcut.
-
 ## Notes
 
-- No `terraform.tfvars` values needed. Scaffolding consistency only.
+- No `terraform.tfvars` values needed, and no file needed either. Nothing is
+  passed unconditionally any more: `terraform.tfvars` is auto-loaded when
+  present, and every value can come from a `TF_VAR_*` environment variable
+  instead. See
+  [INITIAL_SETUP](../../../INITIAL_SETUP.md#terraform-environment).
 - SKU (`Standard_LRS`), kind (`StorageV2`), and dev safety toggles are
   hard-coded in the child module (`modules/storage/main.tf`). Change there
   if you need to move to ZRS/GRS or enable network isolation.

@@ -1,4 +1,4 @@
-# Root Makefile — dev-estate automation (§10 of docs/PROVISIONING_PLAN.md).
+# Root Makefile — dev-estate automation.
 # -----------------------------------------------------------------------------
 # Wraps the per-module `terraform init/plan/apply/destroy` invocations that
 # every module README documents by hand. Nothing in here is magic — every
@@ -12,12 +12,12 @@
 #     not `05-key-vault`.
 #
 #   * Whole-estate targets iterate the modules in the correct order (01→12
-#     for apply, 12→01 for destroy). Both are §14's shell blocks lifted in
+#     for apply, 12→01 for destroy). Both are shell blocks lifted in
 #     verbatim, so the Makefile stays honest to the plan.
 #
 #   * `destroy` also runs the post-destroy Key Vault purge (dev toggle,
 #     purge_protection = false) and reports any soft-deleted PG server
-#     still holding the name. Same block as §14.
+#     still holding the name. Same block as `destroy`.
 #
 # Design decisions worth calling out:
 #
@@ -31,7 +31,7 @@
 #     requirement — parallelising it would break remote-state reads.
 #
 #   * `apply-<name>` uses `-auto-approve`; whole-estate `apply` does too.
-#     Match the §14 script. For safe review, run `plan-<name>` first.
+#     For safe review, run `plan-<name>` first.
 #
 #   * `terraform init -reconfigure` on every invocation. Cheap (cached
 #     provider plugins), and immune to the "backend key drifted" class of
@@ -44,21 +44,60 @@
 ENV     ?= dev
 ENV_DIR := terraform/envs/$(ENV)
 
-# Optional RG-name suffix, mirroring module 01's `rg_suffix` input. Terraform
-# reads TF_VAR_rg_suffix from the environment; Make imports the environment as
+# Variable-file flag, or nothing when the file is absent.
+#
+# `terraform.tfvars` never needs a flag at all: Terraform auto-loads that exact
+# filename from the module's working directory. `../env.tfvars` sits outside
+# that directory, so it does need one -- but both files are gitignored
+# (.gitignore: *.tfvars) and therefore absent on a CI runner, where the same
+# values arrive as TF_VAR_* environment variables instead. Naming a -var-file
+# that does not exist is a hard error ("Failed to read variables file"), which
+# is exactly what used to break the workflows, so gate the flag on existence.
+#
+# `:=` and $(wildcard) both resolve at parse time against ENV_DIR, which is
+# already fixed by then. A missing file plus a missing TF_VAR_ export still
+# fails, but with Terraform's own "No value for required variable" -- which
+# names the variable, unlike the old error.
+ENV_VARFILE := $(if $(wildcard $(ENV_DIR)/env.tfvars),-var-file=../env.tfvars,)
+
+# Backend coordinate overrides for `terraform init`.
+#
+# ../backend.hcl is committed and is the local default. Terraform merges
+# repeated -backend-config in order and the last one wins, so appending these
+# lets CI (or a second lab subscription) retarget the state account without
+# editing a tracked file. Unset variables expand to nothing and backend.hcl
+# stands alone.
+#
+# These MUST stay in step with the like-named Terraform variables the module
+# roots declare for their `data "terraform_remote_state"` reads -- this pair
+# points at the same storage account from the two places Terraform keeps
+# separate: `init` for our own state, `var.*` for everyone else's.
+BACKEND_OVERRIDES := \
+  $(if $(TF_VAR_backend_resource_group_name),-backend-config="resource_group_name=$(TF_VAR_backend_resource_group_name)") \
+  $(if $(TF_VAR_storage_account_id),-backend-config="storage_account_name=$(TF_VAR_storage_account_id)") \
+  $(if $(TF_VAR_container_name),-backend-config="container_name=$(TF_VAR_container_name)")
+
+# RG-name suffix, mirroring module 01's `rg_suffix` input. Terraform reads
+# TF_VAR_rg_suffix from the environment; Make imports the environment as
 # variables, so the same export reaches both without a second knob. The dash is
-# added here for the same reason the module adds it in `local.suffix` — an
-# unset suffix must leave the historical names byte-for-byte unchanged.
+# added here for the same reason the module adds it in `local.suffix`.
+#
+# Unset or empty expands to NOTHING, matching module 01's `rg_suffix` default
+# of "" and the module's `local.suffix`. The three MUST agree: if this line
+# added a suffix while Terraform named the RG `rg-dev-observability`, the sweep
+# below would query an RG that does not exist, report "(none)" through its
+# `|| true`, and module 01's destroy would then fail on
+# `prevent_deletion_if_contains_resources` naming none of this.
 #
 # This exists solely so the orphan sweep below can name the observability RG.
 # Nothing else in this Makefile constructs an RG name; every terraform target
-# passes -var-file and lets Terraform do it.
+# lets Terraform do it.
 RG_SUFFIX := $(if $(TF_VAR_rg_suffix),-$(TF_VAR_rg_suffix),)
 
 # Release version. The repo-root VERSION file is the single source of truth:
 # the git tag is `v$(VERSION)`, the CHANGELOG heading is `[$(VERSION)]`, and
 # every module root reads the same file to stamp a `release` tag onto every
-# Azure resource. See RELEASING.md.
+# Azure resource.
 #
 # Read with `:=` (once, at parse time) rather than `=`, so a recipe that
 # rewrites VERSION mid-flight still sees the value the target STARTED with.
@@ -85,7 +124,7 @@ DIRS := \
   11-container-apps \
   12-monitoring
 
-# Destroy order is the strict reverse of DIRS (§7 of the plan). Reversing is
+# Destroy order is the strict reverse of DIRS. Reversing is
 # done in Make rather than the shell because `tac` is a GNU coreutils tool and
 # does NOT exist on macOS/BSD — the original `... | tac` silently produced an
 # EMPTY list there, the destroy loop iterated zero times, and `make destroy`
@@ -115,12 +154,13 @@ init-$(2):
 	@echo "=== INIT $(1) ==="
 	@cd $(ENV_DIR)/$(1) && terraform init -reconfigure \
 	  -backend-config=../backend.hcl \
-	  -backend-config="key=$(2)/terraform.tfstate"
+	  -backend-config="key=$(2)/terraform.tfstate" \
+	  $(BACKEND_OVERRIDES)
 
 plan-$(2): init-$(2)
 	@echo "=== PLAN $(1) ==="
 	@cd $(ENV_DIR)/$(1) && terraform plan \
-	  -var-file=../env.tfvars -var-file=terraform.tfvars -out=tfplan
+	  $(ENV_VARFILE) -out=tfplan
 
 # Speculative TEARDOWN plan. Writes the same `tfplan` filename as plan-$(2),
 # so the two overwrite each other — that is deliberate: a stale plan file of
@@ -130,17 +170,17 @@ plan-$(2): init-$(2)
 plan-destroy-$(2): init-$(2)
 	@echo "=== PLAN -destroy $(1) ==="
 	@cd $(ENV_DIR)/$(1) && terraform plan -destroy \
-	  -var-file=../env.tfvars -var-file=terraform.tfvars -out=tfplan
+	  $(ENV_VARFILE) -out=tfplan
 
 apply-$(2): init-$(2)
 	@echo "=== APPLY $(1) ==="
 	@cd $(ENV_DIR)/$(1) && terraform apply -auto-approve \
-	  -var-file=../env.tfvars -var-file=terraform.tfvars
+	  $(ENV_VARFILE)
 
 destroy-$(2): init-$(2)
 	@echo "=== DESTROY $(1) ==="
 	@cd $(ENV_DIR)/$(1) && terraform destroy -auto-approve \
-	  -var-file=../env.tfvars -var-file=terraform.tfvars
+	  $(ENV_VARFILE)
 endef
 
 $(eval $(call MODULE_TARGETS,01-resource-groups,resource-groups))
@@ -159,8 +199,8 @@ $(eval $(call MODULE_TARGETS,12-monitoring,monitoring))
 # -----------------------------------------------------------------------------
 # Whole-estate: apply (01 → 12)
 # -----------------------------------------------------------------------------
-# Verbatim from §14 of docs/PROVISIONING_PLAN.md — kept in a shell for-loop so
-# ordering is strictly serial regardless of `make -jN`.
+# Kept in a shell for-loop so ordering is strictly serial regardless of
+# `make -jN`.
 .PHONY: apply
 apply:
 	@set -e; for d in $(DIRS); do \
@@ -170,8 +210,9 @@ apply:
 	    && terraform init -reconfigure \
 	         -backend-config=../backend.hcl \
 	         -backend-config="key=$$key/terraform.tfstate" \
+	         $(BACKEND_OVERRIDES) \
 	    && terraform apply -auto-approve \
-	         -var-file=../env.tfvars -var-file=terraform.tfvars ); \
+	         $(ENV_VARFILE) ); \
 	done
 
 # -----------------------------------------------------------------------------
@@ -262,8 +303,9 @@ destroy:
 	     && terraform init -reconfigure \
 	          -backend-config=../backend.hcl \
 	          -backend-config="key=$$key/terraform.tfstate" \
+	          $(BACKEND_OVERRIDES) \
 	     && terraform destroy -auto-approve \
-	          -var-file=../env.tfvars -var-file=terraform.tfvars ); \
+	          $(ENV_VARFILE) ); \
 	 done; \
 	 if [ -n "$$KV_NAME" ]; then \
 	   echo "=== CHECK Key Vault $$KV_NAME ==="; \
@@ -283,7 +325,7 @@ destroy:
 # -----------------------------------------------------------------------------
 # Recursive $(MAKE) instead of prereqs so `make -jN reprovision` cannot run
 # both in parallel. Both steps are idempotent modulo the soft-delete windows
-# called out in §9.
+# called out in the module READMEs.
 .PHONY: reprovision
 reprovision:
 	@$(MAKE) destroy
@@ -295,7 +337,7 @@ reprovision:
 # Releases are manual and explicit — you pick the bump level, nothing is
 # inferred from commit messages. `VERSION` is the source of truth; the tag is
 # `v$(VERSION)`; the changelog and the `release` tag on every Azure resource
-# both derive from it. RELEASING.md documents the policy (what counts as MAJOR
+# both derive from it. `make release-check` prints the policy (what counts as MAJOR
 # for infrastructure) and the undo procedure.
 #
 # The bump targets deliberately stop at the local annotated tag. Pushing is a
@@ -352,7 +394,7 @@ _br=$$(git rev-parse --abbrev-ref HEAD); \
 if [ "$$_br" != "main" ]; then \
   echo "ERROR: releases are cut from main, not '$$_br'." >&2; \
   echo "  This repo is trunk-based: all work lands on main directly, and a" >&2; \
-  echo "  release is a bump + tag on main. See RELEASING.md." >&2; \
+  echo "  release is a bump + tag on main. See make release-check." >&2; \
   exit 1; \
 fi; \
 if git fetch --quiet origin main 2>/dev/null; then \
@@ -529,11 +571,57 @@ validate:
 	    && terraform validate ); \
 	done
 
+# -----------------------------------------------------------------------------
+# State backup
+# -----------------------------------------------------------------------------
+# Download every module root's state from the backend into STATE_DIR as JSON,
+# one file per module.
+#
+# There is no local state to back up -- the azurerm backend holds the only
+# copy, and .terraform/terraform.tfstate is a backend POINTER, not state. This
+# target exists for the cases the backend cannot serve: reading state without a
+# working Terraform (grep for a resource ID, diff two points in time), and
+# keeping a copy somewhere other than the subscription that the state describes.
+#
+# It is NOT the primary recovery path. bootstrap-backend enables blob
+# versioning and soft delete on the account, so recovering a clobbered state is
+# a blob version restore, which keeps the serial and lineage intact. A file
+# from here restored with `terraform state push` needs its serial reasoned
+# about by hand.
+#
+# Read-only against Azure: `state pull` takes no lock and changes nothing. Safe
+# to run at any time, including mid-incident.
+#
+# Output is gitignored (.gitignore: misc/state-backup/). State files contain
+# every attribute of every resource, INCLUDING values marked sensitive in
+# outputs -- connection strings, generated passwords, keys. Treat the directory
+# as a secret. Never commit it, never paste it into an issue.
+STATE_DIR ?= misc/state-backup
+
+.PHONY: pull-state
+pull-state:
+	@mkdir -p $(STATE_DIR)
+	@set -e; for d in $(DIRS); do \
+	  key="$${d#[0-9][0-9]-}"; \
+	  echo "=== PULL $$d ==="; \
+	  ( cd $(ENV_DIR)/$$d \
+	    && terraform init -reconfigure \
+	         -backend-config=../backend.hcl \
+	         -backend-config="key=$$key/terraform.tfstate" \
+	         $(BACKEND_OVERRIDES) >/dev/null \
+	    && terraform state pull ) > $(STATE_DIR)/$$key.json; \
+	  if [ ! -s $(STATE_DIR)/$$key.json ]; then \
+	    echo "  (no state yet -- removing empty file)"; \
+	    rm -f $(STATE_DIR)/$$key.json; \
+	  fi; \
+	done
+	@echo "State written to $(STATE_DIR)/ -- contains secrets, do not commit."
+
 # Run the same SonarCloud scan CI runs. LOCAL FALLBACK ONLY -- this is NOT part
-# of the release recipe. See RELEASING.md.
+# of the release recipe.
 #
 # It used to be: release.yml fires on a tag that is ALREADY pushed, and
-# RELEASING.md forbids moving a published tag, so a red gate discovered in CI
+# A published tag is never moved, so a red gate discovered in CI
 # cost a whole patch release and there was no earlier gate. That reason is gone.
 # main-verify.yml runs the same scan on every push to main, so the gate has
 # already reported on the release commit by the time you tag, and release.yml
@@ -626,7 +714,7 @@ help:
 	@echo "                    action group) that block the RG delete in module 01"
 	@echo "  reprovision       destroy, then apply"
 	@echo ""
-	@echo "Release (see RELEASING.md):"
+	@echo "Release:"
 	@echo "  version           Show VERSION, the derived tag, and the latest git tag"
 	@echo "  release-check     Preflight only. Reports what each bump would produce"
 	@echo "  release-patch     Bump PATCH, roll changelog, commit, tag. Local only"
@@ -638,6 +726,9 @@ help:
 	@echo "Utility:"
 	@echo "  fmt               terraform fmt -recursive terraform/"
 	@echo "  validate          terraform validate every module root (no cloud calls)"
+	@echo "  pull-state        Download every module's state from the backend into"
+	@echo "                    $(STATE_DIR)/ as JSON. Read-only. Output holds"
+	@echo "                    secrets -- gitignored, never commit it"
 	@echo "  sonar             SonarCloud scan of main. LOCAL FALLBACK only -- CI"
 	@echo "                    scans every push to main. Needs SONAR_TOKEN + docker,"
 	@echo "                    refuses to run off main, very slow on Apple Silicon"

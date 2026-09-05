@@ -40,8 +40,8 @@ this module has no `backend` block.
 - **`standard` SKU.** Premium (HSM-backed keys) not needed for the
   playground.
 - **Dev safety toggles: `purge_protection_enabled = false`,
-  `soft_delete_retention_days = 7`.** See `docs/PROVISIONING_PLAN.md` §9.
-  Prod should flip purge protection on.
+  `soft_delete_retention_days = 7`.** Prod should flip purge protection
+  on.
 - **Public network enabled, `default_action = "Allow"`, bypass Azure
   Services.** Simplest playground posture — RBAC is the auth gate.
   Adding a private endpoint later is a small change: create

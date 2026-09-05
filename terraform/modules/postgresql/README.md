@@ -3,9 +3,10 @@
 Child Terraform module that provisions the shared PostgreSQL Flexible
 Server per environment, one database per microservice, an AAD-only
 authentication posture with the Entra admin group as the PG
-administrator, and the psql-driven data-plane bootstrap that registers
-the shared UAMI as an AAD-authenticated PG role and grants it per-DB
-privileges.
+administrator, and an OPTIONAL psql-driven data-plane bootstrap that
+registers the shared UAMI as an AAD-authenticated PG role and grants it
+per-DB privileges. That last step is gated off by default — see
+`run_bootstrap` below.
 
 Called by `terraform/envs/dev/09-postgresql/`. State is owned by the
 caller — this module has no `backend` block.
@@ -20,7 +21,7 @@ caller — this module has no `backend` block.
 | `azurerm_postgresql_flexible_server_firewall_rule`                  | `runner`              | Single-IP allowlist for the Terraform runner.                                                                                                                      |
 | `azurerm_postgresql_flexible_server_firewall_rule`                  | `azure_services`      | `0.0.0.0/0.0.0.0` magic pair — allow all Azure services.                                                                                                           |
 | `azurerm_postgresql_flexible_server_database`                       | one per `var.apps`    | `en_US.utf8` / `UTF8`.                                                                                                                                             |
-| `null_resource`                                                     | `pg_bootstrap`        | Runs `scripts/pg-bootstrap.sh.tftpl` via `local-exec` — registers the shared UAMI as an AAD principal and grants CONNECT + `USAGE, CREATE` on `public` per app DB. |
+| `null_resource`                                                     | `pg_bootstrap`        | **Only when `run_bootstrap = true`** (`count = var.run_bootstrap ? 1 : 0`). Runs `scripts/pg-bootstrap.sh.tftpl` via `local-exec` — registers the shared UAMI as an AAD principal and grants CONNECT + `USAGE, CREATE` on `public` per app DB. |
 
 ## Inputs
 
@@ -35,6 +36,7 @@ caller — this module has no `backend` block.
 | `runner_public_ip`               | `string`       | yes      | IPv4 of the machine running `terraform apply`. From `data.http.myip` in the root.           |
 | `apps`                           | `list(string)` | no       | Microservice names. One DB + grants per name. Default `[]`.                                 |
 | `uami_name`                      | `string`       | yes      | Name of the shared UAMI. Registered as the AAD-authenticated PG role.                       |
+| `run_bootstrap`                  | `bool`         | no       | Gates `null_resource.pg_bootstrap`. Default `false`; the dev root pins it `false`. See below. |
 | `tags`                           | `map(string)`  | no       | Merged with `component = "postgresql"`.                                                     |
 
 ## Outputs
@@ -48,11 +50,28 @@ caller — this module has no `backend` block.
 - `pg_database_ids` — map `{ <app> => <full-resource-id> }`
 - `pg_admin_group_object_id`, `pg_admin_login` — echoes of the admin binding
 
-## Runner prerequisites (data-plane step)
+## The `run_bootstrap` gate
 
-`null_resource.pg_bootstrap` shells out to `bash`, `az`, and `psql` on
-the Terraform runner. All three must be installed and on `PATH`. In
-addition:
+`var.run_bootstrap` defaults to `false`, and `envs/dev/09-postgresql/main.tf`
+pins it to `false`. **As shipped, `null_resource.pg_bootstrap` never runs and
+`terraform apply` never touches the PG data plane.** The registration and
+grants are performed by hand from Azure Cloud Shell instead — that procedure,
+not this module, is the sanctioned path today. See
+[`envs/dev/09-postgresql/README.md`](../../envs/dev/09-postgresql/README.md)
+§ Data-plane bootstrap (Cloud Shell).
+
+The gate exists because the psql step needs outbound TCP 5432 to Azure, which
+most corporate and home networks block. A blocked runner turns `terraform
+apply` into an unrecoverable mid-apply failure rather than a clean error.
+
+The long-term replacement is a Container Apps Job triggered from CI, which
+egresses from Azure and needs no operator machine at all. It is not built yet.
+
+### Runner prerequisites — only if you set `run_bootstrap = true`
+
+Nothing in this subsection applies while the gate is off. With it on,
+`null_resource.pg_bootstrap` shells out to `bash`, `az`, and `psql` on the
+Terraform runner; all three must be installed and on `PATH`. In addition:
 
 - `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` must be exported
   (the script does a scoped `az login --service-principal` inside a
@@ -71,22 +90,21 @@ addition:
 - **PG 16.** Current Azure default; widest-supported major.
 - **32 GiB / P4 storage.** Smallest supported size.
 - **AAD-only auth (`password_auth_enabled = false`).** No SQL admin
-  login exists — nothing to leak or rotate. §12 of the master plan.
+  login exists — nothing to leak or rotate.
 - **Group as PG administrator, not a user or SP.** Membership can
   rotate in Entra without touching Terraform.
 - **Public bootstrap posture.** `public_network_access_enabled = true`
     + two firewall rules (runner /32 + Azure Services). Move to VNet-only
-      via `delegated_subnet_id = snet-pg` when the estate stabilises
-      (§12 item 5). The delegated subnet already exists in module 02.
+      via `delegated_subnet_id = snet-pg` when the estate stabilises.
+      The delegated subnet already exists in module 02.
 - **`null_resource` + `psql` for the AAD principal, not
-  `cyrilgdn/postgresql`.** Master plan §12 recommends Option A
-  (cyrilgdn), but `postgresql_role` runs `CREATE ROLE`, which in
+  `cyrilgdn/postgresql`.** The obvious choice is the cyrilgdn
+  provider, but `postgresql_role` runs `CREATE ROLE`, which in
   Azure Flexible Server with AAD-only auth produces a role that
   cannot log in. Only `pgaadauth_create_principal` produces
   AAD-authenticated roles, and no cyrilgdn resource wraps that
-  stored procedure. Option B is the pragmatic choice here — the
-  script is idempotent, and `triggers` keep re-runs to actual
-  changes.
+  stored procedure. The script is the pragmatic choice here — it is
+  idempotent, and `triggers` keep re-runs to actual changes.
 - **Grants scoped to schema `public`.** Enough for migrations
   (Flyway / Liquibase / etc.) to create tables. Apps that need custom
   schemas can create them at runtime — `CREATE` on `public` is
@@ -95,11 +113,10 @@ addition:
   state after a stop/start cycle. Ignoring avoids spurious replace
   plans.
 
-## Skipped dependencies (vs. the plan)
+## Not dependencies
 
-Master plan §4 lists modules 02 (network) and 05 (Key Vault) as
-postgresql dependencies. Neither has a structural dep in the current
-design:
+Modules 02 (network) and 05 (Key Vault) read like postgresql
+dependencies, but neither has a structural dep in the current design:
 
 - **02 network:** Public bootstrap posture — `delegated_subnet_id`
   and DNS integration are unused. When we flip to VNet-only, wire

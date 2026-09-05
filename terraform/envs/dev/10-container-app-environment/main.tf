@@ -11,9 +11,8 @@
 # No other providers or data sources needed — CAE is a single azurerm
 # resource wired to already-provisioned upstream outputs.
 #
-# See docs/PROVISIONING_PLAN.md §4 for the full dependency map and §12 for
-# how downstream Container Apps (module 11) consume the outputs re-exported
-# here.
+# See docs/MODULES_DEPENDENCY.md for the full dependency map. Downstream
+# Container Apps (module 11) consume the outputs re-exported here.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -23,9 +22,9 @@ data "terraform_remote_state" "resource_groups" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "resource-groups/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -38,9 +37,9 @@ data "terraform_remote_state" "networking" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "networking/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -53,9 +52,9 @@ data "terraform_remote_state" "log_analytics" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "log-analytics/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -72,5 +71,5 @@ module "container_app_environment" {
   resource_group_name        = data.terraform_remote_state.resource_groups.outputs.rg_app_name
   log_analytics_workspace_id = data.terraform_remote_state.log_analytics.outputs.law_id
   infrastructure_subnet_id   = data.terraform_remote_state.networking.outputs.subnet_app_id
-  tags                       = merge(var.tags, { release = local.release })
+  tags                       = local.tags
 }

@@ -6,9 +6,6 @@
 # container-app-environment child module. Child modules declare providers they
 # USE via `required_providers` but do NOT configure providers — the root
 # config that calls this module owns provider configuration.
-#
-# See docs/PROVISIONING_PLAN.md §5 for the standard scaffolding across every
-# module.
 # -----------------------------------------------------------------------------
 
 terraform {

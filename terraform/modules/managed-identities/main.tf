@@ -12,8 +12,8 @@
 #   - Registered as an in-DB AAD principal on every PG database (module 09)
 #
 # Per-app identities are explicitly OUT OF SCOPE for this playground. See
-# docs/PROVISIONING_PLAN.md §12 for the trade-off (uniform blast-radius vs.
-# per-app RBAC granularity).
+# the module README for the trade-off (uniform blast-radius vs. per-app
+# RBAC granularity).
 # -----------------------------------------------------------------------------
 
 resource "azurerm_user_assigned_identity" "app" {

@@ -8,22 +8,23 @@
 # hard-coding `rg-<env>-network`, so a rename in module 01 propagates
 # automatically.
 #
-# See docs/PROVISIONING_PLAN.md §4 for the full dependency map.
+# See docs/MODULES_DEPENDENCY.md for the full dependency map.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
 # Remote state — module 01 (resource-groups)
 # -----------------------------------------------------------------------------
 # Reads the RG names/IDs from module 01's state file, which lives at
-# `resource-groups/terraform.tfstate` inside the shared `tfstate` container.
-# Backend config values match backend.hcl exactly.
+# `resource-groups/terraform.tfstate` inside the shared state container.
+# The three coordinates come from variables defaulted to the same values as
+# ../backend.hcl, so CI can point this read at another backend via TF_VAR_*.
 data "terraform_remote_state" "resource_groups" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "resource-groups/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -38,5 +39,5 @@ module "networking" {
   env                 = var.env
   location            = var.location
   resource_group_name = data.terraform_remote_state.resource_groups.outputs.rg_network_name
-  tags                = merge(var.tags, { release = local.release })
+  tags                = local.tags
 }

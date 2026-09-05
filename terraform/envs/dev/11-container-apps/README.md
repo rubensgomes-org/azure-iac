@@ -1,16 +1,13 @@
 # 11-container-apps (envs/dev)
 
-Root Terraform config that provisions one Azure Container App per entry
-in `var.apps`, all sharing the same environment (module 10), the same
-shared UAMI (module 04) for both runtime identity and ACR pull, and the
-same PG / Storage / Service Bus endpoints. This is the module where the
-passwordless auth model (`docs/PROVISIONING_PLAN.md` §12) finally comes
-together end-to-end. State lives in
-`tfstate/container-apps/terraform.tfstate` on the bootstrap storage
-account.
+Root Terraform config that provisions one Azure Container App per entry in
+`var.apps`, all sharing the same environment (module 10), the same shared
+UAMI (module 04) for both runtime identity and ACR pull, and the same PG /
+Storage / Service Bus endpoints. This is the module where the passwordless
+auth model finally comes together end-to-end. State lives at key
+`container-apps/terraform.tfstate` in the backend blob container.
 
-Wraps [
-`../../../modules/container-apps/`](../../../modules/container-apps/README.md).
+Wraps [`../../../modules/container-apps/`](../../../modules/container-apps/README.md).
 
 **`make apply-container-apps` on its own will NOT work** unless all seven
 prerequisites below are already applied. This root reads every one of
@@ -31,9 +28,6 @@ make apply-container-apps         # 11
 
 or just `make apply` from the repo root, which walks 01 → 12.
 
-Container App names carry no soft-delete window, so nothing had to be
-purged on the way down.
-
 ## Prerequisites
 
 Modules **01, 04, 06, 07, 08, 09, and 10** applied. This root reads:
@@ -52,13 +46,16 @@ Additional requirements:
 
 - `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`,
   `ARM_SUBSCRIPTION_ID` exported in the current shell.
-- `../env.tfvars` populated with `env`, `apps`, and `tags`.
+- `../env.tfvars` populated with `env` and `apps`.
+- Both `.tfvars` files are gitignored and are NOT in a fresh clone. Create them
+  once — see [`INITIAL_SETUP.md`](../../../INITIAL_SETUP.md) § Terraform
+  Variable Files. Tags are not among their values: they come from the committed
+  [`../tags.json`](../tags.json), with `TF_VAR_owner` overriding `owner`.
 - The shared UAMI already registered as an AAD principal in PG (the
   manual Cloud Shell bootstrap from `09-postgresql/README.md`) —
   otherwise apps will start but every DB call will fail with
-  `password authentication failed for user "id-dev-app"`. See
-  `docs/PROVISIONING_PLAN.md` §12 item 4 for context.
-- If real images referenced in `apps_image_map` — the images must
+  `password authentication failed for user "id-dev-app"`.
+- If real images are referenced in `apps_image_map` — the images must
   actually exist in ACR under those exact tags. First apply on a missing
   image fails with a container-pull error and leaves the app in a
   failed provisioning state (fix: push the image, re-apply).
@@ -73,8 +70,6 @@ terraform init \
   -backend-config="key=container-apps/terraform.tfstate"
 
 terraform plan \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars \
   -out=tfplan
 
 terraform apply tfplan
@@ -89,17 +84,17 @@ quickly from `mcr.microsoft.com`. Real Java / Spring Boot images can add
 
 ```bash
 # Apps exist, provisioning state = Succeeded
-az containerapp list -g rg-dev-app -o table
+az containerapp list -g "rg-dev-app${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}" -o table
 # Expect one row per entry in var.apps (e.g. ca-dev-api, ca-dev-worker).
 
 # Ingress FQDNs (matches terraform output app_fqdns)
-az containerapp list -g rg-dev-app \
+az containerapp list -g "rg-dev-app${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}" \
   --query "[].{name:name, fqdn:properties.configuration.ingress.fqdn}" \
   -o table
 
 # Identity wired to the shared UAMI on every app
 UAMI_ID=$(cd ../04-managed-identities && terraform output -raw uami_app_id)
-az containerapp list -g rg-dev-app \
+az containerapp list -g "rg-dev-app${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}" \
   --query "[].{name:name, uami:keys(identity.userAssignedIdentities)[0]}" \
   -o table
 # Expect uami column to equal $UAMI_ID for every row.
@@ -121,9 +116,7 @@ terraform output app_latest_revisions   # for rollback / diagnostics
 ```bash
 cd terraform/envs/dev/11-container-apps
 
-terraform destroy \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars
+terraform destroy
 ```
 
 Container Apps have no soft-delete window on their names, so a
@@ -162,7 +155,7 @@ to real images:
 3. Re-apply:
 
    ```bash
-   terraform plan  -var-file=../env.tfvars -var-file=terraform.tfvars -out=tfplan
+   terraform plan -out=tfplan
    terraform apply tfplan
    ```
 
@@ -176,8 +169,8 @@ immediately.
   authenticate to PG, Blob, Service Bus, and Key Vault via
   `DefaultAzureCredential`; the platform holds the credential material.
 - **Shared UAMI on every app.** Same identity for runtime, same
-  identity for ACR pull. Blast-radius trade-off is documented in
-  `docs/PROVISIONING_PLAN.md` §12.
+  identity for ACR pull. The trade-off is a blast radius shared across
+  every app.
 - **Scale-to-zero by default.** `min_replicas = 0` means apps sleep
   after 5 minutes of idle. First request after idle pays a cold-start
   latency. Set `min_replicas = 1` in `terraform.tfvars` for

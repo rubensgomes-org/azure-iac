@@ -13,8 +13,7 @@
 # yet, remove its diagnostic setting from main.tf and re-add it once module
 # NN is applied.
 #
-# See docs/PROVISIONING_PLAN.md §4 row 12 and §9 for the observability
-# posture.
+# See the module README for the observability posture.
 # -----------------------------------------------------------------------------
 
 variable "env" {

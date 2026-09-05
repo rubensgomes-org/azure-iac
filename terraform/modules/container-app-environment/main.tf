@@ -27,8 +27,8 @@
 #   soft-delete recycle bin, so `terraform destroy` frees the name for
 #   immediate reuse. No random suffix needed.
 #
-# See docs/PROVISIONING_PLAN.md §4 row 10 for the full dependency map and
-# §12 for how downstream Container Apps (module 11) consume `cae_id`.
+# See docs/MODULES_DEPENDENCY.md for the full dependency map, and the
+# module README for how Container Apps (module 11) consume `cae_id`.
 # -----------------------------------------------------------------------------
 
 resource "azurerm_container_app_environment" "this" {

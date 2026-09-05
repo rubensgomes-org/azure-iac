@@ -6,7 +6,7 @@
 # named `id-<env>-app`. That single identity is attached to every microservice
 # in the ACA environment and is the auth principal for PG, Blob, Service Bus,
 # Key Vault, and ACR. Per-app identities are explicitly out of scope for this
-# playground — see docs/PROVISIONING_PLAN.md §12.
+# playground.
 # -----------------------------------------------------------------------------
 
 variable "env" {

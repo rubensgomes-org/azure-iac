@@ -12,14 +12,14 @@
 #   - 09-postgresql             → PG FQDN + per-app database names
 #   - 10-container-app-environment → CAE id
 #
-# Module 05 (Key Vault) is a plan-level dependency in §4 but is NOT read
+# Module 05 (Key Vault) reads like a dependency but is NOT read
 # here: apps consume shared secrets at runtime via `DefaultAzureCredential`
 # (RBAC on the vault was already granted in module 05), not via Terraform-
 # injected env vars. If a future app needs a KV URI baked into env, add
 # module 05's remote state then and re-plan.
 #
-# See docs/PROVISIONING_PLAN.md §4 row 11 and §12 for the full passwordless
-# wiring these remote-state reads make possible.
+# See docs/MODULES_DEPENDENCY.md for the dependency map, and the module
+# README for the passwordless wiring these remote-state reads make possible.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -29,9 +29,9 @@ data "terraform_remote_state" "resource_groups" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "resource-groups/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -44,9 +44,9 @@ data "terraform_remote_state" "managed_identities" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "managed-identities/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -59,9 +59,9 @@ data "terraform_remote_state" "acr" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "acr/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -74,9 +74,9 @@ data "terraform_remote_state" "storage" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "storage/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -89,9 +89,9 @@ data "terraform_remote_state" "service_bus" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "service-bus/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -104,9 +104,9 @@ data "terraform_remote_state" "postgresql" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "postgresql/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -119,9 +119,9 @@ data "terraform_remote_state" "container_app_environment" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "container-app-environment/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -176,5 +176,5 @@ module "container_apps" {
   max_replicas             = var.max_replicas
   ingress_external_enabled = var.ingress_external_enabled
 
-  tags = merge(var.tags, { release = local.release })
+  tags = local.tags
 }

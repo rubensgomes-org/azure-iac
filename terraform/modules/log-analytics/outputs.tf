@@ -7,7 +7,7 @@
 #   - `workspace_id` = customer_id GUID that ingestion endpoints and CAE
 #                      config both expect
 #
-# See docs/PROVISIONING_PLAN.md §4 for who consumes what.
+# See docs/MODULES_DEPENDENCY.md for who consumes what.
 # -----------------------------------------------------------------------------
 
 output "law_id" {

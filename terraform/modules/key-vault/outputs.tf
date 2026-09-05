@@ -1,7 +1,7 @@
 # modules/key-vault/outputs.tf
 # -----------------------------------------------------------------------------
 # Publishes IDs and URIs for downstream callers. Names MUST match what the
-# plan (§4) commits to — do not rename without updating every consumer.
+# downstream modules read — do not rename without updating every consumer.
 # -----------------------------------------------------------------------------
 
 output "kv_id" {

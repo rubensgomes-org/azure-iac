@@ -4,7 +4,7 @@
 #
 # This module has a fixed contract: given an environment name and a location,
 # it provisions the 5 lifecycle-aligned resource groups defined in
-# docs/PROVISIONING_PLAN.md §3 (`platform`, `network`, `data`, `app`,
+# fixed (`platform`, `network`, `data`, `app`,
 # `observability`). The set of purposes is intentionally hard-coded in main.tf
 # — every downstream module addresses them by name — so this module does not
 # accept a "list of RGs to create" input.
@@ -36,35 +36,36 @@ variable "location" {
 variable "rg_suffix" {
   description = <<-EOT
     Optional token appended to every RG name, producing
-    rg-<env>-<purpose>-<suffix>. Empty string (the default) means no suffix
-    and the historical rg-<env>-<purpose> names are unchanged.
+    rg-<env>-<purpose>-<suffix>. Defaults to EMPTY, which is this estate's
+    normal mode: the five RGs are rg-<env>-<purpose> with no suffix at all.
 
-    Intended for standing a second, parallel copy of the estate alongside the
-    first. Two things to know before setting it:
+    Override it to stand a second, parallel copy of the estate alongside the
+    first. Two things to know before changing it:
 
       - `name` is ForceNew on azurerm_resource_group. Changing this value on a
         LIVE estate plans a destroy+recreate of all five RGs, but every
         resource inside them is owned by a different state file that knows
         nothing about it — the result is a broken estate, not a rename. Set it
-        at first provision, or after a full teardown (PROVISIONING_PLAN §15).
+        at first provision, or after a full teardown.
       - RG names alone do not make an estate parallel-safe. KV, Storage,
         Service Bus, Log Analytics and PostgreSQL already append a
-        `random_id` for global uniqueness, but `acr_name` in
-        envs/<env>/06-acr/terraform.tfvars is a fixed literal and WILL collide.
+        `random_id` for global uniqueness, but `acr_name` (supplied as
+        `TF_VAR_acr_name`) is a fixed literal and WILL collide.
 
-    Usually supplied as the `TF_VAR_rg_suffix` environment variable rather
-    than through a tfvars file — see the note in envs/<env>/01-resource-groups
-    /variables.tf about `-var-file` outranking `TF_VAR_*`.
+    Supplied as the `TF_VAR_rg_suffix` environment variable, never through a
+    tfvars file — see the note in envs/<env>/01-resource-groups/variables.tf
+    about `-var-file` outranking `TF_VAR_*`.
   EOT
   type        = string
   default     = ""
 
   validation {
-    # Same shape as `env`, plus the empty string. Kept to lowercase alnum so
-    # the composed name stays inside the RG naming rules and reads cleanly in
-    # the portal; the leading letter avoids a name that looks numeric.
+    # Same shape as `env`, plus the empty string, which means "no suffix".
+    # Kept to lowercase alnum so the composed name stays inside the RG naming
+    # rules and reads cleanly in the portal; the leading letter avoids a name
+    # that looks numeric.
     condition     = var.rg_suffix == "" || can(regex("^[a-z][a-z0-9]{0,9}$", var.rg_suffix))
-    error_message = "rg_suffix must be empty, or 1-10 lowercase alnum chars starting with a letter."
+    error_message = "rg_suffix must be empty (= no suffix), or 1-10 lowercase alnum chars starting with a letter."
   }
 }
 

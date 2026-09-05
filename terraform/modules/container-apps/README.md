@@ -7,9 +7,9 @@ and ACR pull, and the same downstream services (PG, Storage, Service
 Bus). Injects the env vars each app needs to authenticate to those
 services passwordlessly via `DefaultAzureCredential`.
 
-This is the module where §12 of `docs/PROVISIONING_PLAN.md` finally
-comes together: every RBAC grant handed to the shared UAMI in earlier
-modules is what makes the env vars below usable at runtime.
+This is the module where the passwordless model finally comes together:
+every RBAC grant handed to the shared UAMI in earlier modules is what
+makes the env vars below usable at runtime.
 
 ## Contract
 
@@ -53,8 +53,8 @@ modules is what makes the env vars below usable at runtime.
 
 - **Shared UAMI everywhere.** One identity attached to every app for both
   runtime auth (env vars → DAC → tokens) and ACR pull. Simpler than
-  per-app identities; playground-friendly trade-off documented in
-  `docs/PROVISIONING_PLAN.md` §12.
+  per-app identities; the playground-friendly trade-off is a blast radius
+  shared across every app.
 - **`revision_mode = "Single"`.** New revisions replace old immediately;
   no traffic-split rules needed. Single-revision mode also removes the
   need for a `Multiple`-mode `traffic_weight` split table.

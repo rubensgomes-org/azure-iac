@@ -8,8 +8,8 @@
 # is by remote-state key (`resource-groups/terraform.tfstate`), NOT by
 # hard-coding `rg-<env>-platform`.
 #
-# See docs/PROVISIONING_PLAN.md §4 and §12 for the full dependency and
-# passwordless-auth wiring.
+# See docs/MODULES_DEPENDENCY.md for the full dependency map, and the
+# module README for the passwordless-auth wiring.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -19,9 +19,9 @@ data "terraform_remote_state" "resource_groups" {
   backend = "azurerm"
 
   config = {
-    resource_group_name  = "rg-tfstate"
-    storage_account_name = "sttfstaterubens01"
-    container_name       = "tfstate"
+    resource_group_name  = var.backend_resource_group_name
+    storage_account_name = var.storage_account_id
+    container_name       = var.container_name
     key                  = "resource-groups/terraform.tfstate"
     use_azuread_auth     = false
   }
@@ -36,5 +36,5 @@ module "managed_identities" {
   env                 = var.env
   location            = var.location
   resource_group_name = data.terraform_remote_state.resource_groups.outputs.rg_platform_name
-  tags                = merge(var.tags, { release = local.release })
+  tags                = local.tags
 }

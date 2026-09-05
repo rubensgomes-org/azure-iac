@@ -4,8 +4,9 @@ All notable changes to this project are documented in this file.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/) with **infra-impact
-semantics** — see [RELEASING.md](RELEASING.md) for what MAJOR / MINOR / PATCH
-mean in an infrastructure-as-code repo.
+semantics**: MAJOR when `terraform plan` destroys, recreates or renames;
+MINOR when it is additive; PATCH when it is in-place only. `make release-check`
+prints the same policy.
 
 Add entries under `[Unreleased]` as you work. Do not edit the version headings
 by hand: `make release-<level>` renames `[Unreleased]` to the new version and
@@ -15,7 +16,7 @@ re-seeds an empty `[Unreleased]` block above it.
 
 This changelog is the **only** place in the repo that records dated history or
 deployment state. Every other document — `CLAUDE.md`, `README.md`,
-`docs/PROVISIONING_PLAN.md`, `docs/PROJECT_SUMMARY.md`, the module READMEs and
+`terraform/INITIAL_SETUP.md`, `terraform/TEARDOWN.md`, the module READMEs and
 the `bootstrap-backend/` runbooks — describes how to provision, never what is
 currently provisioned. Keep it that way: status notes rot, and a reader who
 trusts one plans from a false premise.
@@ -24,7 +25,78 @@ trusts one plans from a false premise.
 
 ### Added
 
+- **`terraform/envs/dev/tags.json`**, the committed source of truth for the
+  common tag map. Every module root's `locals.tf` reads it with
+  `jsondecode(file("${path.root}/../tags.json"))` and merges it into
+  `local.tags`. Tags can no longer differ by how terraform was invoked, and
+  there is no `-var-file` to forget.
+- **`owner` variable in all twelve module roots and in `bootstrap-backend`.**
+  `default = null` so an unset environment falls through to `tags.json`;
+  `TF_VAR_owner` overrides that one key without restating the whole map.
+- **`backend_resource_group_name` / `storage_account_id` / `container_name`
+  variables in roots 02–12.** Every `data "terraform_remote_state"` block now
+  reads them instead of hardcoding `rg-tfstate` / `sttfstaterubens01` /
+  `tfstate`, so CI can retarget the state account without editing tracked
+  files. Defaults still mirror `backend.hcl`, so a local run needs no input.
+- **`make pull-state`**, which pulls every module's state into
+  `misc/state-backup/` (gitignored — state holds sensitive values).
+- **`terraform/INITIAL_SETUP.md`** and **`terraform/TEARDOWN.md`**, and
+  `NOTICE` + `AI_DISCLAIMER.md`.
+- **`acr_name` input on `acr-create.yml`**, and a `run_sonar` boolean on a new
+  `workflow_dispatch` trigger for `release.yml`.
+- **Input-validation guards in both ACR workflows** covering `env`, `location`,
+  `acr_name`, `rg_suffix` and the three backend coordinates, plus a step that
+  asserts the requested registry matches module 06's Terraform state.
+
 ### Changed
+
+- **Configuration moved out of the repo into `TF_VAR_*`.** `.gitignore` now
+  excludes `*.tfvars` and `*.tfvars.json`. `terraform/envs/dev/env.tfvars.example`
+  documents the optional shared file; `terraform/INITIAL_SETUP.md` lists the
+  exports that replace it. Note `-var-file` outranks `TF_VAR_*`, so an
+  `env.tfvars` that does exist silently wins over the environment.
+- **The Makefile passes `-var-file=../env.tfvars` only when that file exists**
+  (`ENV_VARFILE`), and no longer passes `-var-file=terraform.tfvars` at all —
+  Terraform auto-loads that name. `BACKEND_OVERRIDES` appends the three
+  `TF_VAR_backend_*` coordinates to every `terraform init`.
+- **The ACR workflows read `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and
+  `AZURE_SUBSCRIPTION_ID` from repository *variables* rather than secrets.**
+  Only `AZURE_CLIENT_SECRET` remains a secret, so `acr-create.yml`'s
+  `workflow_call` secrets contract shrinks from four to one — breaking for any
+  existing caller. Define the variables under Settings → Secrets and variables
+  → Actions → Variables before the next run.
+- **`bootstrap-backend/backend.tf` now declares its azurerm backend** instead of
+  carrying it commented out.
+- **`DISCLAIMER.md` split into `NOTICE` + `AI_DISCLAIMER.md`**, and `LICENSE`
+  reduced to stock MIT — the same text was previously duplicated across all
+  three.
+- **`bootstrap-backend/TF_PROVISION.md` → `TF_BOOTSTRAP_CREATE.md`,
+  `TF_DESTROY.md` → `TF_BOOTSTRAP_DESTROY.md`,
+  `bootstrap-backend/INITIAL_SETUP.md` → `terraform/INITIAL_SETUP.md`.**
+- **`CLAUDE.md` reduced to its working rules**, and `README.md` to a pointer
+  document.
+- **The `tags` map**: `environment` becomes `env`, and `costCenter` / `project`
+  are dropped. Expect a `~ tags` diff on every resource at the next apply.
+- **`bootstrap-backend` defaults now apply where `terraform.tfvars` used to
+  override them**: `soft_delete_retention_days` 2 → 7, and `enable_rg_lock`
+  false → **true**. Export `TF_VAR_enable_rg_lock=false` to keep the resource
+  group unlocked, or a future backend teardown must remove the lock first.
+
+### Removed
+
+- **`docs/PROVISIONING_PLAN.md`, `docs/CI.md`, `docs/GOTCHAS.md`,
+  `docs/SONAR.md`, `docs/PROJECT_SUMMARY.md`, `PROVISION_ACR.md`,
+  `RELEASING.md` and `DISCLAIMER.md`** — roughly 3,000 lines. `docs/` now holds
+  only `MODULES_DEPENDENCY.md`. `terraform/TEARDOWN.md` covers the teardown
+  path that was §15; the rest lives on only in git history.
+- **Every committed `*.tfvars`** — `env.tfvars`, the twelve module
+  `terraform.tfvars`, and `bootstrap-backend/terraform.tfvars`.
+- **The `sonar.issue.ignore.multicriteria` suppression list** (e1–e5) from
+  `sonar-project.properties`. `make sonar` will report those five findings
+  again.
+- **The unconditional SonarCloud gate on a release.** It is now opt-in via
+  `run_sonar` and is skipped on the tag push that normally cuts a release, so a
+  release can publish without having been scanned.
 
 ### Fixed
 

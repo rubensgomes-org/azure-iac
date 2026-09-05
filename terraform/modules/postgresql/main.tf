@@ -10,14 +10,14 @@
 #     AAD-authenticated PG role and grants it CONNECT + schema privileges
 #     on each app DB.
 #
-# Design notes tied to docs/PROVISIONING_PLAN.md:
-#   - §9  — dev safety toggles: burstable B1ms, 7-day backup, no HA/geo,
-#           `password_auth_enabled = false`.
-#   - §12 — passwordless auth: the shared UAMI is the ONLY app-side
-#           principal; per-app users are omitted deliberately.
-#   - §12 item 5 — network posture: PUBLIC bootstrap (this file), plan to
-#           flip to VNet-only via `delegated_subnet_id = snet-pg` in a
-#           later iteration once the estate is stable.
+# Design notes:
+#   - Dev safety toggles: burstable B1ms, 7-day backup, no HA/geo,
+#     `password_auth_enabled = false`.
+#   - Passwordless auth: the shared UAMI is the ONLY app-side principal;
+#     per-app users are omitted deliberately.
+#   - Network posture: PUBLIC bootstrap (this file), with a plan to flip to
+#     VNet-only via `delegated_subnet_id = snet-pg` in a later iteration
+#     once the estate is stable.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -34,7 +34,7 @@
 #   - `geo_redundant_backup_enabled = false`: single-region playground.
 #   - `zone = "1"`: pin to zone 1 so re-applies don't propose a zone move
 #     if Azure's default drifts.
-#   - `public_network_access_enabled = true`: bootstrap posture (§12).
+#   - `public_network_access_enabled = true`: bootstrap posture.
 #     Firewall rules below narrow the actual reachability.
 #   - `password_auth_enabled = false` + `active_directory_auth_enabled =
 #     true`: no SQL admin login exists. Every connection uses an AAD
@@ -189,7 +189,7 @@ resource "azurerm_postgresql_flexible_server_database" "app" {
 # every terraform apply becomes an unrecoverable failure. When gated off
 # the SAME work is done manually ONCE from Azure Cloud Shell (see
 # `envs/dev/09-postgresql/README.md`), and later replaced by a Container
-# Apps Job (see `docs/PROVISIONING_PLAN.md` §12a).
+# Apps Job.
 #
 # `depends_on` is exhaustive so the psql call cannot race any prerequisite:
 #   - server + admin binding must exist before AAD auth works,

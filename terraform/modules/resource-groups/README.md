@@ -9,9 +9,9 @@ resource in this estate.
 - `rg-<env>-app` — Container App Environment, Container Apps
 - `rg-<env>-observability` — Log Analytics, App Insights, Action Groups
 
-The set of RGs is intentionally fixed. See
-[`docs/PROVISIONING_PLAN.md`](../../../docs/PROVISIONING_PLAN.md) §3 for the
-rationale (blast radius, dependency direction, lifecycle grouping).
+The set of RGs is intentionally fixed: one per lifecycle, so that a blast
+radius stops at an RG boundary and the dependency direction between modules
+stays one-way.
 
 ## Inputs
 
@@ -19,12 +19,17 @@ rationale (blast radius, dependency direction, lifecycle grouping).
 |------------|---------------|----------|---------------------------------------------------|
 | `env`      | `string`      | yes      | Environment name (e.g. `dev`). Baked into names.  |
 | `location` | `string`      | yes      | Azure region (e.g. `eastus`).                     |
-| `rg_suffix`| `string`      | no       | Appends `-<suffix>` to every RG name. Default `""` = no suffix. |
+| `rg_suffix`| `string`      | no       | Appends `-<suffix>` to every RG name. Default empty (= no suffix). |
 | `tags`     | `map(string)` | no       | Common tags. `purpose` and `purpose_description` are added per-RG. |
 
-`rg_suffix` is normally supplied as the `TF_VAR_rg_suffix` environment
-variable rather than through a tfvars file — `-var-file` outranks `TF_VAR_*`,
-so a value in `env.tfvars` would silently win over the environment. It is safe
+`rg_suffix` is empty by default, so the five RGs are `rg-<env>-<purpose>` with
+no suffix. An empty value means exactly that — no suffix — which is also what
+CI produces when the `TF_VAR_rg_suffix` repository variable is undefined, so a
+workflow run and a local run land on the same names.
+
+`rg_suffix` is overridden through the `TF_VAR_rg_suffix` environment variable
+rather than a tfvars file — `-var-file` outranks `TF_VAR_*`, so a value in
+`env.tfvars` would silently win over the environment. It is safe
 to set at first provision or after a full teardown only: `name` is ForceNew on
 `azurerm_resource_group`, and the resources inside those RGs are owned by
 eleven other state files that would not follow a rename.

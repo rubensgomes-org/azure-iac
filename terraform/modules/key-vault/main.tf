@@ -10,8 +10,7 @@
 #   ✓ Vault + auth mode + network posture + one RBAC grant.
 #   ✗ Individual secrets — those belong in the module that owns the secret's
 #     lifecycle (or are omitted entirely because the passwordless model
-#     doesn't need them). See docs/PROVISIONING_PLAN.md §12 "What lives in
-#     Key Vault vs. not".
+#     doesn't need them).
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -25,7 +24,6 @@ data "azurerm_client_config" "current" {}
 # -----------------------------------------------------------------------------
 # Dev-friendly safety toggles (locals)
 # -----------------------------------------------------------------------------
-# See docs/PROVISIONING_PLAN.md §9 for the "learning, not prod" rationale.
 #
 #   - `standard` SKU: cheapest; premium is only needed for HSM-backed keys.
 #   - `rbac_authorization_enabled = true`: Azure RBAC controls data-plane

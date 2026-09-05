@@ -23,8 +23,8 @@
 #   `Premium` (dedicated capacity, private endpoints, geo-DR) is overkill
 #   and 100× the cost.
 # - `local_auth_enabled = true`: leaves the classic SAS keys reachable at
-#   the namespace. §9 of docs/PROVISIONING_PLAN.md calls out flipping this
-#   to `false` once every app is confirmed to authenticate via AAD — until
+#   the namespace. Flip it to `false` once every app is confirmed to
+#   authenticate via AAD — until
 #   then, keeping it on avoids a chicken-and-egg during first-run debugging
 #   from `az servicebus ...` or a local dev machine.
 # - `public_network_access_enabled = true`: matches the playground posture

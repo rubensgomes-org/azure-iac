@@ -5,7 +5,7 @@
 # Everything that could reasonably vary per-environment is a variable. Fixed
 # design decisions (Consumption-only workload profile, external ingress, no
 # zone redundancy) are hard-coded in main.tf with a comment explaining the
-# choice — see docs/PROVISIONING_PLAN.md §4 row 10.
+# choice — see the module README.
 # -----------------------------------------------------------------------------
 
 variable "env" {

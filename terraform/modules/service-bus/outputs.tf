@@ -1,7 +1,7 @@
 # modules/service-bus/outputs.tf
 # -----------------------------------------------------------------------------
 # Publishes IDs and identifiers for downstream callers. Names MUST match
-# what the plan (§4) commits to — do not rename without updating every
+# what downstream modules read — do not rename without updating every
 # consumer.
 # -----------------------------------------------------------------------------
 

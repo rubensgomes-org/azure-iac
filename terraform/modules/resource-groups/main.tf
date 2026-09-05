@@ -1,8 +1,7 @@
 # modules/resource-groups/main.tf
 # -----------------------------------------------------------------------------
-# Creates the 5 lifecycle-aligned Resource Groups defined in
-# docs/PROVISIONING_PLAN.md §3. Naming pattern: `rg-<env>-<purpose>`, or
-# `rg-<env>-<purpose>-<suffix>` when the optional `rg_suffix` input is set.
+# Creates the 5 lifecycle-aligned Resource Groups. Naming pattern:
+# `rg-<env>-<purpose>`, with an optional `-<suffix>` when `rg_suffix` is set.
 #
 # The set of purposes is intentionally fixed — every downstream module reads
 # a specific RG by name via `data.terraform_remote_state`. Adding or removing
@@ -15,8 +14,7 @@
 # -----------------------------------------------------------------------------
 # Map from purpose key (used in output names and as the `purpose` tag) to a
 # short human-readable description used only for stamping into the RG's
-# `purpose_description` tag. See the PROVISIONING_PLAN for what each RG owns
-# and why it is separated.
+# `purpose_description` tag.
 locals {
   purposes = {
     platform      = "Managed identities, Key Vault, ACR — long-lived shared platform"
@@ -27,9 +25,21 @@ locals {
   }
 
   # Normalised name suffix. `var.rg_suffix` carries no separator so callers
-  # cannot half-supply one ("-blue" vs "blue"); the dash is added here, and an
-  # empty suffix collapses to an empty string so the default names stay
-  # byte-for-byte what they have always been.
+  # cannot half-supply one ("-blue" vs "blue"); the dash is added here.
+  #
+  # An EMPTY value means NO suffix, which is this estate's normal mode — the
+  # five RGs are `rg-dev-platform`, `rg-dev-network`, and so on. `rg_suffix`
+  # exists for a parallel estate in the same subscription, not for everyday
+  # use, so it defaults to empty and stays empty unless someone exports
+  # `TF_VAR_rg_suffix`.
+  #
+  # `name` is ForceNew on azurerm_resource_group, so changing this on a LIVE
+  # estate destroys and recreates all five RGs and everything in them. Three
+  # consumers must agree on the empty default: this local, `var.rg_suffix`'s
+  # `default`, and Make's `RG_SUFFIX` (Makefile). The workflows bind the value
+  # from a repository Actions variable that resolves to "" when undefined,
+  # which lands on the same unsuffixed names as a local run — that agreement
+  # is the point.
   suffix = var.rg_suffix == "" ? "" : "-${var.rg_suffix}"
 }
 

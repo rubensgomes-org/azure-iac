@@ -50,16 +50,16 @@ caller — this module has no `backend` block.
   Data Sender / Data Receiver roles) — local auth exists as a debugging
   escape hatch (`az servicebus namespace authorization-rule keys list`)
   during first-run bring-up. Flip to `false` once every app is confirmed
-  passwordless; see `docs/PROVISIONING_PLAN.md` §9.
+  passwordless.
 - **Public network enabled.** Playground posture, matches ACR/KV/Storage.
-  Move to private endpoint (add the `privatelink.servicebus.windows.net`
-  zone in module 02) if we want network isolation.
+  Move to private endpoint (zone `privatelink.servicebus.windows.net` is
+  already created by module 02) if we want network isolation.
 - **TLS 1.2 minimum.** Rejects legacy clients; no old SDK will run here.
 - **Two role assignments (Sender + Receiver) at namespace scope.** Every
   queue (and future topic/subscription) inherits — dev-friendly, one pair
   of assignments covers the whole namespace. Tighten to per-queue scope
-  later if we want per-app isolation. Trade-off flagged in
-  `docs/PROVISIONING_PLAN.md` §12 (shared blast radius across apps).
+  later if we want per-app isolation. The trade-off is a blast radius
+  shared across every app.
 - **Queues via a separate `queues` variable (not `var.apps`).** Queues
   are communication channels *between* apps, not per-app resources. A
   two-app estate might share one queue, or an app might own several.
@@ -70,11 +70,10 @@ caller — this module has no `backend` block.
   60s lock, delivery count 10, no DLQ on expiration. Tune per queue
   later when a specific workload needs it.
 
-## Skipped dependencies (vs. the plan)
+## Not dependencies
 
-`docs/PROVISIONING_PLAN.md` §4 lists module 05 (Key Vault) as a
-service-bus dependency. There is no structural dep in the current
-design:
+Module 05 (Key Vault) reads like a service-bus dependency, but there is
+no structural dep in the current design:
 
 - **05 Key Vault:** No customer-managed key for encryption-at-rest —
   the Microsoft-managed key covers dev. No SAS key to stash in KV

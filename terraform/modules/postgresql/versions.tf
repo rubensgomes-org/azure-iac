@@ -6,9 +6,6 @@
 # child module. Child modules declare providers they USE via
 # `required_providers`, but they do NOT configure providers — the root config
 # that calls this module is responsible for provider configuration.
-#
-# See docs/PROVISIONING_PLAN.md §5 for the standard scaffolding across every
-# module.
 # -----------------------------------------------------------------------------
 
 terraform {
@@ -36,13 +33,12 @@ terraform {
     # UAMI as an in-DB AAD principal via `pgaadauth_create_principal` and
     # grants per-app-DB CONNECT + schema privileges.
     #
-    # Why not cyrilgdn/postgresql (plan §12 Option A)? Its `postgresql_role`
-    # resource runs `CREATE ROLE`, which in Azure Flexible Server with
-    # Entra-only auth creates a role that CANNOT log in — only
+    # Why not cyrilgdn/postgresql? Its `postgresql_role` resource runs
+    # `CREATE ROLE`, which in Azure Flexible Server with Entra-only auth
+    # creates a role that CANNOT log in — only
     # `pgaadauth_create_principal` produces AAD-authenticated roles. There
-    # is no cyrilgdn resource that wraps that stored procedure. So the
-    # AAD-principal step is authored via null_resource + psql (plan §12
-    # Option B), which the plan flags as the acceptable fallback.
+    # is no cyrilgdn resource that wraps that stored procedure, so the
+    # AAD-principal step is authored via null_resource + psql instead.
     null = {
       source  = "hashicorp/null"
       version = "~> 3.2"

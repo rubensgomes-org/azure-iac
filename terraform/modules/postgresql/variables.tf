@@ -149,7 +149,7 @@ variable "run_bootstrap" {
          `false`; Terraform stays out of the data plane.
 
       2. Move the bootstrap to a Container Apps Job triggered by GitHub
-         Actions after apply (see `docs/PROVISIONING_PLAN.md` §12a for
+         Actions after apply (see 09-postgresql/README.md for
          the follow-on design). Once that lands, this variable and the
          `null_resource` disappear entirely.
 

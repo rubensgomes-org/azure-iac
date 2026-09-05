@@ -2,15 +2,14 @@
 
 Root Terraform config for the env's observability stack: Application
 Insights (workspace-based, backed by the shared LAW from module 03), one
-Action Group with an email receiver, and five diagnostic settings (KV,
-ACR, Storage blob subresource, Service Bus, PostgreSQL) all sinking
-into the same LAW. State lives in `tfstate/monitoring/terraform.tfstate`
-on the bootstrap storage account.
+Action Group with an email receiver, and five diagnostic settings (KV, ACR,
+Storage blob subresource, Service Bus, PostgreSQL) all sinking into the same
+LAW. State lives at key `monitoring/terraform.tfstate` in the backend blob
+container.
 
 This is the last module in the dependency chain; once it applies, the
-estate is complete. (§10's Makefile automation, which this line used to
-say was still pending, has since landed — `make apply` / `make destroy`
-drive the whole estate.)
+estate is complete. `make apply` and `make destroy` drive the whole
+estate from the repo root.
 
 Wraps [`../../../modules/monitoring/`](../../../modules/monitoring/README.md).
 
@@ -32,9 +31,13 @@ Additional requirements:
 
 - `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`,
   `ARM_SUBSCRIPTION_ID` exported in the current shell.
-- `../env.tfvars` populated with `env`, `location`, and `tags`.
-- `./terraform.tfvars` populated with `action_group_email` (already
-  set to the repo owner's address; change per env or team).
+- `../env.tfvars` populated with `env` and `location`.
+- `./terraform.tfvars` populated with `action_group_email` — the address the
+  action group notifies. Required; this root has no default for it.
+- Both `.tfvars` files are gitignored and are NOT in a fresh clone. Create them
+  once — see [`INITIAL_SETUP.md`](../../../INITIAL_SETUP.md) § Terraform
+  Variable Files. Tags are not among their values: they come from the committed
+  [`../tags.json`](../tags.json), with `TF_VAR_owner` overriding `owner`.
 
 ## Provision
 
@@ -46,8 +49,6 @@ terraform init \
   -backend-config="key=monitoring/terraform.tfstate"
 
 terraform plan \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars \
   -out=tfplan
 
 terraform apply tfplan
@@ -62,13 +63,13 @@ compute plane).
 ```bash
 # App Insights exists, provisioning state = Succeeded
 az monitor app-insights component show \
-  -g rg-dev-observability -a appi-dev \
+  -g "rg-dev-observability${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}" -a appi-dev \
   --query "{name:name, kind:kind, state:provisioningState, workspaceId:workspaceResourceId}" \
   -o table
 # Expect kind=web, state=Succeeded, workspaceId ends with /workspaces/log-dev-<random>.
 
 # Action group exists
-az monitor action-group list -g rg-dev-observability -o table
+az monitor action-group list -g "rg-dev-observability${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}" -o table
 # Expect one row: ag-dev-ops.
 
 # Diagnostic settings landed on every target
@@ -84,7 +85,6 @@ done
 # Expect one setting named `diag-to-law` on each.
 
 # Confirm rows land in LAW after ~5-10 minutes of real traffic
-LAW_ID=$(cd ../03-log-analytics && terraform output -raw law_id)
 az monitor log-analytics query \
   --workspace "$(cd ../03-log-analytics && terraform output -raw law_workspace_id)" \
   --analytics-query "union AzureDiagnostics, AzureMetrics | where TimeGenerated > ago(1h) | summarize count() by ResourceType" \
@@ -104,9 +104,7 @@ terraform output diagnostic_setting_ids # map: target → diag setting ID
 ```bash
 cd terraform/envs/dev/12-monitoring
 
-terraform destroy \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars
+terraform destroy
 ```
 
 Monitoring has no downstream — safe to destroy any time. Nothing purges

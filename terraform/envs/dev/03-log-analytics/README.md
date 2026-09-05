@@ -1,8 +1,8 @@
 # 03-log-analytics (envs/dev)
 
-Root Terraform config that provisions the shared Log Analytics Workspace
-for the `dev` environment. State lives in
-`tfstate/log-analytics/terraform.tfstate` on the bootstrap storage account.
+Root Terraform config that provisions the shared Log Analytics Workspace for
+the `dev` environment. State lives at key `log-analytics/terraform.tfstate`
+in the backend blob container.
 
 Wraps [`../../../modules/log-analytics/`](../../../modules/log-analytics/README.md).
 
@@ -12,7 +12,11 @@ Wraps [`../../../modules/log-analytics/`](../../../modules/log-analytics/README.
   `rg_observability_name` from its remote state.
 - `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`
   exported in the current shell.
-- `../env.tfvars` populated with `env`, `location`, `tags`.
+- `../env.tfvars` populated with `env` and `location`.
+- Both `.tfvars` files are gitignored and are NOT in a fresh clone. Create them
+  once — see [`INITIAL_SETUP.md`](../../../INITIAL_SETUP.md) § Terraform
+  Variable Files. Tags are not among their values: they come from the committed
+  [`../tags.json`](../tags.json), with `TF_VAR_owner` overriding `owner`.
 
 ## Provision
 
@@ -24,8 +28,6 @@ terraform init \
   -backend-config="key=log-analytics/terraform.tfstate"
 
 terraform plan \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars \
   -out=tfplan
 
 terraform apply tfplan
@@ -35,13 +37,13 @@ terraform apply tfplan
 
 ```bash
 # Workspace exists and is provisioned
-az monitor log-analytics workspace list -g rg-dev-observability -o table
+az monitor log-analytics workspace list -g "rg-dev-observability${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}" -o table
 # Expect one row: log-dev-<random>, provisioningState = Succeeded.
 
 # Sanity-check SKU + retention
 LAW_NAME=$(terraform output -raw law_name)
 az monitor log-analytics workspace show \
-  -g rg-dev-observability -n "$LAW_NAME" \
+  -g "rg-dev-observability${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}" -n "$LAW_NAME" \
   --query "{name:name, sku:sku.name, retentionDays:retentionInDays}" -o table
 # Expect sku = pergb2018, retentionDays = 30.
 ```
@@ -59,9 +61,7 @@ terraform output -raw law_primary_shared_key   # sensitive
 ```bash
 cd terraform/envs/dev/03-log-analytics
 
-terraform destroy \
-  -var-file=../env.tfvars \
-  -var-file=terraform.tfvars
+terraform destroy
 ```
 
 **Blocked while downstream consumers exist.** Any Container App Environment,
@@ -77,13 +77,15 @@ delete --force`).
 
 ## Reprovision
 
-Same commands as **Provision** — `terraform init` is idempotent. See
-[`docs/PROVISIONING_PLAN.md`](../../../../docs/PROVISIONING_PLAN.md) §8 for the
-reprovision shortcut.
+Same commands as **Provision** — `terraform init` is idempotent.
 
 ## Notes
 
-- No `terraform.tfvars` values needed. Scaffolding consistency only.
+- No `terraform.tfvars` values needed, and no file needed either. Nothing is
+  passed unconditionally any more: `terraform.tfvars` is auto-loaded when
+  present, and every value can come from a `TF_VAR_*` environment variable
+  instead. See
+  [INITIAL_SETUP](../../../INITIAL_SETUP.md#terraform-environment).
 - SKU and retention are hard-coded in the child module
   (`modules/log-analytics/main.tf`). Change there if you need to.
 - `daily_quota_gb` is deliberately unset. A hard quota silently drops
