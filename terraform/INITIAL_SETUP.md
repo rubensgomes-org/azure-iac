@@ -312,6 +312,7 @@ ls terraform/envs/dev/env.tfvars terraform/envs/dev/[0-9][0-9]-*/terraform.tfvar
     TF_VAR_CONTAINER_NAME
     TF_VAR_LOCATION
     TF_VAR_OWNER
+    # Do not add if you want the resource group name suffix empty.
     TF_VAR_RG_SUFFIX
     ```
 

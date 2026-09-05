@@ -1,0 +1,614 @@
+# =============================================================================
+# Destroy the entire estate (modules 12 -> 01)
+#
+# Purpose:
+#   Tears down every Terraform root under terraform/envs/<env>/, in reverse
+#   dependency order, by invoking `make destroy`:
+#
+#       12-monitoring  ->  11-container-apps  ->  10-container-app-environment
+#       ->  09-postgresql  ->  08-service-bus  ->  07-storage  ->  06-acr
+#       ->  05-key-vault  ->  04-managed-identities  ->  03-log-analytics
+#       ->  02-networking  ->  01-resource-groups
+#
+#   THE BLAST RADIUS IS THE WHOLE ESTATE. Every resource group, the VNet, the
+#   Key Vault, the registry and its images, the storage accounts and their
+#   blobs, the Service Bus namespace, the PostgreSQL Flexible Server and its
+#   databases, the container app environment and its apps, and all monitoring.
+#   This is the most destructive workflow in the repository.
+#
+#   MOST OF IT IS IRREVERSIBLE. Registry images and storage blobs not under
+#   retention are gone for good. `make apply` rebuilds the INFRASTRUCTURE, not
+#   the data that was in it. terraform/TEARDOWN.md says the same thing at more
+#   length; read it before the first run.
+#
+#   What survives, and must:
+#     * the Terraform state backend — the resource group, storage account and
+#       tfstate container named by TF_VAR_backend_resource_group_name /
+#       TF_VAR_storage_account_id / TF_VAR_container_name. It holds the state
+#       this very run reads and writes. It is torn down only by the manual
+#       procedure in terraform/bootstrap-backend/TF_BOOTSTRAP_DESTROY.md, and
+#       step 12 FAILS the run if it has gone missing.
+#
+# Trigger:
+#   workflow_dispatch — the only path. Deliberately NOT reusable: there is no
+#                       workflow_call block, so no other repository can wire an
+#                       estate teardown into its pipeline with a `uses:` line.
+#                       acr-destroy.yml is reusable because dropping one
+#                       registry is a survivable, reversible step in someone
+#                       else's build. This is neither.
+#
+#   Four guards apply, in this order:
+#
+#     1. dry_run defaults to TRUE. The default invocation plans and stops. A
+#        destroy is only ever the result of someone clearing a checkbox.
+#     2. ALLOWED_ACTORS — checked before any credential is touched.
+#     3. The typed `DESTROY ALL <env>` phrase, enforced when dry_run is false.
+#     4. The AZURE Environment binding, which is where a required-reviewer
+#        approval gate attaches.
+#
+# Relationship to acr-destroy.yml:
+#   That workflow removes module 06 alone and says a full teardown "is not
+#   available here, on purpose". This is that full teardown. The two share a
+#   concurrency group so they cannot race for module 06's state blob.
+#
+# Authentication:
+#   Service Principal identifiers come from repository-level Actions variables
+#   (AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID).
+#   AZURE_CLIENT_SECRET is the only credential and comes from an Actions
+#   secret. The AZURE Environment binding is what makes a required-reviewer
+#   gate possible; do not remove it to make a run quicker.
+#
+# =============================================================================
+
+name: Destroy All
+
+on:
+  # -------------------------------------------------------------------------
+  # Manual entry point. The ONLY entry point — see the Trigger note above.
+  # -------------------------------------------------------------------------
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: 'Estate environment to destroy. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
+        type: string
+        required: true
+        default: dev
+
+      dry_run:
+        description: >
+          Leave CHECKED to plan the destroy and stop without touching Azure.
+          Clear it to actually tear the estate down. Checked is the default on
+          purpose: a destroy should be the result of a deliberate act, not of
+          accepting a form.
+        type: boolean
+        required: false
+        default: true
+
+      confirm:
+        description: >
+          DESTROYS THE ENTIRE ESTATE — every resource group, the VNet, Key
+          Vault, the registry and all its images, storage and all its blobs,
+          Service Bus, PostgreSQL and its databases, the container apps, and
+          monitoring. Images and blobs are NOT recoverable.
+          Ignored on a dry run. Otherwise type EXACTLY "DESTROY ALL <env>" —
+          e.g. DESTROY ALL dev
+        type: string
+        required: false
+
+# Reads the repository. Creates no commits, tags or releases.
+permissions:
+  contents: read
+
+jobs:
+  destroy-all:
+    name: destroy-all
+    runs-on: ubuntu-latest
+
+    # Twelve init/plan/destroy cycles, not one. PostgreSQL Flexible Server is
+    # the long pole — its delete cascades to child resources and is the reason
+    # acr-destroy.yml's 15-minute ceiling would be wrong here. Generous rather
+    # than tight: the cost of a low ceiling is a teardown killed half-way,
+    # which is a worse state to be in than a slow job.
+    timeout-minutes: 120
+
+    # Environment secrets are only injected into a job that binds the
+    # Environment. Also the hook for a required-reviewer approval gate, which
+    # matters more here than anywhere else in this repository.
+    environment: AZURE
+
+    # Deliberately the SAME group string as acr-create.yml and acr-destroy.yml.
+    # A group only serialises runs that name it identically, and module 06 sits
+    # inside this estate: an ACR create must never run while the estate is
+    # being torn down, in either order.
+    #
+    # The name reads oddly for a whole-estate workflow. It is kept as-is
+    # because correctness beats naming — renaming it here alone would silently
+    # UN-serialise the very races it exists to prevent, and renaming it in all
+    # three files is a change this one was not asked to make.
+    #
+    # cancel-in-progress stays false: cancelling a destroy mid-flight leaves a
+    # half-destroyed estate and, worse, an azurerm blob lease behind.
+    concurrency:
+      group: acr-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    env:
+      # The three identifiers are repository Actions variables. Only the client
+      # secret is read from Actions secrets.
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # No `|| default` fallback. An undefined repository variable resolves to
+      # the empty string, and empty is this estate's correct value: it means
+      # "no suffix", matching module 01's `rg_suffix` default, the module's
+      # `local.suffix`, and Make's RG_SUFFIX. A fallback here would make CI
+      # name resource groups differently from a local run.
+      TF_VAR_rg_suffix: ${{ vars.TF_VAR_rg_suffix }}
+
+      # Module configuration, as environment variables rather than files.
+      #
+      # env.tfvars and the per-module terraform.tfvars files are gitignored
+      # (.gitignore: *.tfvars), so a hosted runner never receives them. The
+      # Makefile passes -var-file only when the file exists (Makefile:61), so
+      # on a runner every value must arrive here.
+      #
+      # A DESTROY needs the same inputs an APPLY does. Terraform evaluates the
+      # whole configuration before it plans a deletion, so a root whose
+      # required variable is missing fails at `terraform destroy` with
+      # "No value for required variable" — several modules deep into a
+      # teardown, which is the worst possible moment to discover it. Step 4
+      # fails the run before a single resource is touched instead.
+      #
+      # THE KEYS ARE WRITTEN IN EXACTLY THIS CASE. GitHub variable names are
+      # case-insensitive on lookup, so `vars.TF_VAR_prefix` resolves however
+      # the variable is stored — but Terraform variable names are NOT.
+      # TF_VAR_PREFIX would map to an undeclared variable `PREFIX` and be
+      # ignored without a word.
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      # Required by 05-key-vault (the vault name is kv-<env>-<prefix>-<random>).
+      TF_VAR_prefix: ${{ vars.TF_VAR_prefix }}
+
+      # Required by 06-acr.
+      TF_VAR_acr_name: ${{ vars.TF_VAR_acr_name }}
+
+      # Required by 11-container-apps. JSON, not a bare word — see the header.
+      TF_VAR_apps: ${{ vars.TF_VAR_apps }}
+
+      # Required by 09-postgresql. Both describe the same Entra group.
+      TF_VAR_pg_entra_admin_group_object_id: ${{ vars.TF_VAR_pg_entra_admin_group_object_id }}
+      TF_VAR_pg_entra_admin_group_name: ${{ vars.TF_VAR_pg_entra_admin_group_name }}
+
+      # Required by 12-monitoring.
+      TF_VAR_action_group_email: ${{ vars.TF_VAR_action_group_email }}
+
+      # Backend coordinates. NO `|| default` fallback, unlike TF_VAR_rg_suffix
+      # above: an empty value here still counts as a value and would override
+      # each module's own default with "", pointing Terraform at a nonexistent
+      # state. On a destroy that is the worst failure mode there is — an empty
+      # state reads as "nothing exists", every module plans a clean no-op, the
+      # run reports success, and the estate is still standing.
+      #
+      # They serve two purposes: -backend-config for each root's own state (via
+      # Makefile:75 BACKEND_OVERRIDES), and ordinary Terraform variables for the
+      # `data "terraform_remote_state"` blocks that read upstream modules.
+      TF_VAR_backend_resource_group_name: ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
+      TF_IN_AUTOMATION: "true"
+
+      # Bound here, not interpolated into run: bodies. A `${{ }}` expression
+      # inside a run: block is substituted as RAW TEXT before the shell sees
+      # it, so a crafted input would execute on the runner. main-verify.yml
+      # scans every workflow in this directory for exactly that and fails the
+      # build on a hit (Sonar githubactions:S7630).
+      ENV_DIR: terraform/envs/${{ inputs.environment_name }}
+      ENV_NAME: ${{ inputs.environment_name }}
+
+      # Only this GitHub account may run a destructive workflow in this repo.
+      # Update on a rename; add further accounts space-separated.
+      ALLOWED_ACTORS: "rubensgomes"
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Checkout repository content
+      #
+      # The Makefile and every module root come from the repository, so the
+      # checkout IS the definition of what gets destroyed.
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # -----------------------------------------------------------------------
+      # Step 2: Authorization
+      #
+      # Runs before any credential is touched, so a denied run never reaches
+      # Azure at all.
+      #
+      # The typed phrase is enforced only when dry_run is false. A plan changes
+      # nothing, and demanding the phrase to preview would train the habit of
+      # typing it — which is the one habit this guard exists to prevent. The
+      # actor allowlist applies to both paths.
+      # -----------------------------------------------------------------------
+      - name: SAFEGUARD - Validate actor and confirmation phrase
+        shell: bash
+        env:
+          ACTOR: ${{ github.actor }}
+          TYPED_CONFIRM: ${{ inputs.confirm }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          actor="${ACTOR}"
+          allowed=false
+          for allowed_actor in ${ALLOWED_ACTORS}; do
+            if [ "${actor}" = "${allowed_actor}" ]; then
+              allowed=true
+              break
+            fi
+          done
+          if [ "${allowed}" != "true" ]; then
+            echo "Denied: this is a personal workflow currently being used by 'Rubens Gomes' only. Actor: '${actor}'."
+            exit 1
+          fi
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "Denied: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "Dry run. The confirmation phrase is not required and is ignored."
+            echo "Nothing in Azure will be modified."
+            exit 0
+          fi
+
+          expected_phrase="DESTROY ALL ${ENV_NAME}"
+          typed_phrase="${TYPED_CONFIRM:-}"
+          if [ "${typed_phrase}" != "${expected_phrase}" ]; then
+            echo "Denied: confirmation phrase did not match exactly."
+            echo "Expected: ${expected_phrase}"
+            echo "Got:      ${typed_phrase}"
+            exit 1
+          fi
+
+          echo "Safeguard passed. Target estate: ${ENV_NAME} (all twelve modules)."
+          echo "Scope: terraform/envs/${ENV_NAME}/ only. The state backend is NOT destroyed."
+
+      # -----------------------------------------------------------------------
+      # Step 3: Validate the Terraform inputs that name resources
+      #
+      # Shape checks only, and cheap ones. They run here rather than being left
+      # to Terraform's own `validation` blocks because a malformed value would
+      # otherwise surface after init and a partial plan, several minutes in.
+      #
+      # Security:
+      #   Both values are referenced as SHELL VARIABLES from the job env block.
+      #   Never write `${{ ... }}` inside a run: body.
+      # -----------------------------------------------------------------------
+      - name: GUARD - Validate Terraform inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "${TF_VAR_env}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "FAIL: TF_VAR_env must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_location}" | grep -qE '^[a-z][a-z0-9]*$'; then
+            echo "FAIL: TF_VAR_location must be a lowercase Azure region token"
+            echo "such as centralus. Fix the TF_VAR_location repository variable."
+            exit 1
+          fi
+          echo "Inputs OK: env=${TF_VAR_env} location=${TF_VAR_location}"
+
+      # -----------------------------------------------------------------------
+      # Step 4: Fail fast on missing configuration
+      #
+      # Reports EVERY missing value in one run rather than one per attempt —
+      # this list is long, and discovering it one variable at a time would mean
+      # a dozen dispatches.
+      #
+      # TF_VAR_rg_suffix is deliberately NOT in the loop: empty is its correct
+      # value here. Its shape is checked in step 5 instead, and only when set.
+      # -----------------------------------------------------------------------
+      - name: Verify required Azure configuration is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID \
+                   TF_VAR_env TF_VAR_location TF_VAR_prefix TF_VAR_acr_name \
+                   TF_VAR_apps TF_VAR_action_group_email \
+                   TF_VAR_pg_entra_admin_group_object_id \
+                   TF_VAR_pg_entra_admin_group_name \
+                   TF_VAR_backend_resource_group_name TF_VAR_storage_account_id \
+                   TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo ""
+            echo "A destroy needs the same inputs an apply does — see"
+            echo "terraform/TEARDOWN.md. Define the missing ones under:"
+            echo "  Settings > Secrets and variables > Actions > Variables"
+            echo "  Secret:    AZURE_CLIENT_SECRET"
+            echo "TF_VAR_apps must be JSON, e.g. [\"api\",\"worker\"]."
+          fi
+          exit $missing
+
+      # -----------------------------------------------------------------------
+      # Step 5: Validate the naming and backend variables
+      #
+      # A typo in a backend coordinate is not a cosmetic naming error — it
+      # points Terraform at a DIFFERENT (or nonexistent) state, where it sees
+      # an empty world, plans nothing, and reports success with the estate
+      # still standing. The regexes are Azure's own rules for the two resource
+      # types, and match the `validation` blocks on the like-named Terraform
+      # variables.
+      # -----------------------------------------------------------------------
+      - name: Validate resource naming variables
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -n "${TF_VAR_rg_suffix:-}" ] \
+             && ! printf '%s' "${TF_VAR_rg_suffix}" | grep -qE '^[a-z][a-z0-9]{0,9}$'; then
+            echo "FAIL: TF_VAR_rg_suffix must be EMPTY (= no suffix, the normal"
+            echo "case), or 1-10 lowercase alphanumeric characters starting with"
+            echo "a letter."
+            exit 1
+          fi
+          if [ "${TF_VAR_backend_resource_group_name: -1}" = "." ]; then
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with a period."
+            exit 1
+          fi
+          if [ "${#TF_VAR_backend_resource_group_name}" -gt 90 ]; then
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot exceed 90 characters."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_storage_account_id}" | grep -qE '^[a-z0-9]{3,24}$'; then
+            echo "FAIL: TF_VAR_storage_account_id must be 3-24 lowercase"
+            echo "alphanumeric characters (an Azure storage account name)."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_container_name}" | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
+            echo "FAIL: TF_VAR_container_name must be 3-63 lowercase"
+            echo "alphanumeric/hyphen characters starting with alphanumeric."
+            exit 1
+          fi
+          echo "Backend: ${TF_VAR_backend_resource_group_name}/${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
+          echo "RG names: rg-${ENV_NAME}-<purpose>${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix}"
+
+      # -----------------------------------------------------------------------
+      # Step 6: Azure login — for the `az` CLI only
+      #
+      # Terraform does NOT need this; it reads ARM_* from the environment. But
+      # `make destroy` itself shells out to az twice — the orphan sweep before
+      # module 01 and the Key Vault purge after the loop — so this is required
+      # on the destroy path, not only for the inventory and verification steps.
+      # -----------------------------------------------------------------------
+      - name: Azure Login (Service Principal Secret)
+        uses: azure/login@v3
+        with:
+          auth-type: SERVICE_PRINCIPAL
+          creds: >-
+            {"clientId":"${{ vars.AZURE_CLIENT_ID }}",
+             "clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}",
+             "tenantId":"${{ vars.AZURE_TENANT_ID }}",
+             "subscriptionId":"${{ vars.AZURE_SUBSCRIPTION_ID }}"}
+
+      # -----------------------------------------------------------------------
+      # Step 7: Terraform toolchain
+      #
+      # terraform_wrapper must stay false: `make destroy` captures the Key Vault
+      # name with `terraform output -raw` (Makefile:289) before the loop, and
+      # the wrapper's stdout interception would return an empty string. The
+      # capture ends in `|| true`, so the failure would be SILENT and the vault
+      # would be left soft-deleted.
+      # -----------------------------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+
+      # -----------------------------------------------------------------------
+      # Step 8: Record what is about to be destroyed
+      #
+      # Writes the estate inventory into the run log BEFORE deletion, so the
+      # job output is a surviving record of what was there. Images and blobs
+      # cannot be recovered from it, but the resource list is often the only
+      # thing that answers "what did we lose?" afterwards.
+      #
+      # Wholly informational: every command tolerates failure. An estate that
+      # is already gone must not fail here — the destroy below is a clean
+      # no-op in that case.
+      # -----------------------------------------------------------------------
+      - name: Inventory the estate (pre-destroy record)
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          if [ -n "${TF_VAR_rg_suffix:-}" ]; then
+            rg_query="[?starts_with(name, 'rg-${ENV_NAME}-') && ends_with(name, '-${TF_VAR_rg_suffix}')].name"
+          else
+            rg_query="[?starts_with(name, 'rg-${ENV_NAME}-')].name"
+          fi
+
+          groups="$(az group list --query "${rg_query}" -o tsv 2>/dev/null || true)"
+          if [ -z "${groups}" ]; then
+            echo "No rg-${ENV_NAME}-* resource groups exist. Nothing to inventory."
+            exit 0
+          fi
+
+          echo "The following resource groups and their contents are in scope:"
+          echo "${groups}" | while IFS= read -r rg; do
+            [ -n "${rg}" ] || continue
+            echo ""
+            echo "  ${rg}"
+            az resource list -g "${rg}" \
+              --query "[].{Name:name, Type:type}" -o tsv 2>/dev/null \
+              | sed 's/^/    /' || true
+          done
+
+      # -----------------------------------------------------------------------
+      # Step 9: Plan the destroy (dry run only)
+      #
+      # Plans each root's destroy in the same 12 -> 01 order the real teardown
+      # uses. `make plan-destroy-<short>` writes a tfplan into that root
+      # (Makefile:170-173); nothing consumes it, it exists to be read here.
+      #
+      # This is the blast-radius preview, and it is why no plan-scope guard is
+      # ported from acr-destroy.yml. That guard asks "does this single-module
+      # plan reach beyond its own module?" — a real question for one registry,
+      # a vacuous one when the whole estate is the scope by definition.
+      #
+      # Failures are accumulated rather than fatal on the first one, because a
+      # module whose upstream is ALREADY destroyed fails at plan with
+      # "Unsupported attribute" from an empty remote state — expected when
+      # previewing a partly torn-down estate, and not a reason to hide the
+      # other eleven results.
+      # -----------------------------------------------------------------------
+      - name: Plan the destroy across all twelve modules
+        if: ${{ inputs.dry_run }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          rc=0
+          failed=""
+
+          for short in monitoring container-apps container-app-environment \
+                       postgresql service-bus storage acr key-vault \
+                       managed-identities log-analytics networking \
+                       resource-groups; do
+            echo ""
+            echo "=== PLAN DESTROY ${short} ==="
+            if make ENV="$ENV_NAME" "plan-destroy-${short}"; then
+              echo "OK: ${short} planned."
+            else
+              echo "FAILED: ${short} could not be planned."
+              failed="${failed} ${short}"
+              rc=1
+            fi
+          done
+
+          echo ""
+          if [ "$rc" -ne 0 ]; then
+            echo "Modules that failed to plan:${failed}"
+            echo ""
+            echo "An 'Unsupported attribute' failure here usually means an"
+            echo "upstream module's state is already empty, so this root cannot"
+            echo "read it. That is expected when previewing a partly torn-down"
+            echo "estate. Anything else is a configuration problem — fix it"
+            echo "before running with dry_run cleared."
+          fi
+          exit $rc
+
+      # -----------------------------------------------------------------------
+      # Step 10: Stop here on a dry run
+      # -----------------------------------------------------------------------
+      - name: Dry run complete - nothing was destroyed
+        if: ${{ inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Dry run complete. Azure was not modified."
+          echo ""
+          echo "To tear the estate down for real, dispatch this workflow again"
+          echo "with:"
+          echo "  dry_run:  unchecked"
+          echo "  confirm:  DESTROY ALL ${ENV_NAME}"
+          echo ""
+          echo "Read the plans above first. Registry images and storage blobs"
+          echo "are not recoverable."
+
+      # -----------------------------------------------------------------------
+      # Step 11: Destroy the estate
+      #
+      # One target. `make destroy` walks 12 -> 01, inlines the orphan sweep
+      # before module 01, and purges the soft-deleted Key Vault afterwards —
+      # see the header for why none of that is reimplemented here.
+      #
+      # It refuses to run on an empty module list (Makefile:292-295), the guard
+      # added after a teardown once reported success having destroyed nothing.
+      #
+      # If a module fails, `set -e` inside the recipe aborts the remaining
+      # (lower-numbered) modules and this step fails. Re-dispatching is the
+      # documented recovery: terraform destroy on an emptied state is a no-op,
+      # so the loop resumes where it stopped.
+      # -----------------------------------------------------------------------
+      - name: Destroy all modules (12 -> 01)
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        run: make ENV="$ENV_NAME" destroy
+
+      # -----------------------------------------------------------------------
+      # Step 12: Verify the estate is gone and the backend is not
+      #
+      # Accumulates into rc and exits once, so every assertion is reported
+      # rather than stopping at the first failure.
+      #
+      # The polarity is the inverse of acr-destroy.yml's: there, surviving
+      # resource groups proved the scope had NOT leaked. Here their survival is
+      # the failure, and only the state backend belongs in the "must still
+      # exist" column.
+      # -----------------------------------------------------------------------
+      - name: Verify the estate is destroyed and the backend survived
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+
+          # With an empty suffix every RG is `rg-<env>-<purpose>`, so the
+          # ends_with() filter is only applied when a suffix is actually set.
+          if [ -n "${TF_VAR_rg_suffix:-}" ]; then
+            rg_query="[?starts_with(name, 'rg-${ENV_NAME}-') && ends_with(name, '-${TF_VAR_rg_suffix}')].name"
+          else
+            rg_query="[?starts_with(name, 'rg-${ENV_NAME}-')].name"
+          fi
+          remaining="$(az group list --query "${rg_query}" -o tsv)"
+          if [ -n "${remaining}" ]; then
+            echo "FAIL: resource groups still exist after the destroy:"
+            echo "${remaining}" | sed 's/^/  /'
+            echo "       Re-dispatch to resume — the teardown is idempotent."
+            rc=1
+          else
+            echo "OK: no rg-${ENV_NAME}-*${TF_VAR_rg_suffix:+-$TF_VAR_rg_suffix} resource groups remain."
+          fi
+
+          # make destroy purges the vault only if it captured the name before
+          # the loop, and that capture ends in `|| true`. A vault left
+          # soft-deleted blocks the next apply from reusing the name, so it is
+          # worth naming here rather than discovering it on a reprovision.
+          deleted_vaults="$(az keyvault list-deleted \
+            --query "[?starts_with(name, 'kv-${ENV_NAME}-')].name" \
+            -o tsv 2>/dev/null || true)"
+          if [ -n "${deleted_vaults}" ]; then
+            echo "WARNING: soft-deleted Key Vault(s) remain:"
+            echo "${deleted_vaults}" | sed 's/^/  /'
+            echo "         Purge with: az keyvault purge --name <name> --location <region>"
+          else
+            echo "OK: no soft-deleted Key Vault left behind."
+          fi
+
+          # The state backend must be untouched. It is not this workflow's to
+          # delete — see terraform/bootstrap-backend/TF_BOOTSTRAP_DESTROY.md.
+          if az group show -n "${TF_VAR_backend_resource_group_name}" -o none 2>/dev/null; then
+            echo "OK: state backend resource group '${TF_VAR_backend_resource_group_name}' preserved."
+          else
+            echo "FAIL: '${TF_VAR_backend_resource_group_name}' is missing — the Terraform state backend is gone."
+            rc=1
+          fi
+
+          exit $rc
