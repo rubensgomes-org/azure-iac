@@ -25,6 +25,14 @@ trusts one plans from a false premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.6.0] - 2026-09-05
+
+### Added
+
 - **`terraform/envs/dev/tags.json`**, the committed source of truth for the
   common tag map. Every module root's `locals.tf` reads it with
   `jsondecode(file("${path.root}/../tags.json"))` and merges it into
