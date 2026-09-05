@@ -12,7 +12,7 @@ Terraform to authenticate and create resources in Microsoft Azure Cloud.
     brew install azure-cli
     ```
 
-- You must have the HashiCorp Terraform CLI tool (1.15+) installed on your
+- You must have the HashiCorp Terraform CLI tool (1.16.0+) installed on your
   local machine. Here is how it was installed on macOS:
 
     ```bash
@@ -244,7 +244,8 @@ variables accordingly.
     export TF_VAR_pg_entra_admin_group_object_id='<object ID of the Entra group>'
     export TF_VAR_apps='["api","worker"]'
 
-    export TF_VAR_acr_name='rubensdevacr'
+    # ATTENTION: this MUST be a globally unique ACR name in Azure
+    export TF_VAR_acr_name='rubensdevacr01'
     export TF_VAR_owner='rubens.s.gomes@gmail.com'
 
     # rg_suffix is deliberately LEFT UNSET. Empty means "no suffix", which is
@@ -258,8 +259,13 @@ variables accordingly.
     # runs it unlocked so a teardown does not have to remove the lock first.
     export TF_VAR_enable_rg_lock='false'
 
+    # A JSON array containing the names of ACA (Azure Container Apps) being 
+    # provisioned by this project.
+    export TF_VAR_apps='[ "api", "worker" ]'
+
     export TF_VAR_backend_resource_group_name='rg-tfstate'
     export TF_VAR_container_name='tfstate'
+    # ATTENTION: this MUST be a globally unique ID in Azure
     export TF_VAR_storage_account_id='sttfstaterubens01'
     ```
 
@@ -312,6 +318,12 @@ ls terraform/envs/dev/env.tfvars terraform/envs/dev/[0-9][0-9]-*/terraform.tfvar
     TF_VAR_CONTAINER_NAME
     TF_VAR_LOCATION
     TF_VAR_OWNER
+    TF_VAR_APPS
+    TF_VAR_PREFIX
+    TF_VAR_ACR_NAME
+    TF_VAR_ACTION_GROUP_EMAIL
+    TF_VAR_PG_ENTRA_ADMIN_GROUP_OBJECT_ID
+    TF_VAR_PG_ENTRA_ADMIN_GROUP_NAME
     # Do not add if you want the resource group name suffix empty.
     TF_VAR_RG_SUFFIX
     ```

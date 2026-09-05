@@ -10,9 +10,9 @@
 # -----------------------------------------------------------------------------
 
 terraform {
-  # Accept Terraform >= 1.15.0 and < 2.0.0. Matches every other module in
+  # Accept Terraform >= 1.16.0 and < 2.0.0. Matches every other module in
   # the repo so the same CLI works everywhere.
-  required_version = "~> 1.15"
+  required_version = ">= 1.16.0, < 2.0"
 
   required_providers {
     # This module only creates azurerm_resource_group resources — no
@@ -21,7 +21,7 @@ terraform {
     # what is actually needed.
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.80"
+      version = "~> 5.4"
     }
   }
 }

@@ -11,7 +11,7 @@
 # terraform/INITIAL_SETUP.md for the one-time SP setup that produces those
 # values.
 #
-# The empty `features {}` block is REQUIRED by azurerm 4.x.
+# The empty `features {}` block is REQUIRED by azurerm 5.x.
 # -----------------------------------------------------------------------------
 
 provider "azurerm" {

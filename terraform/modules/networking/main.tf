@@ -161,11 +161,14 @@ resource "azurerm_private_dns_zone" "this" {
 resource "azurerm_private_dns_zone_virtual_network_link" "this" {
   for_each = local.private_dns_zones
 
-  name                  = "vnet-link-${var.env}-${each.key}"
-  resource_group_name   = var.resource_group_name
-  private_dns_zone_name = azurerm_private_dns_zone.this[each.key].name
-  virtual_network_id    = azurerm_virtual_network.this.id
-  registration_enabled  = false
+  name = "vnet-link-${var.env}-${each.key}"
+
+  # azurerm 5.0 replaced the resource_group_name + private_dns_zone_name pair
+  # with a single zone ID. The zone already carries its resource group, so the
+  # ID says the same thing without the chance of the two drifting apart.
+  private_dns_zone_id  = azurerm_private_dns_zone.this[each.key].id
+  virtual_network_id   = azurerm_virtual_network.this.id
+  registration_enabled = false
 
   tags = var.tags
 }

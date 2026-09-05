@@ -33,20 +33,32 @@
 # `~> X.Y`   allows any version >= X.Y and < (X+1).0   (locks the major)
 # `~> X.Y.Z` allows any version >= X.Y.Z and < X.(Y+1) (locks the minor)
 #
-# We use the two-segment form ("~> 1.15", "~> 4.80") so patch AND minor
+# We use the two-segment form for PROVIDERS ("~> 5.4") so patch AND minor
 # updates flow in automatically, while a breaking major bump requires a
 # deliberate edit to this file.
+#
+# The Terraform CLI constraint is a two-clause RANGE rather than a "~>" form,
+# because no "~>" expression says what is meant here. The floor has to be an
+# exact patch release (1.16.0), and `~> 1.16.0` would pin the minor as well,
+# shutting out 1.17. `>= 1.16.0, < 2.0` keeps the same effect the two-segment
+# form had -- minor and patch flow in, 2.x needs a deliberate edit -- while
+# putting the floor where it belongs.
 # -----------------------------------------------------------------------------
 
 terraform {
   # ---------------------------------------------------------------------------
   # Terraform CLI constraint
   # ---------------------------------------------------------------------------
-  # Accepts Terraform >= 1.15.0 and < 2.0.0. The 1.x line preserves the HCL
+  # Accepts Terraform >= 1.16.0 and < 2.0.0. The 1.x line preserves the HCL
   # dialect and state file format used throughout this repo. A future 2.x
   # release would likely require migration work, so it is intentionally
   # excluded here.
-  required_version = "~> 1.15"
+  #
+  # The floor is a FLOOR, not a pin: `terraform init` refuses to run on an
+  # older CLI, so raising it obsoletes every workstation still on 1.15.x.
+  # Every workflow in .github/workflows/ pins a build that satisfies it; the
+  # two move together or CI stops matching local runs.
+  required_version = ">= 1.16.0, < 2.0"
 
   # ---------------------------------------------------------------------------
   # Provider constraints
@@ -66,13 +78,14 @@ terraform {
     # `source` must be the fully-qualified registry address; without it,
     # Terraform 0.13+ cannot locate the provider.
     #
-    # Version "~> 4.80" accepts >= 4.80.0 and < 5.0.0. Staying on the 4.x line
-    # matches the AzureRM v4 schema our resource definitions are written
-    # against. Major version bumps (5.x) frequently rename attributes and
-    # require code changes, so they are held back until a coordinated upgrade.
+    # Version "~> 5.4" accepts >= 5.4.0 and < 6.0.0. The 5.x line matches the
+    # AzureRM v5 schema our resource definitions are written against. Major
+    # version bumps rename attributes and require code changes, so they are
+    # held back until a coordinated upgrade -- the move off 4.x, for one,
+    # rewrote the private DNS zone virtual network link in modules/networking.
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.80"
+      version = "~> 5.4"
     }
 
     # -------------------------------------------------------------------------
@@ -91,7 +104,8 @@ terraform {
     # consistent with the rest of the estate and pass CAF compliance checks.
     #
     # Version "~> 1.2" accepts >= 1.2.0 and < 2.0.0. The 1.x line has a
-    # stable resource schema; 2.x (if released) would be reviewed separately.
+    # stable resource schema and is still the newest STABLE line: 2.0.0 exists
+    # only as a preview, which Terraform will not select on its own anyway.
     azurecaf = {
       source  = "aztfmod/azurecaf"
       version = "~> 1.2"
@@ -118,12 +132,12 @@ terraform {
     # supports it, we can apply it via `azapi` without waiting for a
     # provider release.
     #
-    # Version "~> 2.10" accepts >= 2.10.0 and < 3.0.0. The 2.x line ships
+    # Version "~> 2.12" accepts >= 2.12.0 and < 3.0.0. The 2.x line ships
     # the current typed-schema experience; 1.x used a JSON `body` string
     # and is not backwards compatible.
     azapi = {
       source  = "azure/azapi"
-      version = "~> 2.10"
+      version = "~> 2.12"
     }
   }
 }

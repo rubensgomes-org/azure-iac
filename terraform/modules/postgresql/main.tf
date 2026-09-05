@@ -72,7 +72,7 @@ resource "random_id" "suffix" {
 # Name pattern: psql-<env>-<random> (e.g. "psql-dev-a7f2").
 #
 # `administrator_login` / `administrator_password` are OMITTED intentionally.
-# With `password_auth_enabled = false`, azurerm 4.x accepts the create call
+# With `password_auth_enabled = false`, azurerm 5.x accepts the create call
 # without them — no SQL admin ever exists on this server, so there is
 # nothing to leak or rotate.
 resource "azurerm_postgresql_flexible_server" "this" {

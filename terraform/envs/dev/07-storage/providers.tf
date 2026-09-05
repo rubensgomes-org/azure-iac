@@ -21,7 +21,7 @@
 # for the TF SP at the RG scope) gives that token the permissions it
 # needs.
 #
-# The empty `features {}` block is REQUIRED by azurerm 4.x. `random`,
+# The empty `features {}` block is REQUIRED by azurerm 5.x. `random`,
 # `azapi`, and `time` need no explicit configuration.
 # -----------------------------------------------------------------------------
 

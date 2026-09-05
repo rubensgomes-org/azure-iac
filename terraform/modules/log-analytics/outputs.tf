@@ -26,7 +26,7 @@ output "law_workspace_id" {
 }
 
 output "law_primary_shared_key" {
-  description = "Primary shared key. Legacy agent-auth path; the passwordless model does not use this, but downstream modules may need it for classic integrations (e.g. Container App Environment on some azurerm 4.x versions)."
+  description = "Primary shared key. Legacy agent-auth path; the passwordless model does not use this, but downstream modules may need it for classic integrations (e.g. Container App Environment on older azurerm versions)."
   value       = azurerm_log_analytics_workspace.this.primary_shared_key
   sensitive   = true
 }

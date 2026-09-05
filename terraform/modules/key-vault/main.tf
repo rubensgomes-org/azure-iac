@@ -89,7 +89,7 @@ resource "azurerm_key_vault" "this" {
   public_network_access_enabled = true
 
   # Even with public network enabled, network_acls must be present in
-  # azurerm 4.x for a KV that faces the public Internet. `Allow` default
+  # azurerm 5.x for a KV that faces the public Internet. `Allow` default
   # matches "public network enabled"; if we later add a private endpoint,
   # flip default_action to "Deny" and add explicit IP allow-lists or
   # virtual_network_subnet_ids as needed.

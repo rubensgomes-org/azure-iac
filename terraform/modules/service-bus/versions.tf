@@ -9,7 +9,7 @@
 # -----------------------------------------------------------------------------
 
 terraform {
-  required_version = "~> 1.15"
+  required_version = ">= 1.16.0, < 2.0"
 
   required_providers {
     # azurerm covers the Service Bus namespace, queues, and the two RBAC
@@ -18,7 +18,7 @@ terraform {
     # namespace and queues are pure ARM control-plane resources.
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.80"
+      version = "~> 5.4"
     }
 
     # `random_id` produces a 4-hex-char suffix baked into the namespace name.
@@ -28,7 +28,7 @@ terraform {
     # land on a fresh name.
     random = {
       source  = "hashicorp/random"
-      version = "~> 3.6"
+      version = "~> 3.9"
     }
   }
 }

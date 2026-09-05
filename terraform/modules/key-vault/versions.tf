@@ -10,14 +10,14 @@
 # -----------------------------------------------------------------------------
 
 terraform {
-  required_version = "~> 1.15"
+  required_version = ">= 1.16.0, < 2.0"
 
   required_providers {
     # azurerm covers Key Vault itself, the role assignment, and the
     # azurerm_client_config data source used to read the current tenant ID.
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.80"
+      version = "~> 5.4"
     }
 
     # `random_id` produces a 4-hex-char suffix baked into the KV name. Key
@@ -27,7 +27,7 @@ terraform {
     # produces a fresh name that isn't held by the tombstone.
     random = {
       source  = "hashicorp/random"
-      version = "~> 3.6"
+      version = "~> 3.9"
     }
   }
 }

@@ -184,8 +184,8 @@ A typical entry looks like this:
 
 ```hcl
 provider "registry.terraform.io/hashicorp/azurerm" {
-  version     = "4.80.0"
-  constraints = "~> 4.80"
+  version     = "5.4.0"
+  constraints = "~> 5.4"
   hashes = [
     "h1:...",
     "zh:...",
@@ -197,7 +197,7 @@ provider "registry.terraform.io/hashicorp/azurerm" {
 Each field means:
 
 - `version` — the exact version Terraform picked on the last init, from the
-  range allowed by `versions.tf`. The `4.80.0` shown above is illustrative;
+  range allowed by `versions.tf`. The `5.4.0` shown above is illustrative;
   your lock file will show whatever `versions.tf` currently allows.
 - `constraints` — the constraint that was in effect at that time.
 - `hashes` — cryptographic checksums (`h1:` = the modern hash format;
@@ -215,7 +215,7 @@ The lock file MUST be committed to git alongside the `.tf` files. Reasons:
 2. **Supply-chain safety.** The recorded hashes protect against a tampered
    provider being served from the registry or a mirror.
 3. **Deliberate upgrades.** Provider version bumps show up as a reviewable
-   diff in the commit (`version = "4.80.0"` → `"4.90.0"`) instead of drifting
+   diff in the commit (`version = "5.4.0"` → `"5.5.0"`) instead of drifting
    silently on someone's laptop.
 4. **CI stability.** Pipelines that run `terraform init -lockfile=readonly`
    require the committed file and will fail without it.

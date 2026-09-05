@@ -44,7 +44,7 @@
 #   `run_sonar` input is true, and otherwise reports as skipped.
 #
 # Notes:
-#   - terraform_version must satisfy the `required_version = "~> 1.15"`
+#   - terraform_version must satisfy the `required_version = ">= 1.16.0, < 2.0"`
 #     declared in every versions.tf in the repo. Every Terraform-touching
 #     workflow in this directory pins the same build; bump them together.
 #   - terraform_wrapper is false, matching every other workflow that runs it.
@@ -123,7 +123,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: "1.15.8"
+          terraform_version: "1.16.0"
           terraform_wrapper: false
 
       # -----------------------------------------------------------------------

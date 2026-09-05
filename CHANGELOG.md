@@ -26,9 +26,71 @@ trusts one plans from a false premise.
 ### Added
 
 - New workflow to destroy the Azure infra-structure estate created by this
-  project
+  project.
 
 ### Changed
+
+- **The minimum Terraform CLI is now 1.16.0.** `required_version` moves from
+  `~> 1.15` to `>= 1.16.0, < 2.0` in all 25 `versions.tf` files — the twelve
+  module roots, the twelve child modules and `bootstrap-backend`. A two-clause
+  range rather than a `~>` form because none says what is meant: the floor has
+  to be an exact patch release, and `~> 1.16.0` would pin the minor and shut
+  out 1.17. The effect the two-segment form had is preserved — minor and patch
+  releases flow in, 2.x still needs a deliberate edit.
+
+  **This is breaking for anyone on an older CLI.** `terraform init` refuses to
+  run below the floor, so 1.15.x workstations must upgrade before they can
+  plan. No resource is affected: `terraform plan` shows no diff from this
+  change.
+
+- **Every workflow pins `terraform_version: "1.16.0"`**, up from `1.15.8` —
+  `acr-create.yml`, `acr-destroy.yml`, `destroy-all.yml`, `main-verify.yml`
+  and `release.yml`. The pin and the floor move together or CI stops matching
+  a local run.
+
+- `README.md` and `terraform/INITIAL_SETUP.md` now state 1.16.0+ as the
+  prerequisite.
+
+- **Every provider moves to its latest released version.** `hashicorp/azurerm`
+  `~> 4.80` → `~> 5.4`, `azure/azapi` `~> 2.10` → `~> 2.12`,
+  `hashicorp/random` `~> 3.6` → `~> 3.9`, `hashicorp/null` `~> 3.2` → `~> 3.3`,
+  `hashicorp/http` `~> 3.5` → `~> 3.6` and `hashicorp/time` `~> 0.12` →
+  `~> 0.14`, across all 25 `versions.tf` files. `aztfmod/azurecaf` stays at
+  `~> 1.2` — 1.2.34 is the newest stable release, and 2.0.0 exists only as a
+  preview. All 15 committed `.terraform.lock.hcl` files are regenerated for the
+  three platforms they already covered: `darwin_amd64`, `darwin_arm64` and
+  `linux_amd64`.
+
+- **`azurerm` 5.0 rewrote `azurerm_private_dns_zone_virtual_network_link`**, so
+  `modules/networking` now passes `private_dns_zone_id` in place of the
+  `resource_group_name` + `private_dns_zone_name` pair the 4.x schema wanted.
+
+- **`modules/container-app-environment` now sets `logs_destination =
+  "log-analytics"` explicitly.** azurerm 5.0 made that property no longer
+  Computed: without it the environment ignores `log_analytics_workspace_id`
+  and falls back to streaming-only logs, which nothing persists. Nothing in
+  the config flagged this — `terraform validate` passes either way, because
+  both properties are optional.
+
+  Every other resource in the estate was checked against the 5.0 upgrade guide
+  and needs no change. The near misses were already covered: Key Vault sets
+  `rbac_authorization_enabled` (now required), Storage sets
+  `allow_nested_items_to_be_public` and `min_tls_version` explicitly (defaults
+  and accepted values both changed), Service Bus is already on TLS 1.2, and
+  the monitoring module already uses `enabled_metric` rather than the removed
+  `metric` block.
+
+  **Plan before applying.** `terraform validate` checks schema, not behaviour,
+  and a major provider release can change what a plan proposes for a resource
+  it no longer describes the same way. The private DNS zone links and the
+  Container App Environment are the ones to read closely.
+
+- **Comments that named `azurerm 4.x` now name 5.x**, across the twelve
+  `providers.tf` files, `bootstrap-backend/main.tf`, and the `key-vault`,
+  `postgresql` and `container-app-environment` modules. Each claim was
+  re-checked against the 5.4.0 schema first. The two `log-analytics` notes
+  about shared keys say "older azurerm versions" instead — they were always
+  historical.
 
 ### Fixed
 

@@ -10,7 +10,7 @@
 # -----------------------------------------------------------------------------
 
 terraform {
-  required_version = "~> 1.15"
+  required_version = ">= 1.16.0, < 2.0"
 
   required_providers {
     # Only azurerm is needed — creates one azurerm_user_assigned_identity.
@@ -18,7 +18,7 @@ terraform {
     # no azurecaf (name pattern is trivial).
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.80"
+      version = "~> 5.4"
     }
   }
 }

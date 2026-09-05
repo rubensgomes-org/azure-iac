@@ -11,7 +11,7 @@
 # terraform/INITIAL_SETUP.md for the one-time SP setup that produces those
 # values.
 #
-# The empty `features {}` block is REQUIRED by azurerm 4.x even when no
+# The empty `features {}` block is REQUIRED by azurerm 5.x even when no
 # feature toggles are overridden — omitting it fails `terraform init`.
 # -----------------------------------------------------------------------------
 

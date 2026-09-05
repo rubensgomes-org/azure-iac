@@ -8,7 +8,7 @@
 # Design decisions (all fixed here, not variables):
 #
 # * **Consumption-only workload profile.** No `workload_profile` block is
-#   declared — in azurerm 4.x that produces a Consumption-only environment,
+#   declared — in azurerm 5.x that produces a Consumption-only environment,
 #   which bills per-request and needs no reserved capacity. Suits a
 #   playground. Add explicit `workload_profile { workload_profile_type =
 #   "D4" ... }` blocks later if a workload needs dedicated compute.
@@ -36,9 +36,12 @@ resource "azurerm_container_app_environment" "this" {
   location            = var.location
   resource_group_name = var.resource_group_name
 
-  # Log-plane wiring. azurerm 4.x accepts the workspace ARM resource ID
-  # directly (no shared-key argument needed). `logs_destination` defaults
-  # to `log-analytics` when this ID is set.
+  # Log-plane wiring. azurerm accepts the workspace ARM resource ID directly
+  # (no shared-key argument needed), but as of azurerm 5.0 `logs_destination`
+  # is no longer Computed: it must say `log-analytics` explicitly, or the
+  # workspace ID is ignored and the environment falls back to streaming-only
+  # logs that nothing persists.
+  logs_destination           = "log-analytics"
   log_analytics_workspace_id = var.log_analytics_workspace_id
 
   # Compute-plane VNet integration. Subnet must be delegated to

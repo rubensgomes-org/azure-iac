@@ -10,13 +10,13 @@
 # -----------------------------------------------------------------------------
 
 terraform {
-  required_version = "~> 1.15"
+  required_version = ">= 1.16.0, < 2.0"
 
   required_providers {
     # Log Analytics Workspace itself is an azurerm resource.
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.80"
+      version = "~> 5.4"
     }
 
     # `random_id` produces a 4-hex-char suffix baked into the LAW name.
@@ -25,7 +25,7 @@ terraform {
     # out the block.
     random = {
       source  = "hashicorp/random"
-      version = "~> 3.6"
+      version = "~> 3.9"
     }
   }
 }

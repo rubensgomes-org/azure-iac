@@ -9,14 +9,14 @@
 # -----------------------------------------------------------------------------
 
 terraform {
-  required_version = "~> 1.15"
+  required_version = ">= 1.16.0, < 2.0"
 
   required_providers {
     # azurerm covers the Flexible Server, its AAD administrator binding, the
     # firewall rules, and one database per app in `var.apps`.
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.80"
+      version = "~> 5.4"
     }
 
     # `random_id` produces a 4-hex-char suffix baked into the server name.
@@ -26,7 +26,7 @@ terraform {
     # random suffix keyed on `env` sidesteps the reprovision block.
     random = {
       source  = "hashicorp/random"
-      version = "~> 3.6"
+      version = "~> 3.9"
     }
 
     # `null_resource` runs the psql local-exec that registers the shared
@@ -41,7 +41,7 @@ terraform {
     # AAD-principal step is authored via null_resource + psql instead.
     null = {
       source  = "hashicorp/null"
-      version = "~> 3.2"
+      version = "~> 3.3"
     }
   }
 }

@@ -25,7 +25,7 @@
 # environment variables (ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_TENANT_ID,
 # ARM_SUBSCRIPTION_ID) so no credentials appear in code.
 #
-# The empty `features {}` block is REQUIRED by the azurerm 4.x provider even
+# The empty `features {}` block is REQUIRED by the azurerm 5.x provider even
 # when no feature toggles are overridden - omitting it fails `terraform
 # init`. Individual feature groups (e.g. `key_vault { purge_soft_delete_on_
 # destroy = ... }`) can be added inside it as needed.

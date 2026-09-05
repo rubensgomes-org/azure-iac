@@ -9,14 +9,14 @@
 # -----------------------------------------------------------------------------
 
 terraform {
-  required_version = "~> 1.15"
+  required_version = ">= 1.16.0, < 2.0"
 
   required_providers {
     # azurerm covers the storage account and the Storage Blob Data Contributor
     # role assignment.
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.80"
+      version = "~> 5.4"
     }
 
     # `random_id` produces a 4-hex-char suffix baked into the storage account
@@ -26,7 +26,7 @@ terraform {
     # on a fresh name.
     random = {
       source  = "hashicorp/random"
-      version = "~> 3.6"
+      version = "~> 3.9"
     }
 
     # `azapi` creates blob containers via the ARM control plane. With
@@ -38,7 +38,7 @@ terraform {
     # so containers provision immediately with no data-plane grant needed.
     azapi = {
       source  = "Azure/azapi"
-      version = "~> 2.10"
+      version = "~> 2.12"
     }
   }
 }

@@ -13,7 +13,7 @@
 # `http` needs no auth — it fetches the runner's public IP from an
 # unauthenticated endpoint (`https://api.ipify.org`).
 #
-# The empty `features {}` block is REQUIRED by azurerm 4.x.
+# The empty `features {}` block is REQUIRED by azurerm 5.x.
 #
 # `azuread` intentionally NOT configured here. Earlier iterations of this
 # module looked up the Entra admin group's display name via

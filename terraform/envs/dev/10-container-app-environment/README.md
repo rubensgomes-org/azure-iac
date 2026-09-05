@@ -88,7 +88,7 @@ App Environments do not use a soft-delete window.
 ## Notes
 
 - **Consumption-only workload profile.** The child module declares no
-  `workload_profile` block; azurerm 4.x treats that as Consumption-only
+  `workload_profile` block; azurerm 5.x treats that as Consumption-only
   and bills per-request. Add explicit profile blocks in the child
   module if a workload later needs dedicated compute (`D4`, `E4`, ...).
 - **External ingress** — the environment provisions a public static IP.

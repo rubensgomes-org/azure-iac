@@ -27,7 +27,7 @@ The following pre-requisites are required:
 - GitHub account
 - UNIX OS (e.g., AIX, Linux, macOS, Solaris)
 - Azure CLI 2.90+
-- Terraform 1.16+
+- Terraform 1.16.0+
 - gh 2.99+, git 2.55+, make 3.8+
 
 ## Service Principal and Environment Configuration

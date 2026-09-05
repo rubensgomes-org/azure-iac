@@ -34,7 +34,7 @@
 #   — keep it that way.
 #
 # Notes:
-#   - terraform_version must satisfy the `required_version = "~> 1.15"`
+#   - terraform_version must satisfy the `required_version = ">= 1.16.0, < 2.0"`
 #     declared in every versions.tf in the repo. Every Terraform-touching
 #     workflow in this directory pins the same build; bump them together.
 #   - `gh` is preinstalled on ubuntu-latest, so the release is published with
@@ -179,13 +179,14 @@ jobs:
       # -----------------------------------------------------------------------
       # Step 3: Install Terraform on runner
       #
-      # Pinned to a 1.15.x build so it satisfies `required_version = "~> 1.15"`
-      # in every module root and child module.
+      # Pinned to 1.16.0, the floor set by `required_version` in every module
+      # root and child module. Raise both together or CI stops matching a
+      # local run.
       # -----------------------------------------------------------------------
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: "1.15.8"
+          terraform_version: "1.16.0"
           terraform_wrapper: false
 
       # -----------------------------------------------------------------------

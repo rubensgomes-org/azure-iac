@@ -36,7 +36,7 @@ owned by the caller — this module has no `backend` block.
 ## Design decisions
 
 - **Consumption-only workload profile.** No `workload_profile` block is
-  declared; azurerm 4.x treats that as Consumption-only, which bills
+  declared; azurerm 5.x treats that as Consumption-only, which bills
   per-request and needs no reserved capacity. Add explicit blocks (e.g.
   `D4`, `E4`) later if a workload needs dedicated compute.
 - **External ingress** (`internal_load_balancer_enabled = false`).
@@ -50,9 +50,11 @@ owned by the caller — this module has no `backend` block.
 - **Fixed name `cae-<env>`.** Unlike LAW / KV / SA / PG, Container App
   Environments have no soft-delete window — `terraform destroy` frees
   the name immediately. No random suffix needed.
-- **Log Analytics via `log_analytics_workspace_id`.** azurerm 4.x
-  accepts the workspace's ARM resource ID directly; the legacy
-  `customer_id` + `primary_shared_key` pair is not required.
+- **Log Analytics via `log_analytics_workspace_id`.** azurerm accepts
+  the workspace's ARM resource ID directly; the legacy `customer_id` +
+  `primary_shared_key` pair is not required. The module also sets
+  `logs_destination = "log-analytics"`, which azurerm 5.0 stopped
+  inferring from the workspace ID.
 
 ## Destroy notes
 

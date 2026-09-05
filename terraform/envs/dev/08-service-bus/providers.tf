@@ -15,7 +15,7 @@
 # Terraform SP's existing Contributor grant (via bootstrap) suffices. No
 # data-plane token dance, no post-create RBAC propagation wait.
 #
-# The empty `features {}` block is REQUIRED by azurerm 4.x. `random` needs
+# The empty `features {}` block is REQUIRED by azurerm 5.x. `random` needs
 # no explicit configuration.
 # -----------------------------------------------------------------------------
 

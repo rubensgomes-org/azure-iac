@@ -10,7 +10,7 @@
 # The provider block MUST NOT reference credentials directly. See
 # terraform/INITIAL_SETUP.md for the one-time SP setup.
 #
-# The empty `features {}` block is REQUIRED by azurerm 4.x. `random` needs
+# The empty `features {}` block is REQUIRED by azurerm 5.x. `random` needs
 # no explicit configuration.
 # -----------------------------------------------------------------------------
 

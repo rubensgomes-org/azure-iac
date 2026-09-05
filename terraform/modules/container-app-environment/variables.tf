@@ -49,10 +49,11 @@ variable "log_analytics_workspace_id" {
     container stdout/stderr. Caller supplies `law_id` from module 03's
     remote state.
 
-    Container App Environments in azurerm 4.x accept the workspace's ARM
-    resource ID directly — no shared key required. The workspace becomes
-    the default `logs_destination` for every Container App in this
-    environment; per-app diagnostic settings can override if needed.
+    Container App Environments accept the workspace's ARM resource ID
+    directly — no shared key required. The module pairs it with
+    `logs_destination = "log-analytics"`, which azurerm 5.0 made mandatory
+    for the ID to take effect; per-app diagnostic settings can still
+    override where a Container App needs its own destination.
   EOT
   type        = string
 }

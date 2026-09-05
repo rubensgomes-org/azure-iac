@@ -46,6 +46,6 @@ caller — this module has no `backend` block.
   a fresh name without waiting out the block.
 - **Sensitive output `law_primary_shared_key`.** The passwordless model
   doesn't need it, but some downstream integrations (e.g. Container App
-  Environment on some azurerm 4.x versions) still expect a key at
+  Environment on older azurerm versions) still expect a key at
   resource-config time. Exposed here rather than re-fetching from the
   workspace resource in every consumer.

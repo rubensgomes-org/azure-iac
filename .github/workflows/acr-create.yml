@@ -70,7 +70,7 @@
 #     so naming all three targets re-runs `terraform init -reconfigure` three
 #     times. It is idempotent and cheap (provider plugins are cached), and
 #     naming them explicitly keeps the intended sequence visible in one place.
-#   - terraform_version must satisfy the `required_version = "~> 1.15"`
+#   - terraform_version must satisfy the `required_version = ">= 1.16.0, < 2.0"`
 #     declared in every versions.tf in the repo. Every Terraform-touching
 #     workflow in this directory pins the same build; bump them together.
 #   - The teardown counterpart is acr-destroy.yml, which is reusable too and
@@ -482,7 +482,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: "1.15.8"
+          terraform_version: "1.16.0"
           terraform_wrapper: false
 
       # -----------------------------------------------------------------------
