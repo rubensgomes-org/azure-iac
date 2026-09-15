@@ -32,20 +32,6 @@ storage_account_name = "strgomestfstate01"
 # Blob container inside the storage account. Every module's state blob lives
 # here at path `<module>/terraform.tfstate` (the `key` supplied per module).
 #
-# DOES NOT EXIST YET. The dev estate was destroyed before the environments were
-# split apart, and the container it had used went to the `lab` environment.
-# This directory is kept so dev can be stood up again on the
-# `<workload>-<env>-tfstate` convention; the first `make ENV=dev` needs the
-# container created first:
-#
-#   az storage container create \
-#     --account-name strgomestfstate02 \
-#     --name rgomes-dev-tfstate \
-#     --auth-mode login
-#
-# Until then `terraform init` fails here with a container-not-found error,
-# which is the intended way to notice.
-#
 # ENSURE this value maps to TF_VAR_container_name -- `make check-backend` fails
 # the run if they disagree, because the environment variable OUTRANKS this file
 # at init time (Makefile BACKEND_OVERRIDES).
