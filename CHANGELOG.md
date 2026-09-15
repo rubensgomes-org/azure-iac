@@ -26,6 +26,12 @@ premise.
 
 ### Added
 
+- `cae-create.yml`, a reusable workflow that applies modules 01 → 02 → 03 →
+  10 so a Container App Environment exists, following `acr-create.yml`'s
+  pattern.
+- `cae-destroy.yml`, a reusable workflow that destroys module 10 only (the
+  Container App Environment), following `acr-destroy.yml`'s pattern.
+
 ### Changed
 
 ### Fixed

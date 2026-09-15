@@ -1,0 +1,465 @@
+# =============================================================================
+# CAE Destroy (reusable)
+#
+# Destroys ONE Terraform root, module 10 (container-app-environment): the
+# Container App Environment only. THE BLAST RADIUS IS THE ENVIRONMENT --
+# modules 01 (resource groups), 02 (networking) and 03 (log analytics) are
+# left standing. Azure refuses to delete an environment while container apps
+# still reference it, so if module 11 has apps deployed into this CAE,
+# destroy them first (or this destroy will fail during apply).
+#
+# This project's source code and documentation were generated with the
+# assistance of Artificial Intelligence (AI). For more information, please
+# refer to the `AI_DISCLAIMER.md` document located in the project's root
+# directory.
+# =============================================================================
+
+name: CAE Destroy (reusable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: 'Estate environment holding the CAE. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
+
+      confirm:
+        description: >
+          DESTROYS CAE MODULE ONLY — the Container App Environment. Modules
+          01, 02 and 03 are NOT touched. Azure refuses to delete an
+          environment that still has container apps in it — remove module
+          11's apps first, or this destroy will fail during apply.
+        type: choice
+        required: true
+        default: "No"
+        options:
+          - "No"
+          - "Yes"
+
+  # `confirm` is deliberately undefaulted here, unlike the dispatch path: a
+  # caller must write it out in full, which is what stops a `uses:` line
+  # from being a one-word environment deletion. Keep it so.
+  workflow_call:
+    inputs:
+      environment_name:
+        description: 'Estate environment holding the CAE. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
+        type: string
+        required: true
+
+      confirm:
+        description: 'SAFEGUARD: must be exactly "Yes". Destroys module 10 only — the Container App Environment. Modules 01, 02 and 03 are not touched.'
+        type: string
+        required: true
+
+    # Optional because the job binds the "AZURE" Environment, which the CALLER
+    # resolves: a caller may pass this secret or define it in that Environment.
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  destroy:
+    name: destroy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Also the hook for a required-reviewer approval gate. On workflow_call
+    # this resolves in the CALLER's repository, so a calling repo must define
+    # its own "AZURE" Environment. Do not make it conditional on
+    # `github.event_name` to spare callers the setup -- that would hand every
+    # `uses:` an ungated destroy.
+    environment: AZURE
+
+    # Deliberately the SAME group string as cae-create.yml: the run that must
+    # never overlap this one is a create of the same environment. Change it
+    # in one file only and an apply and a destroy can race for the same
+    # state.
+    #
+    # Groups are scoped to the repository that owns the run, so a caller's
+    # create in another repo is not serialised by this. The azurerm blob
+    # lease is the real guard there. Never add -lock=false.
+    concurrency:
+      group: cae-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    env:
+      # On a reusable call these resolve in the caller's repository.
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+
+      # -var-file OUTRANKS TF_VAR_*; these bindings are authoritative on a
+      # runner only because no tfvars file is present there. The keys' case
+      # must match exactly -- Terraform variable names are case-sensitive, so
+      # TF_VAR_LOCATION would be ignored without a word.
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+
+      # Unset falls through to tags.json: locals.tf coalesces on the first
+      # non-null, non-empty value.
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      # NO `|| default` fallback, unlike TF_VAR_workload: an empty value still
+      # counts as a value and aims the state read at a nameless account. On a
+      # DESTROY that is the worst failure mode -- an empty state reads as
+      # "nothing exists", and the guards that compare plan scope against state
+      # lose their footing.
+      TF_VAR_backend_resource_group_name: ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
+      TF_IN_AUTOMATION: "true"
+
+      ROOTS_DIR: terraform/roots
+
+      # Bound here, not interpolated into run: bodies -- a `${{ }}` inside a
+      # run: block is substituted as raw text before the shell parses it, so a
+      # crafted value would execute on the runner ahead of a destroy, with
+      # credentials in scope. Reference "$ENV_NAME"; never `${{ inputs.* }}`.
+      ENV_NAME: ${{ inputs.environment_name }}
+
+      # The only two GitHub accounts permitted to run a destructive workflow
+      # in this repo. Enforced on BOTH triggers: on workflow_call
+      # `github.actor` is whoever triggered the caller's run, so a push by
+      # anyone else, or a bot or scheduled trigger upstream, is denied.
+      ALLOWED_ACTORS: "rubensgomes rubens-gomes_3CC"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Runs BEFORE any credential is used, so a failed confirmation never
+      # reaches Azure. Identical on both triggers: a workflow_call caller is
+      # checked by the same two comparisons a human at the form is. Also
+      # derives the CAE name and app RG here (module 10's naming convention),
+      # since -- unlike ACR -- there is no user-supplied name to match
+      # against Terraform state.
+      - name: SAFEGUARD - Validate actor and confirmation
+        shell: bash
+        env:
+          # Bound here rather than written into the script body below, so the
+          # shell only ever sees ordinary variables. Do not "simplify" these
+          # back into the script.
+          ACTOR: ${{ github.actor }}
+          TYPED_CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+
+          actor="${ACTOR}"
+          allowed=false
+          for allowed_actor in ${ALLOWED_ACTORS}; do
+            if [ "${actor}" = "${allowed_actor}" ]; then
+              allowed=true
+              break
+            fi
+          done
+          if [ "${allowed}" != "true" ]; then
+            echo "Denied: this is a personal workflow currently being used by 'Rubens Gomes' only. Actor: '${actor}'."
+            exit 1
+          fi
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "Denied: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+
+          # A copied value routinely arrives with a trailing space or stray
+          # newline -- a clipboard artefact, not a different intent. Only
+          # surrounding whitespace is stripped; the value itself must still
+          # match character for character.
+          trim_ws() {
+            printf '%s' "$1" | tr -d '\r' \
+              | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+          }
+
+          typed_confirm="$(trim_ws "${TYPED_CONFIRM}")"
+          if [ "${typed_confirm}" != "Yes" ]; then
+            echo "Denied: confirm must be exactly 'Yes' to proceed."
+            echo "Got: '${typed_confirm}'"
+            exit 1
+          fi
+
+          # Mirrors module 10's own naming: `cae-<workload>-<env>`, in the
+          # app RG `rg-<workload>app-<env>`. Neither is a workflow input.
+          echo "CAE_NAME=cae-${TF_VAR_workload}-${ENV_NAME}" >> "$GITHUB_ENV"
+          echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}" >> "$GITHUB_ENV"
+          echo "Safeguard passed. Target environment: cae-${TF_VAR_workload}-${ENV_NAME} (env ${ENV_NAME})"
+          echo "Scope: module 10 (container-app-environment) only. Modules 01, 02 and 03 are not touched."
+
+      # Shape check, not the authorization check -- the safeguard above has
+      # already matched confirm against the phrase the operator typed.
+      - name: GUARD - Validate Terraform inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "FAIL: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_location}" | grep -qE '^[a-z][a-z0-9]*$'; then
+            echo "FAIL: TF_VAR_location must be a lowercase Azure region identifier"
+            echo "such as 'centralus'."
+            exit 1
+          fi
+
+          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}'."
+
+      # A missing variable or secret resolves to an empty string, which would
+      # fail deep inside init with an opaque auth error.
+      - name: Verify required Azure configuration is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID \
+                   TF_VAR_env TF_VAR_location \
+                   TF_VAR_backend_resource_group_name TF_VAR_storage_account_id \
+                   TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Check the calling repository's Actions configuration:"
+            echo "  Variables: AZURE_CLIENT_ID, AZURE_TENANT_ID,"
+            echo "             AZURE_SUBSCRIPTION_ID, TF_VAR_location,"
+            echo "             TF_VAR_backend_resource_group_name, TF_VAR_workload,"
+            echo "             TF_VAR_storage_account_id, TF_VAR_container_name"
+            echo "  Secret:    AZURE_CLIENT_SECRET"
+            echo "For workflow_call, variables resolve in the caller's repository;"
+            echo "pass the secret explicitly or define it in its AZURE Environment."
+          fi
+          exit $missing
+
+      - name: Validate resource naming variables
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Mirrors the `workload` validation every module declares:
+          # 2-16 lowercase alnum, starting with a letter.
+          if ! printf '%s' "${TF_VAR_workload}" | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "FAIL: TF_VAR_workload must be 2-16 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if [ "${TF_VAR_backend_resource_group_name: -1}" = "." ]; then
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with a period."
+            exit 1
+          fi
+          if [ "${#TF_VAR_backend_resource_group_name}" -gt 90 ]; then
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot exceed 90 characters."
+            exit 1
+          fi
+
+          # A typo here points Terraform at a different (or nonexistent)
+          # state, where it sees an empty world.
+          if ! printf '%s' "${TF_VAR_storage_account_id}" | grep -qE '^[a-z0-9]{3,24}$'; then
+            echo "FAIL: TF_VAR_storage_account_id must be 3-24 lowercase"
+            echo "alphanumeric characters (an Azure storage account name)."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_container_name}" | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
+            echo "FAIL: TF_VAR_container_name must be 3-63 lowercase"
+            echo "alphanumeric/hyphen characters starting with alphanumeric."
+            exit 1
+          fi
+          echo "Backend: ${TF_VAR_backend_resource_group_name}/${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
+
+      # Terraform does not need this; it reads ARM_* from the environment. The
+      # az CLI is used for the inventory and verification steps.
+      - name: Azure Login (Service Principal Secret)
+        uses: azure/login@v3
+        with:
+          auth-type: SERVICE_PRINCIPAL
+          creds: >-
+            {"clientId":"${{ vars.AZURE_CLIENT_ID }}",
+             "clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}",
+             "tenantId":"${{ vars.AZURE_TENANT_ID }}",
+             "subscriptionId":"${{ vars.AZURE_SUBSCRIPTION_ID }}"}
+
+      # The run log is the only surviving record of what the environment
+      # held. Wholly informational: an environment that is already gone must
+      # not fail. Azure refuses to delete a Container App Environment while
+      # apps still reference it, so a non-empty list here predicts the
+      # destroy step failing later, before any change is made.
+      - name: Inventory container apps in this environment (pre-destroy record)
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          cae_id="$(az containerapp env show \
+            --name "${CAE_NAME}" --resource-group "${APP_RG}" \
+            --query id -o tsv 2>/dev/null)"
+          if [ -z "${cae_id}" ]; then
+            echo "Environment '${CAE_NAME}' does not exist. Nothing to inventory."
+            exit 0
+          fi
+
+          apps="$(az containerapp list \
+            --query "[?properties.managedEnvironmentId=='${cae_id}'].name" \
+            -o tsv 2>/dev/null || true)"
+          if [ -z "${apps}" ]; then
+            echo "Environment '${CAE_NAME}' exists and holds no container apps."
+            exit 0
+          fi
+
+          echo "The following container apps still reference this environment"
+          echo "and will BLOCK the destroy until removed (module 11):"
+          echo "${apps}" | sed 's/^/  /'
+
+      # terraform_wrapper is false: the wrapper intercepts stdout, which the
+      # `terraform show -json` call in the plan-scope guard depends on.
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      # Belt-and-braces: module 10 has its own state key, so its plan
+      # structurally cannot contain an RG, a subnet or the Log Analytics
+      # workspace. Kept as a standalone script so a second call site needs no
+      # copy-paste.
+      - name: Install the plan-scope guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "${RUNNER_TEMP}/assert-plan-scope.sh" <<'GUARD'
+          #!/usr/bin/env bash
+          # assert-plan-scope.sh <module-dir> <label> <allowed-type>...
+          #
+          # Reads the `tfplan` that `make plan-destroy-<name>` just wrote in
+          # <module-dir> and fails unless every resource it proposes to DELETE
+          # is of one of the allowed types. Exits 0 with a note when the plan
+          # proposes no deletions at all.
+          set -euo pipefail
+
+          module_dir="$1"; shift
+          label="$1"; shift
+          allowed="$*"
+
+          # Written to RUNNER_TEMP, not the module directory: *tfplan* is
+          # gitignored but plan.json would not be.
+          plan_json="${RUNNER_TEMP}/$(basename "${module_dir}")-destroy-plan.json"
+          ( cd "${module_dir}" && terraform show -json tfplan ) > "${plan_json}"
+
+          doomed="$(jq -r '
+            .resource_changes[]?
+            | select(.change.actions | index("delete"))
+            | "\(.type) \(.address)"' "${plan_json}")"
+
+          if [ -z "${doomed}" ]; then
+            echo "${label}: plan proposes no deletions — already destroyed. The destroy step will be a no-op."
+            exit 0
+          fi
+
+          echo "${label}: resources this run will delete:"
+          echo "${doomed}" | sed 's/^/  /'
+
+          forbidden=""
+          while IFS= read -r line; do
+            [ -n "${line}" ] || continue
+            rtype="${line%% *}"
+            case " ${allowed} " in
+              *" ${rtype} "*) ;;
+              *) forbidden="${forbidden}  ${line}"$'\n' ;;
+            esac
+          done <<< "${doomed}"
+
+          if [ -n "${forbidden}" ]; then
+            echo ""
+            echo "DENIED: ${label}'s destroy plan reaches beyond its own module:"
+            printf '%s' "${forbidden}"
+            echo "Allowed types for this module: ${allowed}"
+            echo "Aborting before any change."
+            exit 1
+          fi
+
+          echo "${label}: guard passed — nothing outside this module in scope."
+          GUARD
+          chmod +x "${RUNNER_TEMP}/assert-plan-scope.sh"
+
+      # `plan-destroy-container-app-environment` chains `init-<name>`
+      # internally (see the Makefile's MODULE_TARGETS factory), so this is
+      # also the first Terraform init against module 10's state.
+      - name: Plan the destroy - module 10 (container-app-environment)
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" plan-destroy-container-app-environment
+
+      - name: GUARD - Assert module 10's plan destroys only the environment
+        shell: bash
+        run: |
+          "${RUNNER_TEMP}/assert-plan-scope.sh" \
+            "${ROOTS_DIR}/10-container-app-environment" \
+            "module 10 (container-app-environment)" \
+            azurerm_container_app_environment
+
+      # `make destroy-container-app-environment` does NOT consume this
+      # tfplan -- it re-plans internally under -auto-approve -- so the guard
+      # above is a check on intent, not a locked-in execution plan. Fails
+      # here (rather than earlier) if a container app still references the
+      # environment, since Azure -- not Terraform -- is what refuses.
+      - name: Destroy module 10 - container app environment
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" destroy-container-app-environment
+
+      # Asserts all three halves of the contract: the environment is gone,
+      # modules 01/02/03 are NOT, and the state backend still exists.
+      - name: Verify the environment is destroyed and nothing else was touched
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+
+          if az containerapp env show \
+              --name "${CAE_NAME}" --resource-group "${APP_RG}" -o none 2>/dev/null; then
+            echo "FAIL: environment '${CAE_NAME}' still exists."
+            rc=1
+          else
+            echo "OK: environment '${CAE_NAME}' is gone."
+          fi
+
+          # Its absence is not failed on -- module 01 may legitimately never
+          # have been applied -- but it is called out loudly, because the
+          # only other way to reach that state is a scope leak here.
+          #
+          # Anchor on BOTH ends so a differently suffixed estate in the same
+          # subscription is not counted. The backend RG matches both anchors
+          # too and is excluded by name: counting it would let the OK branch
+          # be satisfied by the backend alone.
+          remaining="$(az group list \
+            --query "[?starts_with(name, 'rg-${TF_VAR_workload}') && ends_with(name, '-${ENV_NAME}') && name != '${TF_VAR_backend_resource_group_name}'].name" \
+            -o tsv)"
+          if [ -n "${remaining}" ]; then
+            echo "OK: rg-${TF_VAR_workload}*-${ENV_NAME} resource groups still present (modules 01/02/03 untouched):"
+            echo "${remaining}" | sed 's/^/  /'
+          else
+            echo "WARNING: no rg-${TF_VAR_workload}*-${ENV_NAME} resource groups exist."
+            echo "         This workflow does not destroy module 01. If they were there"
+            echo "         before this run, the destroy scope leaked — investigate."
+          fi
+
+          # The state backend is not this workflow's to delete.
+          if az group show -n "${TF_VAR_backend_resource_group_name}" -o none 2>/dev/null; then
+            echo "OK: state backend resource group '${TF_VAR_backend_resource_group_name}' preserved."
+          else
+            echo "FAIL: '${TF_VAR_backend_resource_group_name}' is missing — the Terraform state backend is gone."
+            rc=1
+          fi
+
+          exit $rc

@@ -50,7 +50,9 @@ resource "azurerm_container_app_environment" "this" {
 
   # Public static IP for ingress. See file header for the flip-to-internal
   # note.
-  internal_load_balancer_enabled = false
+  #internal_load_balancer_enabled = false
+  # keep CAE private, no public access
+  internal_load_balancer_enabled = true
 
   # Zone redundancy off — subnet is not zone-redundant. See file header.
   zone_redundancy_enabled = false

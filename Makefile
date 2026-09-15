@@ -41,7 +41,7 @@
 # ARM_SUBSCRIPTION_ID are exported in the shell. See docs/INITIAL_SETUP.md.
 # -----------------------------------------------------------------------------
 
-ENV     ?= lab
+ENV     ?= dev
 
 # The two halves of the layout, and the whole point of the split:
 #

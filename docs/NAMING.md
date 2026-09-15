@@ -112,9 +112,10 @@ provision, or after a full teardown.
 
 Three places hold the `rgomes` default and must agree: every module's `workload`
 variable, `WORKLOAD` in the `Makefile` (which names the observability RG in the
-orphan sweep), and the `|| 'rgomes'` fallback in the three ACR/destroy
-workflows. `acr-create.yml` guards this explicitly — it refuses a run whose
-`TF_VAR_workload` disagrees with the RG name already in module 01's state.
+orphan sweep), and the `|| 'rgomes'` fallback in every create/destroy
+workflow. `acr-create.yml` and `cae-create.yml` guard this explicitly — each
+refuses a run whose `TF_VAR_workload` disagrees with the RG name already in
+module 01's state.
 
 Note that `workload` does **not** change between environments. `dev` and `lab`
 share `rgomes` and are told apart by the trailing token alone.
