@@ -11,14 +11,14 @@ this module has no `backend` block.
 
 | Type | Name | Notes |
 |------|------|-------|
-| `azurerm_container_registry` | `var.acr_name` (dev: `crrgomeslab02`) | SKU `Basic`, `admin_enabled = false`, public network enabled. |
+| `azurerm_container_registry` | `var.acr_name` (dev: `crrgomesdev01`) | SKU `Basic`, `admin_enabled = false`, public network enabled. |
 | `azurerm_role_assignment` | `AcrPull` for UAMI | Role `AcrPull` at registry scope. |
 
 ## Inputs
 
 | Name | Type | Required | Notes |
 |------|------|----------|-------|
-| `acr_name` | `string` | yes | Explicit registry name. `^[a-zA-Z0-9]{5,50}$`, globally unique across Azure. Dev: `crrgomeslab02`. |
+| `acr_name` | `string` | yes | Explicit registry name. `^[a-zA-Z0-9]{5,50}$`, globally unique across Azure. Dev: `crrgomesdev01`. |
 | `env` | `string` | yes | Not part of the registry name; kept for tag/convention parity. `^[a-z][a-z0-9]{1,9}$`. |
 | `location` | `string` | yes | Azure region. Must match the RG's location. |
 | `resource_group_name` | `string` | yes | Caller passes `rg-<workload>platform-<env>` (from module 01). |

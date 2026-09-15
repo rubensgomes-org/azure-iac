@@ -17,7 +17,7 @@
 # either: this root is shared by every environment, so an auto-loaded file
 # would pin one name for all of them. `make check-tfvars` rejects one.
 variable "acr_name" {
-  description = "Explicit registry name (dev: \"crrgomeslab02\"). Alphanumeric only, 5-50 chars, globally unique across Azure. Supplied as TF_VAR_acr_name."
+  description = "Explicit registry name (dev: \"crrgomesdev01\"). Alphanumeric only, 5-50 chars, globally unique across Azure. Supplied as TF_VAR_acr_name."
   type        = string
 }
 

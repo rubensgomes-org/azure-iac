@@ -16,7 +16,7 @@ Wraps [`../../modules/acr/`](../../modules/acr/README.md).
 - `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`
   exported in the current shell.
 - `../../envs/<env>/env.tfvars` populated with `env` and `location`.
-- `TF_VAR_acr_name` exported (dev: `crrgomeslab02`). Required; this root has
+- `TF_VAR_acr_name` exported (dev: `crrgomesdev01`). Required; this root has
   no default for it. Registry names are globally unique across Azure, so every
   environment needs its own value.
 - `env.tfvars` is gitignored and is NOT in a fresh clone. Every value in it can
@@ -89,7 +89,7 @@ fail (or, worse, succeed and break running apps).
 ## Reprovision
 
 Same commands as **Provision**, and the registry comes back with the SAME
-name — `acr_name` is a fixed input (`crrgomeslab02` in dev), not a generated
+name — `acr_name` is a fixed input (`crrgomesdev01` in dev), not a generated
 one. Basic SKU has no soft-delete, so the name is released on destroy and
 immediately reusable. Image *contents* are not recoverable; only the name is.
 

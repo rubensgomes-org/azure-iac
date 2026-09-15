@@ -11,7 +11,7 @@ output "acr_id" {
 }
 
 output "acr_name" {
-  description = "Registry name (explicit, from `var.acr_name`; `crrgomeslab02` in dev). Consumed by CI/CD for `docker login` and by `az acr` commands."
+  description = "Registry name (explicit, from `var.acr_name`; `crrgomesdev01` in dev). Consumed by CI/CD for `docker login` and by `az acr` commands."
   value       = module.acr.acr_name
 }
 
