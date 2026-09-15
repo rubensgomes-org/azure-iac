@@ -38,8 +38,9 @@ locals {
 # Azure Container Registry
 # -----------------------------------------------------------------------------
 # The name is supplied by the caller via `var.acr_name` — it is NOT composed
-# from `workload` + `env` the way every other name in this estate is. Lab uses
-# "crrgomesdev01", supplied as `TF_VAR_acr_name`.
+# from `workload` + `env` the way every other name in this estate is. Dev
+# uses "crrgomesdev01" and lab uses "crrgomeslab02", supplied as
+# `TF_VAR_acr_name`.
 #
 # This is the estate's one deliberate exception to the CAF naming rule in
 # docs/NAMING.md. The registry name is the one name humans and CI type
@@ -50,7 +51,7 @@ locals {
 #
 # The convention to follow when setting it is still CAF, spelled without the
 # dashes ACR forbids: `cr<workload><env>`, e.g. "crrgomeslab". The trailing
-# "02" in the current value is a collision escape hatch, which is the second
+# digits in the current values are a collision escape hatch, which is the second
 # reason this stays a literal: ACR names are globally unique across every Azure
 # tenant, so a taken name needs a human to pick the next one. Apply fails fast
 # with an availability error rather than quietly landing elsewhere. Check with

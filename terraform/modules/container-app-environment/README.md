@@ -10,20 +10,20 @@ owned by the caller — this module has no `backend` block.
 
 ## Resources created
 
-| Type | Name | Notes |
-|------|------|-------|
+| Type                                | Name                   | Notes                                                                                                  |
+|-------------------------------------|------------------------|--------------------------------------------------------------------------------------------------------|
 | `azurerm_container_app_environment` | `cae-<workload>-<env>` | Consumption-only, VNet-integrated on `snet-<workload>app-<env>`, external ingress, no zone redundancy. |
 
 ## Inputs
 
-| Name | Type | Required | Notes |
-|------|------|----------|-------|
-| `env` | `string` | yes | Baked into the environment name. `^[a-z][a-z0-9]{1,9}$`. |
-| `location` | `string` | yes | Azure region. Must match the RG and the subnet's VNet. |
-| `resource_group_name` | `string` | yes | Caller passes `rg-<workload>app-<env>` (module 01 remote state). |
-| `log_analytics_workspace_id` | `string` | yes | ARM resource ID of the LAW. Caller passes `law_id` (module 03 remote state). |
-| `infrastructure_subnet_id` | `string` | yes | ARM resource ID of `snet-<workload>app-<env>`. Caller passes `subnet_app_id` (module 02 remote state). |
-| `tags` | `map(string)` | no | Merged with `component = "container-app-environment"`. |
+| Name                         | Type          | Required | Notes                                                                                                  |
+|------------------------------|---------------|----------|--------------------------------------------------------------------------------------------------------|
+| `env`                        | `string`      | yes      | Baked into the environment name. `^[a-z][a-z0-9]{1,9}$`.                                               |
+| `location`                   | `string`      | yes      | Azure region. Must match the RG and the subnet's VNet.                                                 |
+| `resource_group_name`        | `string`      | yes      | Caller passes `rg-<workload>app-<env>` (module 01 remote state).                                       |
+| `log_analytics_workspace_id` | `string`      | yes      | ARM resource ID of the LAW. Caller passes `law_id` (module 03 remote state).                           |
+| `infrastructure_subnet_id`   | `string`      | yes      | ARM resource ID of `snet-<workload>app-<env>`. Caller passes `subnet_app_id` (module 02 remote state). |
+| `tags`                       | `map(string)` | no       | Merged with `component = "container-app-environment"`.                                                 |
 
 ## Outputs
 

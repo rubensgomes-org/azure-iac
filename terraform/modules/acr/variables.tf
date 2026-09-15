@@ -22,7 +22,8 @@ variable "acr_name" {
     ACR names are GLOBALLY unique across every Azure tenant and allow
     alphanumeric characters ONLY — no dashes, no underscores, 5-50 chars.
     Verify availability with `az acr check-name -n <name>` before setting a
-    new one. Lab uses "crrgomesdev01", supplied as TF_VAR_acr_name.
+    new one. Dev uses "crrgomesdev01" and lab uses "crrgomeslab02", supplied
+    as TF_VAR_acr_name.
   EOT
   type        = string
 

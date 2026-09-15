@@ -28,6 +28,16 @@ premise.
 
 ### Changed
 
+- `environment_name` is now required (no default) on `acr-create.yml`,
+  `acr-destroy.yml`, and `destroy-all.yml`, and a `dev`/`lab` choice dropdown
+  on their `workflow_dispatch` triggers.
+- `acr_name` is now required (no default) on `acr-create.yml` and
+  `acr-destroy.yml`, and a `crrgomesdev01`/`crrgomeslab02` choice dropdown on
+  their `workflow_dispatch` triggers.
+- `acr-destroy.yml`'s `confirm` input is now a Yes/No choice dropdown on
+  `workflow_dispatch` (was a typed `DESTROY ACR <env> <acr_name>` phrase);
+  `workflow_call` now expects the literal string `Yes`.
+
 ### Fixed
 
 ## [0.0.5] - 2026-09-15

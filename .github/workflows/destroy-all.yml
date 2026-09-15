@@ -20,9 +20,11 @@ on:
     inputs:
       environment_name:
         description: 'Estate environment to destroy. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
-        type: string
+        type: choice
         required: true
-        default: dev
+        options:
+          - dev
+          - lab
 
       dry_run:
         description: >

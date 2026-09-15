@@ -19,26 +19,32 @@ on:
     inputs:
       environment_name:
         description: 'Estate environment holding the registry. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
-        type: string
+        type: choice
         required: true
-        default: dev
+        options:
+          - dev
+          - lab
 
       acr_name:
         description: 'Registry to destroy. Must match the acr_name recorded in module 06 state.'
-        type: string
+        type: choice
         required: true
-        default: crrgomesdev01
+        options:
+          - crrgomesdev01
+          - crrgomeslab02
 
       confirm:
         description: >
-          DESTROYS MODULE 06 ONLY — the registry and every image, tag and
+          DESTROYS ACR MODULE ONLY — the registry and every image, tag and
           manifest in it. The shared managed identity and the resource groups
           are NOT touched. Basic SKU has no recycle bin and no soft-delete;
           push any image you care about elsewhere first.
-          SAFEGUARD: type EXACTLY "DESTROY ACR <env> <acr_name>", naming the
-          environment and registry above — e.g. DESTROY ACR dev crrgomesdev01
-        type: string
+        type: choice
         required: true
+        default: "No"
+        options:
+          - "No"
+          - "Yes"
 
   # `acr_name` and `confirm` are deliberately undefaulted here, unlike the
   # dispatch path: a caller must write both out in full, which is what stops a
@@ -48,8 +54,7 @@ on:
       environment_name:
         description: 'Estate environment holding the registry. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
         type: string
-        required: false
-        default: dev
+        required: true
 
       acr_name:
         description: 'Registry to destroy. Must match the acr_name recorded in module 06 state.'
@@ -57,7 +62,7 @@ on:
         required: true
 
       confirm:
-        description: 'SAFEGUARD: must be EXACTLY "DESTROY ACR <env> <acr_name>", naming environment_name and acr_name. Destroys module 06 only — the registry and all its images. The shared UAMI and the resource groups are not touched.'
+        description: 'SAFEGUARD: must be exactly "Yes". Destroys module 06 only — the registry and all its images. The shared UAMI and the resource groups are not touched.'
         type: string
         required: true
 
@@ -147,7 +152,7 @@ jobs:
       # Runs BEFORE any credential is used, so a failed confirmation never
       # reaches Azure. Identical on both triggers: a workflow_call caller is
       # checked by the same two comparisons a human at the form is.
-      - name: SAFEGUARD - Validate actor and confirmation phrase
+      - name: SAFEGUARD - Validate actor and confirmation
         shell: bash
         env:
           # Bound here rather than written into the script body below, so the
@@ -190,46 +195,24 @@ jobs:
             exit 1
           fi
 
-          # A copied phrase routinely arrives with a trailing space or stray
+          # A copied value routinely arrives with a trailing space or stray
           # newline -- a clipboard artefact, not a different intent. Only
-          # surrounding whitespace is stripped; the phrase itself must still
+          # surrounding whitespace is stripped; the value itself must still
           # match character for character.
           trim_ws() {
             printf '%s' "$1" | tr -d '\r' \
               | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
           }
 
-          expected_acr="${TYPED_ACR}"
-          # The phrase names the ENVIRONMENT as well as the registry, so
-          # destroying the wrong estate's registry requires typing that
-          # estate's name. No STACK: this run deletes module 06 and nothing
-          # else, and a caller still passing the old phrase should fail here.
-          expected_phrase="DESTROY ACR ${ENV_NAME} ${expected_acr}"
-          typed_phrase="$(trim_ws "${TYPED_CONFIRM}")"
-          if [ "${typed_phrase}" != "${expected_phrase}" ]; then
-            echo "Denied: confirmation phrase did not match exactly."
-            echo "Expected: '${expected_phrase}'"
-            echo "Got:      '${typed_phrase}'"
-            if [ "${typed_phrase}" = "DESTROY ACR ${expected_acr}" ]; then
-              echo ""
-              echo "NOTE: the phrase now names the environment too:"
-              echo "  DESTROY ACR ${ENV_NAME} ${expected_acr}"
-              echo "It changed when a second environment was added, so that"
-              echo "destroying the wrong estate's registry requires typing that"
-              echo "estate's name rather than only its registry's."
-            elif [ "${typed_phrase}" = "DESTROY ACR STACK ${expected_acr}" ]; then
-              echo ""
-              echo "NOTE: the phrase is now 'DESTROY ACR <env> <name>', without"
-              echo "STACK. It dropped STACK when this workflow's scope narrowed"
-              echo "back to module 06 alone -- the shared UAMI (module 04) and"
-              echo "the resource groups (module 01) are no longer destroyed"
-              echo "here -- and gained the environment when a second one existed."
-            fi
+          typed_confirm="$(trim_ws "${TYPED_CONFIRM}")"
+          if [ "${typed_confirm}" != "Yes" ]; then
+            echo "Denied: confirm must be exactly 'Yes' to proceed."
+            echo "Got: '${typed_confirm}'"
             exit 1
           fi
 
-          echo "ACR_NAME=${expected_acr}" >> "$GITHUB_ENV"
-          echo "Safeguard passed. Target registry: ${expected_acr} (env ${ENV_NAME})"
+          echo "ACR_NAME=${TYPED_ACR}" >> "$GITHUB_ENV"
+          echo "Safeguard passed. Target registry: ${TYPED_ACR} (env ${ENV_NAME})"
           echo "Scope: module 06 (acr) only. Modules 04 and 01 are not touched."
 
       # Shape check, not the authorization check -- the safeguard above has

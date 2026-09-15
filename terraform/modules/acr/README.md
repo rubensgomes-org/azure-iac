@@ -48,11 +48,12 @@ this module has no `backend` block.
   gate access to a PE anyway.
 - **Explicit name, not composed.** ACR names are globally unique across
   every Azure tenant, and the registry name is a memorable literal passed in
-  as `var.acr_name` (`crrgomesdev01` in lab) rather than composed from
-  `workload` + `env` the way every other name in the estate is. It is typed
-  constantly — image tags, `docker push`, `apps_image_map` — and it is the
-  only name reachable from a `workflow_dispatch` input, so CI can aim a run at
-  an existing registry. Follow the CAF convention anyway, spelled without the
+  as `var.acr_name` (`crrgomesdev01` in dev, `crrgomeslab02` in lab) rather
+  than composed from `workload` + `env` the way every other name in the
+  estate is. It is typed constantly — image tags, `docker push`,
+  `apps_image_map` — and it is the only name reachable from a
+  `workflow_dispatch` input, so CI can aim a run at an existing registry.
+  Follow the CAF convention anyway, spelled without the
   dashes ACR forbids: `cr<workload><env>`. See
   [NAMING.md](../../../docs/NAMING.md). The trade-off is that a name collision
   fails the apply with an availability error instead of being routed around —

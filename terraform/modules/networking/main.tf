@@ -18,17 +18,17 @@
 # -----------------------------------------------------------------------------
 # Address plan and subnet topology (locals)
 # -----------------------------------------------------------------------------
-# One /16 VNet split into:
+# One /20 VNet split into:
 #   - snet-<workload>app-<env>: /23 — Container App Environment (delegated).
 #       /23 is the minimum CAE Consumption plan will accept; smaller
 #       fails at CAE creation time with a cryptic API error.
 #   - snet-<workload>pg-<env>:  /24 — PostgreSQL Flexible Server (delegated).
 #   - snet-<workload>pe-<env>:  /24 — Private endpoints for KV, Blob, ACR, Service Bus.
 #
-# CIDRs are non-overlapping and leave ~250 addresses of headroom in the /16
+# CIDRs are non-overlapping and leave ~3000 addresses of headroom in the /20
 # for future subnets (jumpbox, APIM, additional PE subnet, etc.).
 locals {
-  vnet_cidr = "10.0.0.0/16"
+  vnet_cidr = "10.0.0.0/20"
 
   # Per-subnet config. `delegation` is a list so we can iterate it with
   # `dynamic`; an empty list means "no delegation". Every subnet in this map

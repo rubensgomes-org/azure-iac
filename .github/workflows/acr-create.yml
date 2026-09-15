@@ -20,14 +20,12 @@ on:
       environment_name:
         description: 'Estate environment to provision. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
         type: string
-        required: false
-        default: dev
+        required: true
 
       acr_name:
         description: 'Registry to provision. Passed to Terraform as TF_VAR_acr_name.'
         type: string
-        required: false
-        default: crrgomesdev01
+        required: true
 
     outputs:
       acr_name:
@@ -45,15 +43,19 @@ on:
     inputs:
       environment_name:
         description: 'Estate environment to provision'
-        type: string
-        required: false
-        default: dev
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
 
       acr_name:
         description: 'Registry to provision'
-        type: string
-        required: false
-        default: crrgomesdev01
+        type: choice
+        required: true
+        options:
+          - crrgomesdev01
+          - crrgomeslab02
 
 permissions:
   contents: read

@@ -9,34 +9,34 @@ this module has no `backend` block.
 
 ## Resources created
 
-| Type | Name | Notes |
-|------|------|-------|
-| `azurerm_virtual_network` | `vnet-<workload>-<env>` | `10.0.0.0/16` |
-| `azurerm_subnet` | `snet-<workload>app-<env>` | `10.0.0.0/23`, delegated to `Microsoft.App/environments` |
-| `azurerm_subnet` | `snet-<workload>pg-<env>` | `10.0.4.0/24`, delegated to `Microsoft.DBforPostgreSQL/flexibleServers` |
-| `azurerm_subnet` | `snet-<workload>pe-<env>` | `10.0.5.0/24`, `private_endpoint_network_policies = Disabled` |
-| `azurerm_network_security_group` | `nsg-<workload>{app,pg,pe}-<env>` | One per subnet, default rules only, associated |
-| `azurerm_private_dns_zone` | 5 zones (see below) | One per downstream PE-integrated service |
-| `azurerm_private_dns_zone_virtual_network_link` | `vnet-link-<workload><key>-<env>` | One per zone; `registration_enabled = false` |
+| Type                                            | Name                              | Notes                                                                   |
+|-------------------------------------------------|-----------------------------------|-------------------------------------------------------------------------|
+| `azurerm_virtual_network`                       | `vnet-<workload>-<env>`           | `10.0.0.0/16`                                                           |
+| `azurerm_subnet`                                | `snet-<workload>app-<env>`        | `10.0.0.0/23`, delegated to `Microsoft.App/environments`                |
+| `azurerm_subnet`                                | `snet-<workload>pg-<env>`         | `10.0.4.0/24`, delegated to `Microsoft.DBforPostgreSQL/flexibleServers` |
+| `azurerm_subnet`                                | `snet-<workload>pe-<env>`         | `10.0.5.0/24`, `private_endpoint_network_policies = Disabled`           |
+| `azurerm_network_security_group`                | `nsg-<workload>{app,pg,pe}-<env>` | One per subnet, default rules only, associated                          |
+| `azurerm_private_dns_zone`                      | 5 zones (see below)               | One per downstream PE-integrated service                                |
+| `azurerm_private_dns_zone_virtual_network_link` | `vnet-link-<workload><key>-<env>` | One per zone; `registration_enabled = false`                            |
 
 Private DNS zones:
 
-| Key | Zone | For |
-|-----|------|-----|
-| `kv`   | `privatelink.vaultcore.azure.net`    | Key Vault |
-| `blob` | `privatelink.blob.core.windows.net`  | Storage (Blob endpoint) |
-| `acr`  | `privatelink.azurecr.io`             | Azure Container Registry |
-| `sb`   | `privatelink.servicebus.windows.net` | Service Bus |
-| `pg`   | `private.postgres.database.azure.com`| PostgreSQL Flexible Server (uses `private.*`, not `privatelink.*`) |
+| Key    | Zone                                  | For                                                                |
+|--------|---------------------------------------|--------------------------------------------------------------------|
+| `kv`   | `privatelink.vaultcore.azure.net`     | Key Vault                                                          |
+| `blob` | `privatelink.blob.core.windows.net`   | Storage (Blob endpoint)                                            |
+| `acr`  | `privatelink.azurecr.io`              | Azure Container Registry                                           |
+| `sb`   | `privatelink.servicebus.windows.net`  | Service Bus                                                        |
+| `pg`   | `private.postgres.database.azure.com` | PostgreSQL Flexible Server (uses `private.*`, not `privatelink.*`) |
 
 ## Inputs
 
-| Name | Type | Required | Notes |
-|------|------|----------|-------|
-| `env` | `string` | yes | Baked into every resource name. `^[a-z][a-z0-9]{1,9}$`. |
-| `location` | `string` | yes | Azure region. Must match the RG's location. |
-| `resource_group_name` | `string` | yes | RG that holds every resource. Caller passes `rg-<workload>network-<env>` (from module 01's remote state). |
-| `tags` | `map(string)` | no | Applied to VNet, NSGs, DNS zones, VNet links. Subnets don't support tags in azurerm. |
+| Name                  | Type          | Required | Notes                                                                                                     |
+|-----------------------|---------------|----------|-----------------------------------------------------------------------------------------------------------|
+| `env`                 | `string`      | yes      | Baked into every resource name. `^[a-z][a-z0-9]{1,9}$`.                                                   |
+| `location`            | `string`      | yes      | Azure region. Must match the RG's location.                                                               |
+| `resource_group_name` | `string`      | yes      | RG that holds every resource. Caller passes `rg-<workload>network-<env>` (from module 01's remote state). |
+| `tags`                | `map(string)` | no       | Applied to VNet, NSGs, DNS zones, VNet links. Subnets don't support tags in azurerm.                      |
 
 ## Outputs
 

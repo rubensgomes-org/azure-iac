@@ -129,7 +129,7 @@ CI can point a run at an existing registry.
 
 Follow the convention anyway, spelled without the dashes ACR forbids:
 `cr<workload><env>` → `crrgomesdev`. The current values are `crrgomesdev01` in
-dev and `crrgomesdev01` in lab; the trailing digits are a collision escape
+dev and `crrgomeslab02` in lab; the trailing digits are a collision escape
 hatch, which is the second reason this stays a human-chosen literal.
 
 ## The state backend
