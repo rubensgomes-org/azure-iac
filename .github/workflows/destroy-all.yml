@@ -22,7 +22,7 @@ on:
         description: 'Estate environment to destroy. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
         type: string
         required: true
-        default: lab
+        default: dev
 
       dry_run:
         description: >
@@ -41,7 +41,7 @@ on:
           Service Bus, PostgreSQL and its databases, the container apps, and
           monitoring. Images and blobs are NOT recoverable.
           Ignored on a dry run. Otherwise type EXACTLY "DESTROY ALL <env>",
-          naming the environment above — e.g. DESTROY ALL lab
+          naming the environment above — e.g. DESTROY ALL dev
         type: string
         required: false
 

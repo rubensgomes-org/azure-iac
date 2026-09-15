@@ -47,7 +47,7 @@ on:
         description: 'Estate environment to provision'
         type: string
         required: false
-        default: lab
+        default: dev
 
       acr_name:
         description: 'Registry to provision'
