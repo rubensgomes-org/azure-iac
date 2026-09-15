@@ -30,6 +30,14 @@ premise.
 
 ### Fixed
 
+## [0.0.3] - 2026-09-15
+
+### Added
+
+### Changed
+
+### Fixed
+
 - fixed documentation comments
 
 ## [0.0.2] - 2026-09-15
