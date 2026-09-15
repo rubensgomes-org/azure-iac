@@ -3,13 +3,11 @@
 # Provisions one `azurerm_container_app` per entry in `var.apps`, all sharing:
 #   - the same Container App Environment (module 10),
 #   - the same UAMI (module 04) for BOTH runtime identity and ACR pull,
-#   - the same PG server / Storage account / Service Bus namespace, with per-
-#     app values (DB name, blob container) resolved from the maps modules 09
-#     and 07 already produce.
+#   - the same Key Vault (module 05) for secrets.
 #
 # This is the module where the passwordless model finally comes
 # together: every downstream service the apps consume was RBAC'd to the shared
-# UAMI in its own module (05..09), and here we attach that identity and inject
+# UAMI in its own module (05, 06), and here we attach that identity and inject
 # the env vars app code needs to reach each service via
 # `DefaultAzureCredential`. No passwords, no keys, no connection strings.
 #
@@ -54,7 +52,7 @@ resource "azurerm_container_app" "app" {
   # Attach the SHARED UAMI. Same identity on every app — no per-app RBAC.
   # `type = "UserAssigned"` (not `SystemAssigned` and not `SystemAssigned,
   # UserAssigned`) means no system-assigned identity is created; the apps
-  # only ever authenticate as `var.uami_name`.
+  # only ever authenticate as `var.uami_id`.
   identity {
     type         = "UserAssigned"
     identity_ids = [var.uami_id]
@@ -98,37 +96,12 @@ resource "azurerm_container_app" "app" {
         value = var.uami_client_id
       }
 
-      # PG connection info. Password is intentionally absent — the app
-      # fetches an AAD token via the SDK and passes it as the password
-      # field in the libpq connection.
+      # Key Vault: apps fetch secrets via `SecretClient` +
+      # `DefaultAzureCredential`. No secret value ever passes through
+      # Terraform.
       env {
-        name  = "POSTGRES_HOST"
-        value = var.postgres_host
-      }
-      env {
-        name  = "POSTGRES_DB"
-        value = lookup(var.postgres_databases, each.key, each.key)
-      }
-      env {
-        name  = "POSTGRES_USER"
-        value = var.uami_name
-      }
-
-      # Storage: apps compose the blob endpoint from the account name and
-      # use `DefaultAzureCredential` for auth. No account key, no SAS.
-      env {
-        name  = "STORAGE_ACCOUNT_NAME"
-        value = var.storage_account_name
-      }
-      env {
-        name  = "STORAGE_CONTAINER_NAME"
-        value = lookup(var.storage_container_names, each.key, each.key)
-      }
-
-      # Service Bus: SDK targets the namespace FQDN + AAD credential.
-      env {
-        name  = "SERVICEBUS_NAMESPACE_FQDN"
-        value = var.servicebus_namespace_fqdn
+        name  = "KEY_VAULT_URI"
+        value = var.key_vault_uri
       }
     }
   }

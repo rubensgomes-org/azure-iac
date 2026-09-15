@@ -16,7 +16,7 @@ output "sb_namespace_name" {
 }
 
 output "sb_namespace_fqdn" {
-  description = "Fully-qualified namespace hostname (`<name>.servicebus.windows.net`). Passed to Container Apps as `SERVICEBUS_NAMESPACE_FQDN`."
+  description = "Fully-qualified namespace hostname (`<name>.servicebus.windows.net`)."
   value       = module.service_bus.sb_namespace_fqdn
 }
 

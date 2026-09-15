@@ -4,7 +4,7 @@
 #   - AAD-only auth with the Entra admin group as the PG administrator,
 #   - one database per app in `var.apps`,
 #   - two firewall rules (runner IP + Azure Services) so the Terraform SP
-#     and future Container Apps can reach the server during the public
+#     and future in-Azure consumers can reach the server during the public
 #     bootstrap phase,
 #   - a null_resource that runs `psql` to register the shared UAMI as an
 #     AAD-authenticated PG role and grants it CONNECT + schema privileges
@@ -134,10 +134,10 @@ resource "azurerm_postgresql_flexible_server_active_directory_administrator" "ad
 #
 #   2. `azure_services` — the magic pair 0.0.0.0/0.0.0.0. On Flexible
 #      Server, this signals "allow all Azure services" (same convention
-#      as classic Single Server). Needed so future Container Apps can
-#      reach PG from within Azure without pinning their variable
-#      outbound IPs. Move to VNet-only + delegated_subnet_id and drop
-#      this rule when the estate leaves the public-bootstrap phase.
+#      as classic Single Server). Needed so future in-Azure consumers can
+#      reach PG without pinning their variable outbound IPs. Move to
+#      VNet-only + delegated_subnet_id and drop this rule when the estate
+#      leaves the public-bootstrap phase.
 resource "azurerm_postgresql_flexible_server_firewall_rule" "runner" {
   name             = "allow-terraform-runner"
   server_id        = azurerm_postgresql_flexible_server.this.id

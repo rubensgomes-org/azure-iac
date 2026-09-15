@@ -16,7 +16,7 @@ output "pg_server_name" {
 }
 
 output "pg_fqdn" {
-  description = "Fully-qualified server hostname. Passed to Container Apps as `POSTGRES_HOST`."
+  description = "Fully-qualified server hostname."
   value       = module.postgresql.pg_fqdn
 }
 
@@ -31,7 +31,7 @@ output "pg_location" {
 }
 
 output "pg_databases" {
-  description = "Map from app name → database name. Consumed by module 11 to set each app's `POSTGRES_DB` env var."
+  description = "Map from app name → database name."
   value       = module.postgresql.pg_databases
 }
 

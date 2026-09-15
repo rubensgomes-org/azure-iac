@@ -4,10 +4,9 @@
 #   - the RBAC grant that lets the shared UAMI read/write blobs,
 #   - one blob container per app in `var.apps`.
 #
-# Consumers:
-#   - Container Apps (module 11) — apps read/write blobs via
-#     `DefaultAzureCredential`, using the same shared UAMI that pulls the
-#     image. No account keys, no connection strings.
+# No current consumer wires this module's outputs in — the shared UAMI
+# already holds the RBAC grant, so a future consumer only needs `sa_name`
+# and `container_names` via `data.terraform_remote_state`.
 #
 # The passwordless model means we NEVER enable shared-key auth. Setting
 # `shared_access_key_enabled = true` would allow the classic
@@ -114,8 +113,8 @@ resource "azurerm_storage_account" "this" {
 # -----------------------------------------------------------------------------
 # Contributor (not Reader) so apps can write blobs, not just read. Scope is
 # the STORAGE ACCOUNT — every container inherits. Tightening to per-container
-# scope is a future move if we want per-app isolation; downstream module 11
-# doesn't care because it consumes container names, not role assignments.
+# scope is a future move if we want per-app isolation; a future consumer
+# would only need the container names, not the role assignment itself.
 #
 # `principal_type = "ServicePrincipal"` avoids a slow Entra lookup on every
 # plan — UAMIs surface as service principals. Skipping this makes Terraform

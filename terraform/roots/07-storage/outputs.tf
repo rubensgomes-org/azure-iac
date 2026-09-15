@@ -11,7 +11,7 @@ output "sa_id" {
 }
 
 output "sa_name" {
-  description = "Storage account name (`st<workload>app<env>`). Passed to Container Apps as `STORAGE_ACCOUNT_NAME` env var."
+  description = "Storage account name (`st<workload>app<env>`)."
   value       = module.storage.sa_name
 }
 
@@ -31,7 +31,7 @@ output "sa_role_assignment_id" {
 }
 
 output "container_names" {
-  description = "Map from app name → blob container name. Consumed by module 11 to set each app's `STORAGE_CONTAINER_NAME` env var."
+  description = "Map from app name → blob container name."
   value       = module.storage.container_names
 }
 

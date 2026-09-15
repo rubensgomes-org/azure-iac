@@ -11,7 +11,7 @@ output "sb_namespace_id" {
 }
 
 output "sb_namespace_name" {
-  description = "Namespace name (`sb-<env>-msg-<random>`). Used in the FQDN (`<name>.servicebus.windows.net`) — passed to Container Apps as `SERVICEBUS_NAMESPACE_FQDN`."
+  description = "Namespace name (`sb-<env>-msg-<random>`). Used in the FQDN (`<name>.servicebus.windows.net`)."
   value       = azurerm_servicebus_namespace.this.name
 }
 
@@ -41,7 +41,7 @@ output "sb_receiver_role_assignment_id" {
 }
 
 output "sb_queue_names" {
-  description = "Map from queue name → queue name. Consumed by module 11 to inject queue names into each app's env vars. Empty when `var.queues = []`."
+  description = "Map from queue name → queue name. Empty when `var.queues = []`."
   value       = { for k, q in azurerm_servicebus_queue.this : k => q.name }
 }
 

@@ -85,10 +85,6 @@ terraform destroy
 No post-destroy purge needed — the namespace name is released immediately
 (no soft-delete tombstone on Standard SKU).
 
-**Order matters.** Container Apps (module 11) send/receive messages via
-the shared UAMI. Destroy module 11 first — otherwise running apps will
-see 401s the moment the RBAC assignments (or the namespace) disappear.
-
 ## Reprovision
 
 Same commands as **Provision**. The name is the deterministic

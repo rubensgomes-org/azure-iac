@@ -3,9 +3,9 @@
 Reusable child module that provisions one `azurerm_container_app` per
 entry in `var.apps`, all sharing the same Container App Environment
 (module 10), the same shared UAMI (module 04) for both runtime identity
-and ACR pull, and the same downstream services (PG, Storage, Service
-Bus). Injects the env vars each app needs to authenticate to those
-services passwordlessly via `DefaultAzureCredential`.
+and ACR pull, and the same Key Vault (module 05). Injects the env vars
+each app needs to authenticate to those services passwordlessly via
+`DefaultAzureCredential`.
 
 This is the module where the passwordless model finally comes together:
 every RBAC grant handed to the shared UAMI in earlier modules is what
@@ -15,39 +15,34 @@ makes the env vars below usable at runtime.
 
 **Inputs** (see `variables.tf` for full descriptions and validation):
 
-| Name                          | Type          | Default                                       | Description                                                          |
-|-------------------------------|---------------|-----------------------------------------------|----------------------------------------------------------------------|
-| `env`                         | string        | —                                             | Environment token, baked into app names (`ca-<workload><app>-<env>`).          |
-| `resource_group_name`         | string        | —                                             | `rg-<workload>app-<env>` (from module 01).                                     |
-| `container_app_environment_id`| string        | —                                             | `cae_id` (from module 10).                                           |
-| `apps`                        | list(string)  | —                                             | Microservice names. Must match `var.apps` in `env.tfvars`.           |
-| `uami_id`                     | string        | —                                             | Shared UAMI resource ID (from module 04). Used for identity + ACR pull. |
-| `uami_name`                   | string        | —                                             | Shared UAMI name (`id-<workload>app-<env>`). Injected as `POSTGRES_USER`.      |
-| `uami_client_id`              | string        | —                                             | Shared UAMI client ID. Injected as `AZURE_CLIENT_ID`.                |
-| `acr_login_server`            | string        | —                                             | `<acr>.azurecr.io` (from module 06). Set on `registry.server`.       |
-| `postgres_host`               | string        | —                                             | PG FQDN (from module 09). Injected as `POSTGRES_HOST`.               |
-| `postgres_databases`          | map(string)   | `{}`                                          | app → DB name (from module 09). Falls back to app name if missing.   |
-| `storage_account_name`        | string        | —                                             | Storage account name (from module 07). Injected as `STORAGE_ACCOUNT_NAME`. |
-| `storage_container_names`     | map(string)   | `{}`                                          | app → container name (from module 07). Falls back to app name if missing. |
-| `servicebus_namespace_fqdn`   | string        | —                                             | Service Bus FQDN (from module 08). Injected as `SERVICEBUS_NAMESPACE_FQDN`. |
-| `apps_image_map`              | map(string)   | `{}`                                          | Optional per-app image reference. Missing keys fall back to `default_image`. |
-| `default_image`               | string        | `mcr.microsoft.com/k8se/quickstart:latest`    | Placeholder image while ACR is empty.                                |
-| `target_port`                 | number        | `80`                                          | Container listen port. `8080` for typical Spring Boot images.        |
-| `cpu`                         | number        | `0.25`                                        | vCPU per replica. Must pair with a compatible `memory`.              |
-| `memory`                      | string        | `"0.5Gi"`                                     | Memory per replica.                                                  |
-| `min_replicas`                | number        | `0`                                           | `0` = scale-to-zero when idle.                                       |
-| `max_replicas`                | number        | `1`                                           | Horizontal cap per app.                                              |
-| `ingress_external_enabled`    | bool          | `true`                                        | `true` = public FQDN on the environment's static IP.                 |
-| `tags`                        | map(string)   | `{}`                                          | Merged with `component` + `app` tags.                                |
+| Name                           | Type         | Default                                    | Description                                                                  |
+|--------------------------------|--------------|--------------------------------------------|------------------------------------------------------------------------------|
+| `env`                          | string       | —                                          | Environment token, baked into app names (`ca-<workload><app>-<env>`).        |
+| `resource_group_name`          | string       | —                                          | `rg-<workload>app-<env>` (from module 01).                                   |
+| `container_app_environment_id` | string       | —                                          | `cae_id` (from module 10).                                                   |
+| `apps`                         | list(string) | —                                          | Microservice names. Must match `var.apps` in `env.tfvars`.                   |
+| `uami_id`                      | string       | —                                          | Shared UAMI resource ID (from module 04). Used for identity + ACR pull.      |
+| `uami_client_id`               | string       | —                                          | Shared UAMI client ID. Injected as `AZURE_CLIENT_ID`.                        |
+| `acr_login_server`             | string       | —                                          | `<acr>.azurecr.io` (from module 06). Set on `registry.server`.               |
+| `key_vault_uri`                | string       | —                                          | Vault DNS URI (from module 05). Injected as `KEY_VAULT_URI`.                 |
+| `apps_image_map`               | map(string)  | `{}`                                       | Optional per-app image reference. Missing keys fall back to `default_image`. |
+| `default_image`                | string       | `mcr.microsoft.com/k8se/quickstart:latest` | Placeholder image while ACR is empty.                                        |
+| `target_port`                  | number       | `80`                                       | Container listen port. `8080` for typical Spring Boot images.                |
+| `cpu`                          | number       | `0.25`                                     | vCPU per replica. Must pair with a compatible `memory`.                      |
+| `memory`                       | string       | `"0.5Gi"`                                  | Memory per replica.                                                          |
+| `min_replicas`                 | number       | `0`                                        | `0` = scale-to-zero when idle.                                               |
+| `max_replicas`                 | number       | `1`                                        | Horizontal cap per app.                                                      |
+| `ingress_external_enabled`     | bool         | `true`                                     | `true` = public FQDN on the environment's static IP.                         |
+| `tags`                         | map(string)  | `{}`                                       | Merged with `component` + `app` tags.                                        |
 
 **Outputs:**
 
-| Name                    | Description                                                                 |
-|-------------------------|-----------------------------------------------------------------------------|
-| `app_ids`               | Map app → full Azure Resource ID.                                           |
-| `app_names`             | Map app → deployed resource name (`ca-<workload><app>-<env>`).                        |
-| `app_fqdns`             | Map app → externally-reachable FQDN, or `null` when ingress is disabled.    |
-| `app_latest_revisions`  | Map app → latest revision name.                                             |
+| Name                   | Description                                                              |
+|------------------------|--------------------------------------------------------------------------|
+| `app_ids`              | Map app → full Azure Resource ID.                                        |
+| `app_names`            | Map app → deployed resource name (`ca-<workload><app>-<env>`).           |
+| `app_fqdns`            | Map app → externally-reachable FQDN, or `null` when ingress is disabled. |
+| `app_latest_revisions` | Map app → latest revision name.                                          |
 
 ## Design decisions
 

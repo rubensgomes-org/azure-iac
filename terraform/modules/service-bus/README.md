@@ -81,7 +81,7 @@ no structural dep in the current design:
 
 ## Downstream consumers
 
-- **Container Apps (module 11):** each `azurerm_container_app` gets env
-  var `SERVICEBUS_NAMESPACE_FQDN = <sb_namespace_fqdn>` plus whichever
-  queue name(s) that app cares about. Apps authenticate via
-  `DefaultAzureCredential` — no SAS keys, no connection strings.
+None currently. The shared UAMI already holds both RBAC grants, so a
+future consumer only needs to read `sb_namespace_fqdn` (and any queue
+names it cares about) via `data.terraform_remote_state` and authenticate
+via `DefaultAzureCredential` — no SAS keys, no connection strings.

@@ -95,10 +95,6 @@ No post-destroy purge needed — the SA name is released immediately (no
 account-level soft-delete tombstone). Blob soft delete is 2 days, but only
 matters for individual blobs — the account itself is gone.
 
-**Order matters.** Container Apps (module 11) read/write blobs via the
-shared UAMI. Destroy module 11 first — otherwise running apps will see
-403s the moment the RBAC assignment (or the SA) disappears.
-
 ## Reprovision
 
 Same commands as **Provision**. The name is the deterministic

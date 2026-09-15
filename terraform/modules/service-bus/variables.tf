@@ -76,8 +76,8 @@ variable "uami_principal_id" {
     Entra ID object ID (principal_id) of the shared UAMI created in module
     04. Used as the RBAC principal for the two role assignments granted at
     the namespace scope: `Azure Service Bus Data Sender` and
-    `Azure Service Bus Data Receiver`. Container Apps then send/receive
-    messages via `DefaultAzureCredential` — no SAS keys.
+    `Azure Service Bus Data Receiver`. Grants passwordless send/receive via
+    `DefaultAzureCredential` to any consumer using this identity.
   EOT
   type        = string
 }
@@ -91,8 +91,7 @@ variable "queues" {
     Kept as a first-class variable rather than deriving from `var.apps`
     because queues are communication channels *between* apps, not per-app
     resources — a two-app estate might share one queue, or an app might own
-    several. Downstream module 11 (container-apps) will inject the relevant
-    queue names into each app's env vars explicitly.
+    several.
   EOT
   type        = list(string)
   default     = []

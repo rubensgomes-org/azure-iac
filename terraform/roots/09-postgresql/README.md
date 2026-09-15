@@ -128,7 +128,7 @@ step** (see next section for why + how to run it). Expect apply time
 The shared UAMI still needs to be registered as an AAD-authenticated PG
 role via `pgaadauth_create_principal`, and each app database needs a
 `GRANT CONNECT` + `GRANT USAGE, CREATE ON SCHEMA public` for that role.
-Container Apps in module 11 will fail to open a connection until this
+Any consumer authenticating as that role will fail to connect until this
 step runs.
 
 The child module has an in-line `null_resource.pg_bootstrap` that does
@@ -257,11 +257,6 @@ No purge command exists for Flex — the name is either still held or gone. The
 name is deterministic since the CAF rename, so a name still held blocks the
 reprovision outright; `az postgres flexible-server revive-dropped` brings the
 old server back if you want it, otherwise wait the window out.
-
-**Order matters.** Container Apps (module 11) connect via the shared
-UAMI. Destroy module 11 first — otherwise running apps see
-`FATAL: no pg_hba.conf entry` the moment the AAD admin or the AAD
-principal disappears.
 
 ## Reprovision
 

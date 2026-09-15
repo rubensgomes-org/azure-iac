@@ -40,10 +40,8 @@ variable "workload" {
 
 variable "apps" {
   description = <<-EOT
-    Microservice names. One Container App per entry. Must match the list
-    used by modules 07 (blob containers) and 09 (PG databases) — those
-    modules created the per-app resources whose names get injected here.
-    Sourced from ../../envs/<env>/env.tfvars.
+    Microservice names. One Container App per entry. Sourced from
+    ../../envs/<env>/env.tfvars.
   EOT
   type        = list(string)
 }

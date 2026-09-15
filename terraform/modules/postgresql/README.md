@@ -126,7 +126,8 @@ dependencies, but neither has a structural dep in the current design:
 
 ## Downstream consumers
 
-- **Container Apps (module 11):** each `azurerm_container_app` gets env
-  vars `POSTGRES_HOST = <pg_fqdn>`, `POSTGRES_DB = pg_databases[<app>]`,
-  `POSTGRES_USER = <uami_name>`. Apps authenticate via
-  `DefaultAzureCredential` — no passwords, no connection strings.
+None currently. The shared UAMI is already registered as an AAD role on
+each app database (see Data-plane bootstrap above), so a future consumer
+only needs `pg_fqdn` and `pg_databases` via `data.terraform_remote_state`
+and can authenticate via `DefaultAzureCredential` — no passwords, no
+connection strings.

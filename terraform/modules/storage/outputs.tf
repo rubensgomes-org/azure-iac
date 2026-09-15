@@ -11,7 +11,7 @@ output "sa_id" {
 }
 
 output "sa_name" {
-  description = "Storage account name (`st<workload>app<env>`). Passed to Container Apps as `STORAGE_ACCOUNT_NAME` env var — apps compose the blob endpoint from it via `DefaultAzureCredential`."
+  description = "Storage account name (`st<workload>app<env>`)."
   value       = azurerm_storage_account.this.name
 }
 
@@ -31,7 +31,7 @@ output "sa_role_assignment_id" {
 }
 
 output "container_names" {
-  description = "Map from app name → blob container name. Container name = app name today. Consumed by module 11 to set each app's `STORAGE_CONTAINER_NAME` env var."
+  description = "Map from app name → blob container name. Container name = app name today."
   value       = { for k, c in azapi_resource.container : k => c.name }
 }
 

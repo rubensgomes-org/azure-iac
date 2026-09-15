@@ -4,10 +4,9 @@
 #   - the two RBAC grants that let the shared UAMI send and receive messages,
 #   - one queue per name in `var.queues` (empty by default).
 #
-# Consumers:
-#   - Container Apps (module 11) — apps send/receive via
-#     `DefaultAzureCredential`, using the same shared UAMI that pulls the
-#     image and reads from PG/Blob. No SAS keys, no connection strings.
+# No current consumer wires this module's outputs in — the shared UAMI
+# already holds both RBAC grants, so a future consumer only needs
+# `sb_namespace_fqdn` via `data.terraform_remote_state`.
 #
 # The passwordless model routes ALL app traffic through Entra tokens. Local
 # SAS auth (`local_auth_enabled = true`) stays available at the namespace for
@@ -76,8 +75,8 @@ resource "azurerm_servicebus_namespace" "this" {
 # -----------------------------------------------------------------------------
 # Two role assignments at the NAMESPACE scope — every queue (and future
 # topic/subscription) inherits. Tightening to per-queue scope is a future
-# move if we want per-app isolation; downstream module 11 doesn't care
-# because it consumes queue names, not role assignments.
+# move if we want per-app isolation; a future consumer would only need
+# the queue names, not the role assignments themselves.
 #
 # `principal_type = "ServicePrincipal"` avoids a slow Entra lookup on every
 # plan — UAMIs surface as service principals. Skipping this makes Terraform

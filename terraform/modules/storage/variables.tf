@@ -79,18 +79,16 @@ variable "uami_principal_id" {
   description = <<-EOT
     Entra ID object ID (principal_id) of the shared UAMI created in module
     04. Used as the RBAC principal for the `Storage Blob Data Contributor`
-    role assignment at storage-account scope — Container Apps use this
-    identity for passwordless blob access via `DefaultAzureCredential`.
+    role assignment at storage-account scope — grants passwordless blob
+    access via `DefaultAzureCredential` to any consumer using this identity.
   EOT
   type        = string
 }
 
 variable "apps" {
   description = <<-EOT
-    Microservice names. One blob container is created per name. Downstream
-    module 11 (container-apps) can inject the matching container name into
-    each app's env vars. Empty list = no containers created (SA still
-    provisioned).
+    Microservice names. One blob container is created per name. Empty
+    list = no containers created (SA still provisioned).
   EOT
   type        = list(string)
   default     = []

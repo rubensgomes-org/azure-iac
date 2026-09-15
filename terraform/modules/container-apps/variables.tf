@@ -6,8 +6,7 @@
 # `ca-<env>-<app>`, all sharing:
 #   - the same Container App Environment (`var.container_app_environment_id`),
 #   - the same UAMI (`var.uami_id`) for runtime identity AND ACR pull,
-#   - the same PG server / Storage account / Service Bus namespace, with only
-#     the per-app database name and blob container name varying.
+#   - the same Key Vault (`var.key_vault_uri`) for secrets.
 #
 # Fixed design decisions (Consumption workload profile, single-revision mode,
 # external ingress on by default, scale-to-zero) live in main.tf as locals or
@@ -89,14 +88,7 @@ variable "apps" {
     List of microservice names. One `azurerm_container_app` is created per
     entry, keyed by `for_each = toset(var.apps)`. Names appear in the
     resource name (`ca-<env>-<app>`), the `app` tag, and are used as the
-    default key when looking up per-app values in
-    `var.postgres_databases`, `var.storage_container_names`, and
-    `var.apps_image_map`.
-
-    Must match `var.apps` in `envs/<env>/env.tfvars` — the same list drives
-    module 09 (PG databases) and module 07 (blob containers) upstream.
-    Removing a name here does NOT drop its DB or container — those are
-    owned by modules 09 and 07 — but the app disappears on next apply.
+    default key when looking up per-app values in `var.apps_image_map`.
 
     Each name must be a valid Container App name suffix: 2-27 chars,
     lowercase alnum + hyphens, starting with a letter. With the
@@ -117,16 +109,6 @@ variable "uami_id" {
     every app via `identity.identity_ids` AND used as the ACR pull identity
     (`registry.identity`). Same identity, two uses — no per-app RBAC
     ceremony.
-  EOT
-  type        = string
-}
-
-variable "uami_name" {
-  description = <<-EOT
-    UAMI name (`id-<env>-app`, from module 04). Injected as `POSTGRES_USER`
-    on every app because PG's AAD authentication accepts the UAMI's name
-    as the login (registered via `pgaadauth_create_principal` during
-    module 09's data-plane bootstrap).
   EOT
   type        = string
 }
@@ -154,53 +136,13 @@ variable "acr_login_server" {
   type        = string
 }
 
-variable "postgres_host" {
+variable "key_vault_uri" {
   description = <<-EOT
-    PG Flexible Server FQDN (`<name>.postgres.database.azure.com`, from
-    module 09). Injected as `POSTGRES_HOST` on every app. Same value for
-    every app — one shared server.
-  EOT
-  type        = string
-}
-
-variable "postgres_databases" {
-  description = <<-EOT
-    Map from app name → PG database name (from module 09's `pg_databases`
-    output). Injected per-app as `POSTGRES_DB`. Lookup falls back to the
-    app name itself if a key is missing, matching module 09's identity
-    mapping (`db_name = app_name`).
-  EOT
-  type        = map(string)
-  default     = {}
-}
-
-variable "storage_account_name" {
-  description = <<-EOT
-    Storage account name (`st<workload>app<env>`, from module 07). Injected
-    as `STORAGE_ACCOUNT_NAME` on every app so app code can compose the
-    blob endpoint (`https://<name>.blob.core.windows.net/`) via
-    `DefaultAzureCredential`.
-  EOT
-  type        = string
-}
-
-variable "storage_container_names" {
-  description = <<-EOT
-    Map from app name → blob container name (from module 07's
-    `container_names` output). Injected per-app as
-    `STORAGE_CONTAINER_NAME`. Lookup falls back to the app name if a key
-    is missing, matching module 07's identity mapping.
-  EOT
-  type        = map(string)
-  default     = {}
-}
-
-variable "servicebus_namespace_fqdn" {
-  description = <<-EOT
-    Service Bus namespace FQDN (`<name>.servicebus.windows.net`, from
-    module 08). Injected as `SERVICEBUS_NAMESPACE_FQDN` on every app.
-    Apps connect using this hostname + `DefaultAzureCredential` — no SAS
-    keys anywhere.
+    Vault DNS URI (`https://<name>.vault.azure.net/`, from module 05).
+    Injected as `KEY_VAULT_URI` on every app so app code can build a
+    `SecretClient` and fetch secrets via `DefaultAzureCredential`. RBAC
+    (`Key Vault Secrets User`) on the shared UAMI was already granted in
+    module 05.
   EOT
   type        = string
 }

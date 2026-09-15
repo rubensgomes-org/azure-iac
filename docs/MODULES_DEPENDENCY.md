@@ -23,7 +23,7 @@ since most modules have more than one parent.
 │   ├── 08-service-bus                  ← 01, 04
 │   └── 09-postgresql                   ← 01, 04
 ├── 10-container-app-environment        ← 01, 02, 03
-├── 11-container-apps                   ← 01, 04, 06, 07, 08, 09, 10
+├── 11-container-apps                   ← 01, 04, 05, 06, 10
 └── 12-monitoring                       ← 01, 03, 05, 06, 07, 08, 09
 ```
 
@@ -41,7 +41,7 @@ since most modules have more than one parent.
 | `08-service-bus`               | 01, 04                     | RG placement; UAMI Service Bus data role.                                            |
 | `09-postgresql`                | 01, 04                     | RG placement; UAMI as a PG Entra role.                                               |
 | `10-container-app-environment` | 01, 02, 03                 | RG placement; the `app` subnet; workspace for CAE logs.                              |
-| `11-container-apps`            | 01, 04, 06, 07, 08, 09, 10 | Environment, registry, UAMI, and every backing service's endpoint as app config.     |
+| `11-container-apps`            | 01, 04, 05, 06, 10         | Environment, registry, UAMI, and the vault URI as app config.                        |
 | `12-monitoring`                | 01, 03, 05, 06, 07, 08, 09 | Workspace, plus the resource ID of each service it attaches a diagnostic setting to. |
 
 ## Notes

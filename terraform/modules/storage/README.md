@@ -83,8 +83,7 @@ but neither has a structural dep in the current design:
 
 ## Downstream consumers
 
-- **Container Apps (module 11):** each `azurerm_container_app` gets env
-  vars `STORAGE_ACCOUNT_NAME = <sa_name>` and (per-app)
-  `STORAGE_CONTAINER_NAME = container_names[<app>]`. Apps compose the
-  blob URL and authenticate via `DefaultAzureCredential` — no keys,
-  no SAS.
+None currently. The shared UAMI already holds the `Storage Blob Data
+Contributor` role, so a future consumer only needs to read `sa_name` and
+`container_names` via `data.terraform_remote_state` and compose the blob
+URL, authenticating via `DefaultAzureCredential` — no keys, no SAS.

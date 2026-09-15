@@ -16,7 +16,7 @@ output "pg_server_name" {
 }
 
 output "pg_fqdn" {
-  description = "Fully-qualified server hostname (`<name>.postgres.database.azure.com`). Passed to Container Apps as `POSTGRES_HOST`."
+  description = "Fully-qualified server hostname (`<name>.postgres.database.azure.com`)."
   value       = azurerm_postgresql_flexible_server.this.fqdn
 }
 
@@ -31,7 +31,7 @@ output "pg_location" {
 }
 
 output "pg_databases" {
-  description = "Map from app name → database name (identity on this iteration — DB name equals app name). Consumed by module 11 to set each app's `POSTGRES_DB` env var."
+  description = "Map from app name → database name (identity on this iteration — DB name equals app name)."
   value       = { for k, d in azurerm_postgresql_flexible_server_database.app : k => d.name }
 }
 

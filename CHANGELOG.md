@@ -28,6 +28,15 @@ premise.
 
 ### Changed
 
+- `11-container-apps` now depends on `05-key-vault` instead of
+  `07-storage`, `08-service-bus`, and `09-postgresql`. Container apps get
+  a `KEY_VAULT_URI` env var in place of the removed `POSTGRES_*`,
+  `STORAGE_*`, and `SERVICEBUS_*` env vars, and the now-unused `uami_name`
+  module input was dropped.
+- Updated `07-storage`, `08-service-bus`, and `09-postgresql` (roots,
+  child modules, and READMEs) to stop describing `11-container-apps` as
+  their consumer, matching the dependency change above.
+
 ### Fixed
 
 ## [0.0.7] - 2026-09-15

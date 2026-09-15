@@ -2,14 +2,14 @@
 
 Root Terraform config that provisions one Azure Container App per entry in
 `var.apps`, all sharing the same environment (module 10), the same shared
-UAMI (module 04) for both runtime identity and ACR pull, and the same PG /
-Storage / Service Bus endpoints. This is the module where the passwordless
-auth model finally comes together end-to-end. State lives at key
+UAMI (module 04) for both runtime identity and ACR pull, and the same Key
+Vault (module 05). This is the module where the passwordless auth model
+finally comes together end-to-end. State lives at key
 `container-apps/terraform.tfstate` in the backend blob container.
 
 Wraps [`../../modules/container-apps/`](../../modules/container-apps/README.md).
 
-**`make apply-container-apps` on its own will NOT work** unless all seven
+**`make apply-container-apps` on its own will NOT work** unless all five
 prerequisites below are already applied. This root reads every one of
 them through `data.terraform_remote_state`, and against an empty state
 key the plan fails with *Unsupported attribute* rather than a useful
@@ -18,10 +18,8 @@ message. Apply the chain in order first:
 ```bash
 make apply-resource-groups        # 01
 make apply-managed-identities     # 04
+make apply-key-vault              # 05
 make apply-acr                    # 06
-make apply-storage                # 07
-make apply-service-bus            # 08
-make apply-postgresql             # 09  (plus its manual Cloud Shell bootstrap)
 make apply-container-app-environment  # 10
 make apply-container-apps         # 11
 ```
@@ -30,17 +28,15 @@ or just `make apply` from the repo root, which walks 01 → 12.
 
 ## Prerequisites
 
-Modules **01, 04, 06, 07, 08, 09, and 10** applied. This root reads:
+Modules **01, 04, 05, 06, and 10** applied. This root reads:
 
-| From                         | Outputs consumed                                     |
-|------------------------------|------------------------------------------------------|
-| 01-resource-groups           | `rg_app_name`                                        |
-| 04-managed-identities        | `uami_app_id`, `uami_app_name`, `uami_app_client_id` |
-| 06-acr                       | `acr_login_server`                                   |
-| 07-storage                   | `sa_name`, `container_names`                         |
-| 08-service-bus               | `sb_namespace_fqdn`                                  |
-| 09-postgresql                | `pg_fqdn`, `pg_databases`                            |
-| 10-container-app-environment | `cae_id`                                             |
+| From                         | Outputs consumed                    |
+|------------------------------|--------------------------------------|
+| 01-resource-groups           | `rg_app_name`                       |
+| 04-managed-identities        | `uami_app_id`, `uami_app_client_id` |
+| 05-key-vault                 | `kv_uri`                            |
+| 06-acr                       | `acr_login_server`                  |
+| 10-container-app-environment | `cae_id`                            |
 
 Additional requirements:
 
@@ -53,10 +49,6 @@ Additional requirements:
   [`INITIAL_SETUP.md`](../../../docs/INITIAL_SETUP.md) § Terraform Variable
   Files. Tags are not among its values: they come from the committed
   `envs/<env>/tags.json`, with `TF_VAR_owner` overriding `owner`.
-- The shared UAMI already registered as an AAD principal in PG (the
-  manual Cloud Shell bootstrap from `09-postgresql/README.md`) —
-  otherwise apps will start but every DB call will fail with
-  `password authentication failed for user "id-${TF_VAR_workload:-rgomes}app-${TF_VAR_env:-lab}"`.
 - If real images are referenced in `apps_image_map` — the images must
   actually exist in ACR under those exact tags. First apply on a missing
   image fails with a container-pull error and leaves the app in a
@@ -169,8 +161,8 @@ immediately.
 
 - **Passwordless auth end-to-end.** Every value injected as an env var
   is either a hostname or the UAMI's client_id — none are secrets. Apps
-  authenticate to PG, Blob, Service Bus, and Key Vault via
-  `DefaultAzureCredential`; the platform holds the credential material.
+  authenticate to Key Vault via `DefaultAzureCredential`; the platform
+  holds the credential material.
 - **Shared UAMI on every app.** Same identity for runtime, same
   identity for ACR pull. The trade-off is a blast radius shared across
   every app.
@@ -179,7 +171,6 @@ immediately.
   latency. Export `TF_VAR_min_replicas=1` for latency-sensitive apps.
 - **No `secret {}` blocks.** Nothing to put in them under the
   passwordless model — the UAMI is the credential.
-- **Service Bus queue names not injected.** Module 08 defaults to
-  `queues = []`. When workloads actually need queues, add a
-  `servicebus_queue_names` variable to the child module and thread it
-  through here.
+- **Minimal by design.** No database, blob storage, or Service Bus
+  dependency yet — add the corresponding root's remote state when a
+  workload needs one.
