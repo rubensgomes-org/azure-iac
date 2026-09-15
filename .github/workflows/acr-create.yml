@@ -1,0 +1,300 @@
+# =============================================================================
+# ACR Create (reusable)
+#
+# Brings modules 01 (resource groups), 04 (managed identities) and 06 (ACR) to
+# their desired state, in dependency order, so a container registry exists and
+# is writable before an application pipeline pushes an image to it. Every
+# recipe is a `make` target from the repo-root Makefile.
+#
+# This project's source code and documentation were generated with the
+# assistance of Artificial Intelligence (AI). For more information, please
+# refer to the `AI_DISCLAIMER.md` document located in the project's root
+# directory.
+# =============================================================================
+
+name: ACR Create (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: 'Estate environment to provision. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
+        type: string
+        required: false
+        default: lab
+
+      acr_name:
+        description: 'Registry to provision. Passed to Terraform as TF_VAR_acr_name.'
+        type: string
+        required: false
+        default: crrgomeslab02
+
+    outputs:
+      acr_name:
+        description: 'Registry name, e.g. crrgomeslab02. Use with `az acr login --name`.'
+        value: ${{ jobs.provision.outputs.acr_name }}
+      acr_login_server:
+        description: 'Registry login server, e.g. crrgomeslab02.azurecr.io. Use as the image reference prefix.'
+        value: ${{ jobs.provision.outputs.acr_login_server }}
+
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: true
+
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: 'Estate environment to provision'
+        type: string
+        required: false
+        default: lab
+
+      acr_name:
+        description: 'Registry to provision'
+        type: string
+        required: false
+        default: crrgomeslab02
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    name: provision
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # The group string is shared verbatim with acr-destroy.yml so a create and
+    # a destroy of the same modules cannot overlap. Never change it in one
+    # file without the other. On workflow_call the group is evaluated in the
+    # CALLER's namespace, so cross-repository runs are serialised only by the
+    # azurerm backend's blob lease. Never work around that with -lock=false.
+    concurrency:
+      group: acr-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    outputs:
+      acr_name: ${{ steps.acr_outputs.outputs.acr_name }}
+      acr_login_server: ${{ steps.acr_outputs.outputs.acr_login_server }}
+
+    env:
+      # Declared at job level so every `make` step inherits them; the recipes
+      # read the ambient environment and take no authentication arguments.
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      TF_IN_AUTOMATION: "true"
+
+      ROOTS_DIR: terraform/roots
+
+      # Bound here because a `${{ }}` inside a `run:` body is substituted as
+      # raw text before the shell parses it. Reference "$ENV_NAME" from run
+      # blocks; never `${{ inputs.* }}`. Enforced by main-verify.yml.
+      ENV_NAME: ${{ inputs.environment_name }}
+      REQUESTED_ACR_NAME: ${{ inputs.acr_name }}
+
+      # `|| 'rgomes'` is load-bearing: an undefined repository variable
+      # resolves to "" and would hand Terraform an explicit empty workload,
+      # naming the RGs differently from a local run. `name` is ForceNew on
+      # azurerm_resource_group, so that recreates five RGs. The literal is
+      # duplicated in every module's `workload` default and Make's WORKLOAD.
+      #
+      # The key's case must match exactly: Terraform variable names are
+      # case-sensitive, so TF_VAR_WORKLOAD is silently ignored.
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+
+      # -var-file OUTRANKS TF_VAR_*. These bindings are authoritative on a
+      # runner only because no tfvars file is present there.
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_acr_name: ${{ inputs.acr_name }}
+
+      # Unset falls through to tags.json: locals.tf coalesces on the first
+      # non-null, non-empty value.
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      # No `|| default` here, unlike TF_VAR_workload: an empty TF_VAR_ still
+      # counts as a value and would point the state read at a nameless
+      # storage account. The guard step below rejects that explicitly.
+      TF_VAR_backend_resource_group_name: ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # A missing caller `secrets:` entry resolves to an empty string, which
+      # would fail deep inside `init` with an opaque authentication error.
+      # Only the NAME of a missing variable is printed, never the value.
+      - name: Verify required Azure configuration is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID \
+                   TF_VAR_env TF_VAR_location TF_VAR_acr_name \
+                   TF_VAR_backend_resource_group_name TF_VAR_storage_account_id \
+                   TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Check the calling repository's Actions configuration:"
+            echo "  Variables: AZURE_CLIENT_ID, AZURE_TENANT_ID,"
+            echo "             AZURE_SUBSCRIPTION_ID, TF_VAR_location,"
+            echo "             TF_VAR_backend_resource_group_name,"
+            echo "             TF_VAR_storage_account_id, TF_VAR_container_name"
+            echo "  Secret:    AZURE_CLIENT_SECRET"
+            echo "  TF_VAR_env and TF_VAR_acr_name are derived from the"
+            echo "  workflow inputs, not from repository variables."
+          fi
+          exit $missing
+
+      # These values reach Terraform directly and name Azure resources, so
+      # this is the only place their shape is checked.
+      - name: GUARD - Validate Terraform inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "FAIL: environment_name must be 2-10 lowercase alphanumeric characters"
+            echo "starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_location}" | grep -qE '^[a-z][a-z0-9]*$'; then
+            echo "FAIL: TF_VAR_location must be a lowercase Azure region identifier"
+            echo "such as 'centralus'."
+            exit 1
+          fi
+          if ! printf '%s' "${REQUESTED_ACR_NAME}" | grep -qE '^[A-Za-z0-9]{5,50}$'; then
+            echo "FAIL: acr_name must be 5-50 alphanumeric characters."
+            exit 1
+          fi
+
+          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}' acr='${REQUESTED_ACR_NAME}'."
+
+      # A repository variable is edited in the GitHub UI with no review and no
+      # diff, so its shape is checked before it reaches Make or Terraform.
+      - name: GUARD - Validate workload and backend coordinates
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Resolved workload: '${TF_VAR_workload:-}' (RG names look like rg-${TF_VAR_workload:-}platform-${ENV_NAME})"
+          # Mirrors the `workload` validation every module declares:
+          # 2-16 lowercase alnum, starting with a letter.
+          if ! printf '%s' "${TF_VAR_workload:-}" | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "FAIL: workload must be 2-16 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            echo "Fix the TF_VAR_workload repository variable:"
+            echo "  Settings > Secrets and variables > Actions > Variables"
+            exit 1
+          fi
+
+          # A typo here points Terraform at a different (or nonexistent)
+          # state, where it sees an empty world and proposes to create the
+          # estate a second time.
+          if ! printf '%s' "${TF_VAR_storage_account_id}" | grep -qE '^[a-z0-9]{3,24}$'; then
+            echo "FAIL: TF_VAR_storage_account_id must be 3-24 lowercase"
+            echo "alphanumeric characters (an Azure storage account name)."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_container_name}" | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
+            echo "FAIL: TF_VAR_container_name must be 3-63 lowercase"
+            echo "alphanumeric/hyphen characters starting with alphanumeric."
+            exit 1
+          fi
+          if [ "${TF_VAR_backend_resource_group_name: -1}" = "." ] \
+             || [ "${#TF_VAR_backend_resource_group_name}" -gt 90 ]; then
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with a"
+            echo "period or exceed 90 characters."
+            exit 1
+          fi
+          echo "Backend: ${TF_VAR_backend_resource_group_name}/${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
+
+      # terraform_wrapper is false: the wrapper intercepts stdout, which would
+      # break the `terraform output -raw` calls in the outputs step.
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      # Split out from plan/apply so the guard below can read module 01's
+      # current state before anything is planned against it.
+      - name: Module 01 - init
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" init-resource-groups
+
+      # `name` is ForceNew on azurerm_resource_group, so a changed workload is
+      # a destroy+recreate of all five RGs, not a rename. Empty state means
+      # first provision, which is the one time the change is safe.
+      - name: GUARD - Assert workload matches module 01's state
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/01-resource-groups
+        run: |
+          set -euo pipefail
+          current="$(terraform output -raw rg_platform_name 2>/dev/null || true)"
+          expected="rg-${TF_VAR_workload}platform-${ENV_NAME}"
+
+          if [ -z "$current" ]; then
+            echo "Module 01 state is empty -- first provision."
+            echo "Will create ${expected} and its four siblings."
+          elif [ "$current" != "$expected" ]; then
+            echo "FAIL: module 01's state holds '${current}',"
+            echo "      but TF_VAR_workload asks for '${expected}'."
+            echo ""
+            echo "workload is ForceNew on azurerm_resource_group. Applying this"
+            echo "would plan a destroy+recreate of all five resource groups, not"
+            echo "a rename, and every resource inside them is owned by a"
+            echo "different state file that knows nothing about the change."
+            echo ""
+            echo "Tear the estate down first with make destroy,"
+            echo "then change the TF_VAR_workload repository variable."
+            exit 1
+          else
+            echo "OK: workload matches state (${current})."
+          fi
+
+      # THE `plan-*` TARGETS GATE NOTHING. `apply-<name>` re-plans internally
+      # under -auto-approve rather than consuming the tfplan file. The plan
+      # steps exist so the intended change is visible in the log; do not read
+      # a clean plan as a guarantee about the apply that follows it.
+      - name: Module 01 - resource groups
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            plan-resource-groups apply-resource-groups
+
+      # Module 06 grants AcrPull to this principal, so it must exist first.
+      - name: Module 04 - managed identities
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-managed-identities plan-managed-identities apply-managed-identities
+
+      - name: Module 06 - container registry
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-acr plan-acr apply-acr
+
+      # Published so callers reference the registry by output rather than
+      # hardcoding a hostname that the acr_name input can change.
+      - name: Publish ACR outputs
+        id: acr_outputs
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/06-acr
+        run: |
+          set -euo pipefail
+          acr_name="$(terraform output -raw acr_name)"
+          acr_login_server="$(terraform output -raw acr_login_server)"
+          echo "acr_name=${acr_name}"                 >> "$GITHUB_OUTPUT"
+          echo "acr_login_server=${acr_login_server}" >> "$GITHUB_OUTPUT"
+          echo "Registry ready: ${acr_login_server}"

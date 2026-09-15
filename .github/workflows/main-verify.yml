@@ -1,0 +1,183 @@
+# =============================================================================
+# Main Verify
+#
+# Manual verification of main: formatting, Terraform validation of every
+# module root, workflow-file linting, and an opt-in SonarCloud quality gate.
+#
+# This project's source code and documentation were generated with the
+# assistance of Artificial Intelligence (AI). For more information, please
+# refer to the `AI_DISCLAIMER.md` document located in the project's root
+# directory.
+# =============================================================================
+
+name: Main Verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      # Defaults to false, so a bare dispatch skips the sonar job. It reports
+      # as skipped, not as a pass: a skipped scan is not a green gate.
+      run_sonar:
+        description: "Also run the SonarCloud scan (publishes main's quality gate)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  # Safe to cancel: these jobs touch no Azure state and hold no locks.
+  group: main-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  terraform:
+    name: terraform
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      TF_IN_AUTOMATION: "true"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      - name: Terraform fmt (check)
+        run: terraform fmt -check -recursive terraform/
+
+      # Roots under terraform/roots/ are shared by every environment, so an
+      # autoloaded tfvars file there applies to all of them and outranks
+      # TF_VAR_*. .gitignore keeps them out of commits; this catches `git
+      # add -f`.
+      - name: No auto-loaded tfvars in shared roots
+        run: make check-tfvars
+
+      - name: Terraform validate (all module roots)
+        run: make validate
+
+  workflows:
+    name: workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Workflows parse as YAML
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+          for f in .github/workflows/*.yml .github/actions/*/action.yml; do
+            [ -e "$f" ] || continue
+            if ruby -ryaml -e 'YAML.load_file(ARGV[0])' "$f" 2>/dev/null; then
+              echo "  ok   $f"
+            else
+              echo "::error file=$f::does not parse as YAML"
+              rc=1
+            fi
+          done
+          exit $rc
+
+      # GitHub substitutes an expression inside a `run:` body as raw text
+      # before the shell parses it, so a value containing a quote or $(...)
+      # executes on the runner. Bind through `env:` and reference "$VAR".
+      - name: No expression interpolation inside run blocks
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -ryaml -e '
+            bad = []
+            Dir[".github/workflows/*.yml"].sort.each do |f|
+              doc = YAML.load_file(f) || {}
+              (doc["jobs"] || {}).each_value do |job|
+                (job["steps"] || []).each do |step|
+                  body = step["run"] or next
+                  body.scan(/\$\{\{[^}]*\}\}/) do |m|
+                    bad << [f, step["name"] || "<unnamed>", m]
+                  end
+                end
+              end
+            end
+            bad.each do |f, name, m|
+              puts "::error file=#{f}::#{m} appears inside the run body of step " \
+                   "\x27#{name}\x27. Bind it to an env: key and reference \"$VAR\" instead."
+            end
+            if bad.empty?
+              puts "clean: no run body interpolates a GitHub expression"
+            else
+              puts "#{bad.size} interpolation(s) found. See the errors above."
+              exit 1
+            end
+          '
+
+  sonar:
+    name: sonar
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    if: ${{ inputs.run_sonar }}
+
+    # A job-level block REPLACES the workflow default rather than adding to
+    # it, so `contents: read` has to be restated here or checkout loses it.
+    permissions:
+      contents: read
+
+    env:
+      # Bound here rather than interpolated into the run body below.
+      SOURCE_REF: ${{ github.ref }}
+
+    steps:
+      # sonar-project.properties pins sonar.branch.name=main, so a run from
+      # another ref would publish its code as main's analysis.
+      - name: SAFEGUARD - Validate source ref is main
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${SOURCE_REF}" != "refs/heads/main" ]; then
+            echo "Denied: the sonar job analyses 'main' only."
+            echo "sonar-project.properties pins sonar.branch.name=main, so a run"
+            echo "from another ref would publish its code as main's analysis."
+            echo "Ref: '${SOURCE_REF}'"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          # Full history: SonarCloud needs it for new-code blame attribution.
+          fetch-depth: 0
+
+      - name: Verify required secrets are present (no output)
+        shell: bash
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in SONAR_TOKEN; do
+            if [ -z "${!v:-}" ]; then
+              echo "::error::Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "SONAR_TOKEN is required to run Sonar static analysis."
+          fi
+          exit $missing
+
+      # sonar.qualitygate.wait=true in sonar-project.properties makes this
+      # blocking, so a commit that fails the gate fails this check.
+      - name: SonarCloud scan (main)
+        uses: SonarSource/sonarqube-scan-action@v8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

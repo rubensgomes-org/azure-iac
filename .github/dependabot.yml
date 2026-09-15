@@ -1,0 +1,60 @@
+# =============================================================================
+# Dependabot
+#
+# Purpose:
+#   Keep the SHA-pinned actions in .github/workflows/ from silently ageing.
+#   Every `uses:` line is pinned to a full commit SHA (a SonarQube requirement,
+#   and the right call anyway -- a tag is a pointer its owner can repoint at
+#   any commit). The cost of that pin is that a floating `@v7` no longer picks
+#   up v7.0.2 on its own. Dependabot is what puts the bump back on the radar:
+#   it resolves the tag again and rewrites both the SHA and the trailing
+#   version comment.
+#
+# The pull-request problem:
+#   This repo is trunk-based -- main is the only branch, with no feature
+#   branches and no pull requests. Dependabot has no other delivery
+#   mechanism: it opens a branch and a PR or it does nothing. That is the one
+#   deliberate exception, kept as small as possible:
+#
+#     - `groups` collapses every action bump into ONE pull request per run,
+#       rather than one per action.
+#     - `schedule` is monthly, not daily or weekly.
+#     - `open-pull-requests-limit: 1` means there is never a queue.
+#
+#   So the steady state is at most one Dependabot PR at a time, roughly
+#   monthly. Merge it or close it; either way main stays the only long-lived
+#   branch. If even that is unwanted, delete this file -- the pins keep
+#   working, they just stop being watched.
+#
+# Not covered here:
+#   Terraform. Dependabot can watch provider constraints too, but the twelve
+#   module roots plus the twelve child modules and bootstrap-backend all
+#   declare the same versions, so one provider release means 25 files in one
+#   PR, and a major bump needs the code changes and the plan review that the
+#   4.x -> 5.x upgrade needed. That stays a deliberate, human-run job.
+# =============================================================================
+
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+
+    schedule:
+      interval: "monthly"
+
+    # One PR for all action bumps, not one per action.
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+    open-pull-requests-limit: 1
+
+    # Dependabot's default commit subject is "Bump X from A to B", which does
+    # not match this repo's `ci:` / `release:` prefixes. `prefix` restores it.
+    commit-message:
+      prefix: "ci"
+
+    labels:
+      - "dependencies"

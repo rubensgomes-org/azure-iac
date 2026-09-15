@@ -1,0 +1,156 @@
+# =============================================================================
+# Release (tag push)
+#
+# Validates and publishes a release when a v*.*.* tag is pushed: the tag name,
+# the VERSION file, and the CHANGELOG entry must agree, and the estate must
+# still format and validate, before a GitHub Release appears.
+#
+# This project's source code and documentation were generated with the
+# assistance of Artificial Intelligence (AI). For more information, please
+# refer to the `AI_DISCLAIMER.md` document located in the project's root
+# directory.
+# =============================================================================
+
+name: Release (tag push)
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+  workflow_dispatch:
+    inputs:
+      # A tag push carries no inputs, so the ordinary release path skips the
+      # Sonar steps. A skipped scan is not a green gate.
+      run_sonar:
+        description: "Also run the SonarCloud scan (blocking quality gate)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      TF_IN_AUTOMATION: "true"
+      RELEASE_TAG: ${{ github.ref_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          # Full history: SonarCloud needs it for new-code blame attribution.
+          fetch-depth: 0
+
+      - name: Verify tag matches VERSION and CHANGELOG
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f VERSION ]; then
+            echo "::error::VERSION file is missing at the repo root."
+            exit 1
+          fi
+
+          version="$(tr -d '[:space:]' < VERSION)"
+          expected="v${version}"
+
+          echo "VERSION file : ${version}"
+          echo "Triggering ref: ${RELEASE_TAG}"
+
+          if [ "${expected}" != "${RELEASE_TAG}" ]; then
+            echo "::error::Ref ${RELEASE_TAG} does not match VERSION (${expected}). Cut releases with 'make release-<level>'; if dispatching by hand, dispatch from the tag ref, not a branch."
+            exit 1
+          fi
+
+          if ! grep -q "^## \[${version}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [${version}]' section."
+            exit 1
+          fi
+
+          echo "version=${version}" >> "$GITHUB_ENV"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      - name: Terraform fmt (check)
+        run: terraform fmt -check -recursive terraform/
+
+      - name: Terraform validate (all module roots)
+        run: make validate
+
+      - name: Verify required secrets are present (no output)
+        if: ${{ inputs.run_sonar }}
+        shell: bash
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in SONAR_TOKEN; do
+            if [ -z "${!v:-}" ]; then
+              echo "::error::Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "SONAR_TOKEN is required to run Sonar static analysis."
+          fi
+          exit $missing
+
+      - name: SonarCloud scan (quality gate blocks the release)
+        if: ${{ inputs.run_sonar }}
+        uses: SonarSource/sonarqube-scan-action@v8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Build release notes from CHANGELOG
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Print everything between this version's heading and the next one.
+          awk -v ver="${version}" '
+            $0 == "## [" ver "]" || index($0, "## [" ver "] ") == 1 { f = 1; next }
+            f && /^## \[/ { exit }
+            f { print }
+          ' CHANGELOG.md > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "::error::Extracted release notes for ${version} are empty."
+            exit 1
+          fi
+
+          echo "----- release notes -----"
+          cat release-notes.md
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Release ${RELEASE_TAG} already exists - updating notes."
+            gh release edit "${RELEASE_TAG}" \
+              --title "${RELEASE_TAG}" \
+              --notes-file release-notes.md
+          else
+            gh release create "${RELEASE_TAG}" \
+              --title "${RELEASE_TAG}" \
+              --notes-file release-notes.md
+          fi

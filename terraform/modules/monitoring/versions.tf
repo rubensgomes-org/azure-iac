@@ -1,0 +1,25 @@
+# modules/monitoring/versions.tf
+# -----------------------------------------------------------------------------
+# Terraform CLI and provider version constraints for the monitoring child
+# module. Child modules declare providers they USE via `required_providers`
+# but do NOT configure providers — the root config that calls this module
+# owns provider configuration.
+#
+# Only azurerm is used: Application Insights, action groups, and diagnostic
+# settings are all azurerm resources. No random suffix (the App Insights name
+# is the deterministic `appi-<workload>-<env>`; the action group name is
+# `ag-<workload>ops-<env>`; diagnostic settings inherit their target's
+# uniqueness).
+#
+# -----------------------------------------------------------------------------
+
+terraform {
+  required_version = ">= 1.16.0, < 2.0"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 5.4"
+    }
+  }
+}

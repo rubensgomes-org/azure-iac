@@ -1,0 +1,27 @@
+# modules/acr/versions.tf
+# -----------------------------------------------------------------------------
+# Purpose
+# -----------------------------------------------------------------------------
+# Declares Terraform CLI and provider version constraints for the acr child
+# module. Child modules declare providers they USE via `required_providers`,
+# but they do NOT configure providers (no `provider "x" {}` blocks) — the
+# root config that calls this module is responsible for provider
+# configuration.
+# -----------------------------------------------------------------------------
+
+terraform {
+  required_version = ">= 1.16.0, < 2.0"
+
+  required_providers {
+    # azurerm covers the registry and the AcrPull role assignment.
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 5.4"
+    }
+
+    # No `random` provider — nothing in this estate has one since the CAF
+    # rename made every name deterministic. This module is further out still:
+    # it takes an EXPLICIT registry name via `var.acr_name` rather than
+    # composing one from workload + env. See the naming rationale in main.tf.
+  }
+}
