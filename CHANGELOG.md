@@ -30,6 +30,14 @@ premise.
 
 ### Fixed
 
+## [0.0.2] - 2026-09-15
+
+### Added
+
+### Changed
+
+### Fixed
+
 - Document dev's registry as `crrgomesdev01` in `06-acr` and `modules/acr`.
   It had been recorded as `crrgomeslab02`, which is lab's registry; the two
   cannot share a name, since ACR names are globally unique across Azure.
