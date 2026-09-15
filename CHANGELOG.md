@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.1] - 2026-09-14
+
+### Added
+
 - Initial release.
 
 ### Changed
