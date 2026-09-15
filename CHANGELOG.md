@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.7] - 2026-09-15
+
+### Added
+
 - `cae-create.yml`, a reusable workflow that applies modules 01 → 02 → 03 →
   10 so a Container App Environment exists, following `acr-create.yml`'s
   pattern.
