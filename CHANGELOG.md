@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.8] - 2026-09-15
+
+### Added
+
+### Changed
+
 - `11-container-apps` now depends on `05-key-vault` instead of
   `07-storage`, `08-service-bus`, and `09-postgresql`. Container apps get
   a `KEY_VAULT_URI` env var in place of the removed `POSTGRES_*`,
