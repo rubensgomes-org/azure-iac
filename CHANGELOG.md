@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.6] - 2026-09-15
+
+### Added
+
+### Changed
+
 - `environment_name` is now required (no default) on `acr-create.yml`,
   `acr-destroy.yml`, and `destroy-all.yml`, and a `dev`/`lab` choice dropdown
   on their `workflow_dispatch` triggers.
