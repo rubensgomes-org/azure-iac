@@ -99,7 +99,7 @@ declare -Ar ACTION_VARIABLES=(
 
   # ACR is the estate's one name NOT composed from workload + env; it is
   # supplied verbatim. Follow the convention anyway: cr<workload><env>.
-  [TF_VAR_ACR_NAME]="${TF_VAR_acr_name:-crrgomeslab02}"
+  [TF_VAR_ACR_NAME]="${TF_VAR_acr_name:-crrgomesdev01}"
   [TF_VAR_ACTION_GROUP_EMAIL]="${TF_VAR_action_group_email:-rubens.gomes@3cloudsolutions.com}"
 
   # PostgreSQL Entra admin group. The object ID is tenant-specific, so

@@ -40,7 +40,7 @@ Workload `rgomes`, environment `lab`.
 | Log Analytics             | `log-<workload>-<env>`                    | `log-rgomes-lab`                                                                                                               | `modules/log-analytics`             |
 | Managed identity          | `id-<workload>app-<env>`                  | `id-rgomesapp-lab`                                                                                                             | `modules/managed-identities`        |
 | Key Vault                 | `kv-<workload>-<env>`                     | `kv-rgomes-lab`                                                                                                                | `modules/key-vault`                 |
-| Container registry        | *see [exception](#the-one-exception-acr)* | `crrgomeslab02`                                                                                                                | `modules/acr`                       |
+| Container registry        | *see [exception](#the-one-exception-acr)* | `crrgomesdev01`                                                                                                                | `modules/acr`                       |
 | Storage account           | `st<workload>app<env>`                    | `strgomesapplab`                                                                                                               | `modules/storage`                   |
 | Service Bus               | `sb-<workload>msg-<env>`                  | `sb-rgomesmsg-lab`                                                                                                             | `modules/service-bus`               |
 | PostgreSQL                | `psql-<workload>-<env>`                   | `psql-rgomes-lab`                                                                                                              | `modules/postgresql`                |
@@ -129,7 +129,7 @@ CI can point a run at an existing registry.
 
 Follow the convention anyway, spelled without the dashes ACR forbids:
 `cr<workload><env>` → `crrgomesdev`. The current values are `crrgomesdev01` in
-dev and `crrgomeslab02` in lab; the trailing digits are a collision escape
+dev and `crrgomesdev01` in lab; the trailing digits are a collision escape
 hatch, which is the second reason this stays a human-chosen literal.
 
 ## The state backend

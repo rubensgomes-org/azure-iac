@@ -48,7 +48,7 @@ this module has no `backend` block.
   gate access to a PE anyway.
 - **Explicit name, not composed.** ACR names are globally unique across
   every Azure tenant, and the registry name is a memorable literal passed in
-  as `var.acr_name` (`crrgomeslab02` in lab) rather than composed from
+  as `var.acr_name` (`crrgomesdev01` in lab) rather than composed from
   `workload` + `env` the way every other name in the estate is. It is typed
   constantly — image tags, `docker push`, `apps_image_map` — and it is the
   only name reachable from a `workflow_dispatch` input, so CI can aim a run at

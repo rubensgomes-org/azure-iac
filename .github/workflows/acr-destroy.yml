@@ -27,7 +27,7 @@ on:
         description: 'Registry to destroy. Must match the acr_name recorded in module 06 state.'
         type: string
         required: true
-        default: crrgomeslab02
+        default: crrgomesdev01
 
       confirm:
         description: >
@@ -36,7 +36,7 @@ on:
           are NOT touched. Basic SKU has no recycle bin and no soft-delete;
           push any image you care about elsewhere first.
           SAFEGUARD: type EXACTLY "DESTROY ACR <env> <acr_name>", naming the
-          environment and registry above — e.g. DESTROY ACR lab crrgomeslab02
+          environment and registry above — e.g. DESTROY ACR lab crrgomesdev01
         type: string
         required: true
 

@@ -21,20 +21,20 @@ on:
         description: 'Estate environment to provision. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
         type: string
         required: false
-        default: lab
+        default: dev
 
       acr_name:
         description: 'Registry to provision. Passed to Terraform as TF_VAR_acr_name.'
         type: string
         required: false
-        default: crrgomeslab02
+        default: crrgomesdev01
 
     outputs:
       acr_name:
-        description: 'Registry name, e.g. crrgomeslab02. Use with `az acr login --name`.'
+        description: 'Registry name, e.g. crrgomesdev01. Use with `az acr login --name`.'
         value: ${{ jobs.provision.outputs.acr_name }}
       acr_login_server:
-        description: 'Registry login server, e.g. crrgomeslab02.azurecr.io. Use as the image reference prefix.'
+        description: 'Registry login server, e.g. crrgomesdev01.azurecr.io. Use as the image reference prefix.'
         value: ${{ jobs.provision.outputs.acr_login_server }}
 
     secrets:
@@ -53,7 +53,7 @@ on:
         description: 'Registry to provision'
         type: string
         required: false
-        default: crrgomeslab02
+        default: crrgomesdev01
 
 permissions:
   contents: read

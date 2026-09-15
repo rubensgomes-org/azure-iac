@@ -39,7 +39,7 @@ locals {
 # -----------------------------------------------------------------------------
 # The name is supplied by the caller via `var.acr_name` — it is NOT composed
 # from `workload` + `env` the way every other name in this estate is. Lab uses
-# "crrgomeslab02", supplied as `TF_VAR_acr_name`.
+# "crrgomesdev01", supplied as `TF_VAR_acr_name`.
 #
 # This is the estate's one deliberate exception to the CAF naming rule in
 # docs/NAMING.md. The registry name is the one name humans and CI type

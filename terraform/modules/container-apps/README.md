@@ -86,8 +86,8 @@ so this travels as an export:
 
 ```bash
 export TF_VAR_apps_image_map='{
-  "api":    "crrgomeslab02.azurecr.io/api:1.2.3",
-  "worker": "crrgomeslab02.azurecr.io/worker:1.2.3"
+  "api":    "crrgomesdev01.azurecr.io/api:1.2.3",
+  "worker": "crrgomesdev01.azurecr.io/worker:1.2.3"
 }'
 export TF_VAR_target_port=8080   # Spring Boot default
 ```
