@@ -26,6 +26,12 @@ premise.
 
 ### Added
 
+- `aca-create.yml`, a reusable workflow that applies modules 01 → 02 → 03 →
+  04 → 05 → 06 → 10 → 11 so the Container Apps exist, following
+  `cae-create.yml`'s pattern.
+- `aca-destroy.yml`, a reusable workflow that destroys module 11 only (the
+  Container Apps), following `cae-destroy.yml`'s pattern.
+
 ### Changed
 
 ### Fixed
