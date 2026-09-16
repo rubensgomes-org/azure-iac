@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.9] - 2026-09-15
+
+### Added
+
 - `aca-create.yml`, a reusable workflow that applies modules 01 → 02 → 03 →
   04 → 05 → 06 → 10 → 11 so the Container Apps exist, following
   `cae-create.yml`'s pattern.
