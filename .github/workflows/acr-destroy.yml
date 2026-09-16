@@ -4,7 +4,10 @@
 # Destroys ONE Terraform root, module 06 (acr): the container registry and its
 # AcrPull role assignment. THE BLAST RADIUS IS THE REGISTRY AND ITS IMAGES --
 # the shared managed identity (04) and the resource groups (01) are left
-# standing. Basic SKU has no soft-delete, so images are unrecoverable.
+# standing. Basic SKU has no soft-delete, so images are unrecoverable. Unlike
+# a Container App Environment, Azure does not refuse this while Container
+# Apps still pull from the registry, so a GUARD step checks module 11's apps
+# itself before any change is made.
 #
 # This project's source code and documentation were generated with the
 # assistance of Artificial Intelligence (AI). For more information, please
@@ -211,7 +214,11 @@ jobs:
             exit 1
           fi
 
+          # Mirrors module 11's naming: apps live in the app RG
+          # `rg-<workload>app-<env>`. Needed by the registry-dependents guard
+          # below; not a workflow input.
           echo "ACR_NAME=${TYPED_ACR}" >> "$GITHUB_ENV"
+          echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}" >> "$GITHUB_ENV"
           echo "Safeguard passed. Target registry: ${TYPED_ACR} (env ${ENV_NAME})"
           echo "Scope: module 06 (acr) only. Modules 04 and 01 are not touched."
 
@@ -338,6 +345,51 @@ jobs:
             tags="$(az acr repository show-tags -n "${ACR_NAME}" --repository "${repo}" -o tsv 2>/dev/null | tr '\n' ' ')"
             echo "  ${repo}: ${tags:-<untagged manifests only>}"
           done
+
+      # Unlike a Container App Environment, Azure does NOT refuse to delete a
+      # registry that Container Apps still pull images from -- there is no
+      # server-side protection to lean on, so this guard is the only thing
+      # standing between a live app and a broken image pull on its next cold
+      # start, new revision, or node reschedule. A registry that is already
+      # gone is not a failure here.
+      - name: GUARD - Assert no Container Apps reference this registry
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          login_server="$(az acr show -n "${ACR_NAME}" --query loginServer -o tsv 2>/dev/null || true)"
+          if [ -z "${login_server}" ]; then
+            echo "Registry '${ACR_NAME}' does not exist. Nothing to guard against."
+            exit 0
+          fi
+
+          apps_json="$(az containerapp list --resource-group "${APP_RG}" -o json 2>/dev/null || echo '[]')"
+          dependents="$(printf '%s' "${apps_json}" | jq -r \
+            --arg workload "${TF_VAR_workload}" \
+            --arg env "${ENV_NAME}" \
+            --arg ls "${login_server}" '
+              .[]
+              | select((.name | startswith("ca-" + $workload)) and (.name | endswith("-" + $env)))
+              | select(
+                  (any(.properties.template.containers[]?; (.image // "") | startswith($ls + "/")))
+                  or (any(.properties.configuration.registries[]?; (.server // "") == $ls))
+                )
+              | .name
+            ' 2>/dev/null || true)"
+          if [ -z "${dependents}" ]; then
+            echo "OK: no container apps in '${APP_RG}' reference '${login_server}'."
+            exit 0
+          fi
+
+          echo "DENIED: the following container apps reference this registry:"
+          echo "${dependents}" | sed 's/^/  /'
+          echo ""
+          echo "Deleting the registry would not stop these apps immediately -- an"
+          echo "already-pulled image keeps running -- but any future pull (a new"
+          echo "revision, a scale-out, or the next cold start after scale-to-zero)"
+          echo "would fail. Point these apps at a different registry, or destroy"
+          echo "them first (aca-destroy.yml, confirm: Yes), then re-run this workflow."
+          exit 1
 
       # terraform_wrapper is false: the wrapper intercepts stdout, which the
       # `terraform output` calls in the guards below depend on.

@@ -30,6 +30,12 @@ premise.
 
 ### Fixed
 
+- `acr-destroy.yml` and `cae-destroy.yml` now fail fast with a GUARD step if
+  module 11's Container Apps still reference the registry or environment
+  being destroyed, instead of either succeeding silently (ACR, which Azure
+  does not protect) or failing later with an opaque Azure error mid-apply
+  (CAE).
+
 ## [0.0.9] - 2026-09-15
 
 ### Added

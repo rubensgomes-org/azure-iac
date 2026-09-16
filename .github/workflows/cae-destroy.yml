@@ -291,21 +291,21 @@ jobs:
              "tenantId":"${{ vars.AZURE_TENANT_ID }}",
              "subscriptionId":"${{ vars.AZURE_SUBSCRIPTION_ID }}"}
 
-      # The run log is the only surviving record of what the environment
-      # held. Wholly informational: an environment that is already gone must
-      # not fail. Azure refuses to delete a Container App Environment while
-      # apps still reference it, so a non-empty list here predicts the
-      # destroy step failing later, before any change is made.
-      - name: Inventory container apps in this environment (pre-destroy record)
+      # Azure's own API refuses to delete an environment that still has apps
+      # in it, so this guard is not the only thing stopping a broken
+      # teardown -- but it fails fast, before Terraform plans anything, with
+      # a message that names the fix instead of Azure's opaque mid-apply
+      # error. An environment that is already gone is not a failure here.
+      - name: GUARD - Assert no Container Apps reference this environment
         shell: bash
         run: |
-          set -uo pipefail
+          set -euo pipefail
 
           cae_id="$(az containerapp env show \
             --name "${CAE_NAME}" --resource-group "${APP_RG}" \
             --query id -o tsv 2>/dev/null || true)"
           if [ -z "${cae_id}" ]; then
-            echo "Environment '${CAE_NAME}' does not exist. Nothing to inventory."
+            echo "Environment '${CAE_NAME}' does not exist. Nothing to guard against."
             exit 0
           fi
 
@@ -313,13 +313,16 @@ jobs:
             --query "[?properties.managedEnvironmentId=='${cae_id}'].name" \
             -o tsv 2>/dev/null || true)"
           if [ -z "${apps}" ]; then
-            echo "Environment '${CAE_NAME}' exists and holds no container apps."
+            echo "OK: environment '${CAE_NAME}' exists and holds no container apps."
             exit 0
           fi
 
-          echo "The following container apps still reference this environment"
-          echo "and will BLOCK the destroy until removed (module 11):"
+          echo "DENIED: the following container apps still reference this environment:"
           echo "${apps}" | sed 's/^/  /'
+          echo ""
+          echo "Destroy module 11 first (aca-destroy.yml, confirm: Yes) for"
+          echo "'${ENV_NAME}', then re-run this workflow."
+          exit 1
 
       # terraform_wrapper is false: the wrapper intercepts stdout, which the
       # `terraform show -json` call in the plan-scope guard depends on.
