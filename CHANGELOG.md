@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.12] - 2026-09-17
+
+### Added
+
+### Changed
+
 - `scripts/initvars.sh`: rewritten to also manage GitHub Actions
   *secrets* (`AZURE_CLIENT_SECRET`, `SONAR_TOKEN`), not just
   variables. Deletes and recreates both by default; secret values
