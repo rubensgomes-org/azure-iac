@@ -345,14 +345,16 @@ Follow [TF_BOOTSTRAP_CREATE](TF_BOOTSTRAP_CREATE.md).
     TF_VAR_PG_ENTRA_ADMIN_GROUP_NAME
     ```
 
-NOTE: The bash 4+ [initvars.sh](../scripts/initvars.sh) may be used to automate
-the process of deleting and re-creating all the Action variables above.
-
 - Project Repository Action Secrets:
 
     ```text
     # Repo → Settings / Secrets and variables / Actions / Secrets
     AZURE_CLIENT_SECRET
+    SONAR_TOKEN
     ```
+
+NOTE: The bash 4+ [initvars.sh](../scripts/initvars.sh) may be used to automate
+deleting and re-creating both the Action variables and secrets above. Pass
+`-o, --delete-only` to delete them without recreating them.
 ---
 Author:  [Rubens Gomes](https://rubensgomes.com/)

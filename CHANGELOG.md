@@ -28,6 +28,15 @@ premise.
 
 ### Changed
 
+- `scripts/initvars.sh`: rewritten to also manage GitHub Actions
+  *secrets* (`AZURE_CLIENT_SECRET`, `SONAR_TOKEN`), not just
+  variables. Deletes and recreates both by default; secret values
+  are never printed or logged. Added `-o, --delete-only` (delete
+  without recreating) and `-n, --dry-run` (print the plan, change
+  nothing).
+- `docs/INITIAL_SETUP.md`: added `SONAR_TOKEN` to the Action Secrets
+  list and updated the `initvars.sh` note for the above.
+
 ### Fixed
 
 ## [0.0.11] - 2026-09-17

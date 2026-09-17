@@ -1,115 +1,136 @@
 #!/usr/bin/env bash
-#
-# Reset this repository's GitHub Actions *variables* to the values held by the
-# current shell.
-#
-# Usage:
-#   scripts/initvars.sh [-v|--verbose] [-h|--help]
-#
-# Examples:
-#   scripts/initvars.sh              # prompt, then reset
-#   scripts/initvars.sh --verbose    # same, narrating each step
-#
-# Requires: bash 4+ (associative arrays; macOS /bin/bash is 3.2, so this uses
-# `env bash` to pick up a newer one from PATH) and an authenticated `gh`.
+## SPDX-License-Identifier: MIT
+##
+## Resets this repository's GitHub Actions variables and secrets to
+## the values held by the current shell environment.
+##
+## Requirements:
+##  1) Bash functions libraries installed at "${HOME}/lib/sh-lib".
+##  2) GNU bash version 4.2 or higher, required by associative
+##     arrays.
+##  3) GitHub CLI (gh) 2.99 or higher, authenticated.
+##  4) getopt from util-linux 2.30.2 or higher.
+##
+## Author: Rubens Gomes
+## NOTE:   Initial implementation was generated with AI assistance
+##         and subsequently reviewed and approved by the author.
 
-set -o errexit
-set -o nounset
-set -o pipefail
 
-#######################################
-# Interpreter guard.
-#
-# Associative arrays arrived in bash 4.0. macOS still ships 3.2 as /bin/bash,
-# where `declare -A` fails at runtime with a misleading "invalid option"
-# error. Fail here instead, with a message that says what to do.
-#######################################
+#####################################################################
+## Early bash version guard. The managed-entry maps below need
+## associative arrays (bash 4+). macOS ships 3.2 as /bin/bash, which
+## fails "declare -A" with a misleading error, so this fails first
+## with an actionable one. sh::init() (see main()) re-checks the
+## fuller 4.2 requirement once strict mode is active.
+#####################################################################
 if (( BASH_VERSINFO[0] < 4 )); then
-  echo "ERROR: bash 4+ required; running ${BASH_VERSION}." >&2
-  echo "       On macOS: brew install bash" >&2
+  printf "ERROR: bash 4+ required; running %s.\n" \
+    "${BASH_VERSION}" >&2
+  printf "       On macOS: brew install bash\n" >&2
   exit 1
 fi
 
-#######################################
-# Constants.
-#######################################
 
-# Exit codes, so a caller can tell the failures apart.
-readonly EXIT_USAGE=2          # bad command line
-readonly EXIT_MISSING_DEP=3    # gh not installed or not authenticated
-readonly EXIT_MISSING_VALUE=4  # a required value is not in the environment
-readonly EXIT_NO_REPO=5        # target repository could not be resolved
-readonly EXIT_DECLINED=6       # user answered anything but Y at the prompt
-readonly EXIT_GH_FAILED=7      # a `gh variable` call failed
+#####################################################################
+## GLOBAL CONSTANTS #################################################
 
-# Set by parse_command_line(); consulted by log().
-VERBOSE="false"
+# shell script program name
+declare PRG
+PRG="$(
+  basename -- "${0}" || {
+    printf "failed to determine the program basename." >&2
+    exit 1
+  }
+)"
 
-# Set by resolve_repository(); the OWNER/REPO every `gh` call targets.
-TARGET_REPOSITORY=""
+# minimum Bash major / minor version required
+# shellcheck disable=SC2034
+readonly BASH_MAJOR_VERSION="4"
+# shellcheck disable=SC2034
+readonly BASH_MINOR_VERSION="2"
 
-#######################################
-# The Actions variables this script manages.
-#
-# Keys are the variable names exactly as they appear in the repository
-# settings and in docs/INITIAL_SETUP.md. Values are resolved when this
-# file is sourced: the shell environment first, then the literal documented in
-# INITIAL_SETUP.md.
-#
-# An empty value means "no documented default, and nothing exported" — see
-# REQUIRED_VARIABLE_SOURCES below and validate_variable_values().
-#
-# Bash does not preserve associative-array order, so ACTION_VARIABLE_ORDER
-# below fixes it to INITIAL_SETUP.md's order. Keep the two in step.
-#######################################
-declare -Ar ACTION_VARIABLES=(
-  # --- Azure service principal coordinates (no documented literal) ---------
-  # INITIAL_SETUP.md derives ARM_* from AZURE_*, so accept either spelling.
-  [AZURE_CLIENT_ID]="${AZURE_CLIENT_ID:-${ARM_CLIENT_ID:-}}"
-  [AZURE_SUBSCRIPTION_ID]="${AZURE_SUBSCRIPTION_ID:-${ARM_SUBSCRIPTION_ID:-}}"
-  [AZURE_TENANT_ID]="${AZURE_TENANT_ID:-${ARM_TENANT_ID:-}}"
+# Set to TRUE when debugging code using bassupport-pro. This is
+# required to bypass trap handlers which crashes code when running
+# from debugger
+readonly IS_DEBUGGER=FALSE
 
-  # --- Remote state backend coordinates -----------------------------------
-  # These must keep matching terraform/envs/<env>/backend.hcl. Each root
-  # declares the like-named variables as REQUIRED with no default, so a value
-  # missing here does not silently aim `terraform init` at another
-  # environment's storage account -- Terraform stops and names the variable.
-  [TF_VAR_ENV]="${TF_VAR_env:-lab}"
-  [TF_VAR_BACKEND_RESOURCE_GROUP_NAME]="${TF_VAR_backend_resource_group_name:-rg-rgomestfstate-lab}"
-  [TF_VAR_STORAGE_ACCOUNT_ID]="${TF_VAR_storage_account_id:-strgomestfstate02}"
-  [TF_VAR_CONTAINER_NAME]="${TF_VAR_container_name:-rgomes-lab-tfstate}"
-
-  # --- Estate-wide Terraform inputs ---------------------------------------
-  # NOT here: the environment. acr-create.yml, acr-destroy.yml and
-  # destroy-all.yml each bind TF_VAR_env from their `environment_name` dispatch
-  # input, so one run can target lab and the next dev. A repository variable
-  # would pin every run to a single environment instead.
-  [TF_VAR_LOCATION]="${TF_VAR_location:-centralus}"
-  [TF_VAR_OWNER]="${TF_VAR_owner:-rubens.gomes@3cloudsolutions.com}"
-  [TF_VAR_APPS]="${TF_VAR_apps:-[ \"api\", \"worker\" ]}"
-
-  # CAF workload token. With `env`, this names every resource in the estate
-  # (rg-rgomesapp-lab, kv-rgomes-lab, strgomesapplab, ...). It replaced the
-  # former TF_VAR_PREFIX and TF_VAR_RG_SUFFIX pair, which split the same idea
-  # across two variables that had to agree; see RETIRED_ACTION_VARIABLES below.
-  # `rgomes` is every module's declared default and the fallback in the
-  # workflows and the Makefile — three consumers, one value. Changing it
-  # renames the entire estate (ForceNew).
-  [TF_VAR_WORKLOAD]="${TF_VAR_workload:-rgomes}"
-
-  # ACR is the estate's one name NOT composed from workload + env; it is
-  # supplied verbatim. Follow the convention anyway: cr<workload><env>.
-  [TF_VAR_ACR_NAME]="${TF_VAR_acr_name:-crrgomesdev01}"
-  [TF_VAR_ACTION_GROUP_EMAIL]="${TF_VAR_action_group_email:-rubens.gomes@3cloudsolutions.com}"
-
-  # PostgreSQL Entra admin group. The object ID is tenant-specific, so
-  # INITIAL_SETUP.md shows a placeholder rather than a literal.
-  [TF_VAR_PG_ENTRA_ADMIN_GROUP_OBJECT_ID]="${TF_VAR_pg_entra_admin_group_object_id:-}"
-  [TF_VAR_PG_ENTRA_ADMIN_GROUP_NAME]="${TF_VAR_pg_entra_admin_group_name:-az-lab-pg-admins}"
+# extra tools required by this script to run.
+[[ ! -v REQUIRED_TOOLS ]] && readonly -a REQUIRED_TOOLS=(
+  "gh"
+  "getopt"
 )
 
-# Presentation order. Mirrors docs/INITIAL_SETUP.md so a reader can diff
-# the two by eye.
+#####################################################################
+## INCLUDES #########################################################
+
+[[ -d "${HOME}/lib/sh-lib" ]] || {
+  printf "missing %s\n" "${HOME}/lib/sh-lib" >&2
+  exit 1
+}
+
+# logging message library
+# shellcheck source=/dev/null
+source "${HOME}/lib/sh-lib/msg_lib.sh" || exit
+
+# operating system library
+# shellcheck source=/dev/null
+source "${HOME}/lib/sh-lib/os_lib.sh" || exit
+
+# bash library
+# shellcheck source=/dev/null
+source "${HOME}/lib/sh-lib/sh_lib.sh" || exit
+
+
+#####################################################################
+## MANAGED GITHUB ACTIONS VARIABLES #################################
+##
+## Keys are Actions variable names exactly as they appear in the
+## repository settings and in docs/INITIAL_SETUP.md. Values are
+## resolved from the shell environment, falling back to the literal
+## documented there. An empty value means "no documented default,
+## and nothing exported" -- see REQUIRED_VARIABLE_SOURCES below.
+##
+## Bash does not preserve associative-array order, so
+## ACTION_VARIABLE_ORDER fixes it to INITIAL_SETUP.md's order. Keep
+## the two in step.
+##
+## TF_VAR_ENV is resolved but deliberately left out of
+## ACTION_VARIABLE_ORDER: acr-create.yml, acr-destroy.yml and
+## destroy-all.yml each bind it from their own dispatch input, so a
+## repository variable would pin every run to one environment.
+#####################################################################
+declare -Ar ACTION_VARIABLES=(
+  [AZURE_CLIENT_ID]=\
+"${AZURE_CLIENT_ID:-${ARM_CLIENT_ID:-}}"
+  [AZURE_SUBSCRIPTION_ID]=\
+"${AZURE_SUBSCRIPTION_ID:-${ARM_SUBSCRIPTION_ID:-}}"
+  [AZURE_TENANT_ID]=\
+"${AZURE_TENANT_ID:-${ARM_TENANT_ID:-}}"
+
+  [TF_VAR_ENV]="${TF_VAR_env:-lab}"
+  [TF_VAR_BACKEND_RESOURCE_GROUP_NAME]=\
+"${TF_VAR_backend_resource_group_name:-rg-rgomestfstate-lab}"
+  [TF_VAR_STORAGE_ACCOUNT_ID]=\
+"${TF_VAR_storage_account_id:-strgomestfstate02}"
+  [TF_VAR_CONTAINER_NAME]=\
+"${TF_VAR_container_name:-rgomes-lab-tfstate}"
+
+  [TF_VAR_LOCATION]="${TF_VAR_location:-centralus}"
+  [TF_VAR_OWNER]=\
+"${TF_VAR_owner:-rubens.gomes@3cloudsolutions.com}"
+  [TF_VAR_APPS]="${TF_VAR_apps:-[ \"api\", \"worker\" ]}"
+  [TF_VAR_WORKLOAD]="${TF_VAR_workload:-rgomes}"
+  [TF_VAR_ACR_NAME]="${TF_VAR_acr_name:-crrgomesdev01}"
+  [TF_VAR_ACTION_GROUP_EMAIL]=\
+"${TF_VAR_action_group_email:-rubens.gomes@3cloudsolutions.com}"
+  [TF_VAR_PG_ENTRA_ADMIN_GROUP_OBJECT_ID]=\
+"${TF_VAR_pg_entra_admin_group_object_id:-}"
+  [TF_VAR_PG_ENTRA_ADMIN_GROUP_NAME]=\
+"${TF_VAR_pg_entra_admin_group_name:-az-lab-pg-admins}"
+)
+
+# Presentation order. Mirrors docs/INITIAL_SETUP.md so a reader can
+# diff the two by eye.
 declare -ar ACTION_VARIABLE_ORDER=(
   AZURE_CLIENT_ID
   AZURE_SUBSCRIPTION_ID
@@ -127,230 +148,393 @@ declare -ar ACTION_VARIABLE_ORDER=(
   TF_VAR_PG_ENTRA_ADMIN_GROUP_NAME
 )
 
-# Variables this script used to manage and no longer does. The delete phase
-# sweeps these alongside ACTION_VARIABLE_ORDER; the create phase ignores them,
-# so a repository provisioned before the CAF rename ends up with neither.
-#
-# Leaving them behind would be worse than untidy: TF_VAR_PREFIX and
-# TF_VAR_RG_SUFFIX are still valid `TF_VAR_*` spellings, and a stale value of
-# either is silently ignored by Terraform (no variable declares them any more)
-# while still looking authoritative to whoever reads the repository's variable
-# list. Delete them so the list matches the code.
+# Variables this script used to manage and no longer does. The
+# delete phase sweeps these too; the create phase ignores them, so a
+# repository provisioned before the CAF rename ends up with neither.
 declare -ar RETIRED_ACTION_VARIABLES=(
   TF_VAR_PREFIX
   TF_VAR_RG_SUFFIX
 )
 
-# Variables with no documented literal, mapped to the shell variable to
-# export. Used only to make validate_variable_values()'s error actionable.
+# Variables with no documented literal, mapped to the shell variable
+# to export. Used only to make validate_variable_values()'s error
+# actionable.
 declare -Ar REQUIRED_VARIABLE_SOURCES=(
-  [AZURE_CLIENT_ID]="AZURE_CLIENT_ID (or ARM_CLIENT_ID)"
-  [AZURE_SUBSCRIPTION_ID]="AZURE_SUBSCRIPTION_ID (or ARM_SUBSCRIPTION_ID)"
-  [AZURE_TENANT_ID]="AZURE_TENANT_ID (or ARM_TENANT_ID)"
-  [TF_VAR_PG_ENTRA_ADMIN_GROUP_OBJECT_ID]="TF_VAR_pg_entra_admin_group_object_id"
+  [AZURE_CLIENT_ID]=\
+"AZURE_CLIENT_ID (or ARM_CLIENT_ID)"
+  [AZURE_SUBSCRIPTION_ID]=\
+"AZURE_SUBSCRIPTION_ID (or ARM_SUBSCRIPTION_ID)"
+  [AZURE_TENANT_ID]=\
+"AZURE_TENANT_ID (or ARM_TENANT_ID)"
+  [TF_VAR_PG_ENTRA_ADMIN_GROUP_OBJECT_ID]=\
+"TF_VAR_pg_entra_admin_group_object_id"
 )
 
-#######################################
-# Writes a verbose log line to stdout. No-op unless --verbose was given.
-# Globals:
-#   VERBOSE
-# Arguments:
-#   Message to log.
-# Outputs:
-#   Writes the message to stdout, prefixed and timestamped.
-#######################################
-log() {
-  if [[ "${VERBOSE}" == "true" ]]; then
-    printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
-  fi
+
+#####################################################################
+## MANAGED GITHUB ACTIONS SECRETS ####################################
+##
+## Same shape as ACTION_VARIABLES above, but for Actions *secrets*.
+## Secret values are never printed or logged -- see
+## print_planned_secrets() and create_action_secrets().
+#####################################################################
+declare -Ar ACTION_SECRETS=(
+  [AZURE_CLIENT_SECRET]=\
+"${AZURE_CLIENT_SECRET:-${ARM_CLIENT_SECRET:-}}"
+  [SONAR_TOKEN]="${SONAR_TOKEN:-}"
+)
+
+declare -ar ACTION_SECRET_ORDER=(
+  AZURE_CLIENT_SECRET
+  SONAR_TOKEN
+)
+
+# No retirees yet; kept for symmetry with RETIRED_ACTION_VARIABLES
+# so a future removal has somewhere to go.
+declare -ar RETIRED_ACTION_SECRETS=()
+
+declare -Ar REQUIRED_SECRET_SOURCES=(
+  [AZURE_CLIENT_SECRET]=\
+"AZURE_CLIENT_SECRET (or ARM_CLIENT_SECRET)"
+  [SONAR_TOKEN]="SONAR_TOKEN"
+)
+
+
+#####################################################################
+## GLOBAL VARIABLES #################################################
+
+# Boolean flag: print the plan and stop, changing nothing.
+declare g_is_dry_run=FALSE
+
+# Boolean flag: delete managed variables/secrets, do not recreate.
+declare g_is_delete_only=FALSE
+
+
+#####################################################################
+## FUNCTIONS #########################################################
+
+#####################################################################
+## Prints help to stdout.
+## Globals:
+##  PRG
+## Arguments:
+##  None.
+## Returns:
+##   0 always.
+#####################################################################
+help() {
+  cat <<EOF
+
+"${PRG}" resets this repository's GitHub Actions variables and
+secrets to the values held by the current shell environment.
+
+Usage:
+  ${PRG} [options]
+
+General Non Argument Options:
+
+  -d, --debug          prints debug messages
+  -h, --help           prints this help
+  -n, --dry-run        prints the plan only, changes nothing
+  -o, --delete-only    deletes variables and secrets, does not
+                        recreate them
+  -q, --quiet          prints only error|fatal messages
+  -v, --verbose        adds extra details to messages
+  -x, --trace           traces commands
+
+By default, every Actions variable and secret listed in
+docs/INITIAL_SETUP.md is deleted and recreated from the current
+shell environment. Pass -o/--delete-only to delete them without
+recreating them.
+EOF
 }
 
-#######################################
-# Writes an unconditional status line to stdout.
-# Arguments:
-#   Message to print.
-# Outputs:
-#   Writes the message to stdout.
-#######################################
-info() {
-  printf '%s\n' "$*"
-}
-
-#######################################
-# Writes an error to stderr and exits.
-# Arguments:
-#   $1: exit code.
-#   $2..: message lines, one per argument.
-# Outputs:
-#   Writes the message to stderr.
-# Returns:
-#   Never returns; exits with $1.
-#######################################
-die() {
-  local exit_code="$1"
-  shift
-  local line
-  for line in "$@"; do
-    printf 'ERROR: %s\n' "${line}" >&2
-  done
-  exit "${exit_code}"
-}
-
-#######################################
-# Prints usage to stdout.
-# Outputs:
-#   Writes the usage block to stdout.
-#######################################
+#####################################################################
+## Prints usage to stderr.
+## Globals:
+##  PRG
+## Arguments:
+##  None.
+## Returns:
+##   2 always.
+#####################################################################
 usage() {
-  cat <<'USAGE_EOF'
-Usage: initvars.sh [-v|--verbose] [-h|--help]
+  cat <<EOF
+Usage:  ${PRG} [options]
+More information with: "${PRG} -h"
+EOF
 
-Deletes every GitHub Actions repository variable listed in
-docs/INITIAL_SETUP.md, then recreates it from the current shell
-environment. Actions *secrets* are not touched.
+  return 2
+} >&2
 
-Options:
-  -v, --verbose   Narrate every step, including each delete and create.
-  -h, --help      Print this help and exit.
-USAGE_EOF
+#####################################################################
+## Resets global variables to their initial state.
+## Globals:
+##  g_is_delete_only
+##  g_is_dry_run
+## Arguments:
+##  None.
+## Returns:
+##   0 always.
+#####################################################################
+reset_globals() {
+  g_is_dry_run=FALSE
+  g_is_delete_only=FALSE
 }
 
-#######################################
-# Parses the command line into globals.
-# Globals:
-#   VERBOSE (written)
-# Arguments:
-#   The script's own "$@".
-# Returns:
-#   0 on success; exits EXIT_USAGE on an unknown flag.
-#######################################
-parse_command_line() {
-  while (( $# > 0 )); do
-    case "$1" in
-      -v | --verbose)
-        VERBOSE="true"
+#####################################################################
+## Parses user's command line input option arguments.
+## Globals:
+##  g_is_delete_only
+##  g_is_dry_run
+## Arguments:
+##  Bash shell CLI input arguments.
+## Returns:
+##   0 if okay; 2 on a bad argument.
+#####################################################################
+parse_options() {
+  reset_globals
+
+  local temp
+
+  if ! temp=$(
+    getopt \
+      --o 'dhnoqvx' \
+      --long \
+        'debug,delete-only,dry-run,help,quiet,trace,verbose' \
+      --name "${PRG}" \
+      -- "${@}"
+  ); then
+    msg::error "failed to parse CLI input arguments.\n"
+    usage
+    return 2
+  fi
+
+  eval set -- "${temp}"
+  local quiet=FALSE
+
+  while true; do
+
+    case "${1}" in
+
+      ########## --debug ############################################
+      '-d' | '--debug')
+        if [[ "${quiet}" == TRUE ]]; then
+          msg::warn "-q overrides -d; debug stays disabled.\n"
+        else
+          msg::enable_debug
+        fi
+        shift
+        continue
         ;;
-      -h | --help)
-        usage
+
+      ########## --help #############################################
+      '-h' | '--help')
+        help
         exit 0
         ;;
-      *)
-        usage >&2
-        die "${EXIT_USAGE}" "unknown argument: $1"
+
+      ########## --dry-run ##########################################
+      '-n' | '--dry-run')
+        g_is_dry_run=TRUE
+        shift
+        continue
         ;;
+
+      ########## --delete-only ######################################
+      '-o' | '--delete-only')
+        g_is_delete_only=TRUE
+        shift
+        continue
+        ;;
+
+      ########## --quiet ############################################
+      '-q' | '--quiet')
+        quiet=TRUE
+        msg::enable_quiet
+        shift
+        continue
+        ;;
+
+      ########## --verbose ##########################################
+      '-v' | '--verbose')
+        msg::enable_verbose
+        shift
+        continue
+        ;;
+
+      ########## --trace ############################################
+      '-x' | '--trace')
+        msg::enable_tracing
+        shift
+        continue
+        ;;
+
+      ########## -- #################################################
+      '--')
+        shift
+        break
+        ;;
+
+      ########## * ##################################################
+      *)
+        msg::arg_error "invalid option [%s].\n" "${1}"
+        usage
+        return 2
+        ;;
+
     esac
-    shift
   done
+
+  msg::debug "%s completed successfully.\n" "${FUNCNAME[0]}"
 }
 
-#######################################
-# Verifies `gh` is installed and authenticated.
-# Returns:
-#   0 when usable; exits EXIT_MISSING_DEP otherwise.
-#######################################
-require_github_cli() {
-  log 'Checking for the gh CLI.'
-  if ! command -v gh > /dev/null 2>&1; then
-    die "${EXIT_MISSING_DEP}" \
-      'the gh CLI is not installed or not on PATH.' \
-      'Install it: https://cli.github.com/'
-  fi
+#####################################################################
+## Checks that every tool in REQUIRED_TOOLS is installed.
+## Globals:
+##  REQUIRED_TOOLS
+## Arguments:
+##  None.
+## Returns:
+##   0 if okay; 127 if a tool is missing.
+#####################################################################
+check_required_tool() {
+  local tool
 
-  log 'Checking that gh is authenticated.'
-  if ! gh auth status > /dev/null 2>&1; then
-    die "${EXIT_MISSING_DEP}" \
-      'gh is not authenticated.' \
-      'Run: gh auth login'
-  fi
-}
+  for tool in "${REQUIRED_TOOLS[@]}"; do
 
-#######################################
-# Resolves the repository every `gh` call will target.
-#
-# Prefers GH_REPO (which `gh` itself honours) and otherwise asks `gh` to read
-# the git remote. Resolving it explicitly means the value can be shown at the
-# prompt, so a run against the wrong repository is caught before it deletes
-# anything.
-# Globals:
-#   TARGET_REPOSITORY (written)
-# Returns:
-#   0 on success; exits EXIT_NO_REPO when no repository can be determined.
-#######################################
-resolve_repository() {
-  if [[ -n "${GH_REPO:-}" ]]; then
-    TARGET_REPOSITORY="${GH_REPO}"
-    log "Repository taken from GH_REPO: ${TARGET_REPOSITORY}"
-    return 0
-  fi
-
-  log 'GH_REPO is unset; resolving the repository from the git remote.'
-  if ! TARGET_REPOSITORY="$(gh repo view --json nameWithOwner \
-      --jq '.nameWithOwner' 2>/dev/null)"; then
-    die "${EXIT_NO_REPO}" \
-      'could not determine the target repository.' \
-      'Run from inside the clone, or export GH_REPO=OWNER/REPO.'
-  fi
-
-  if [[ -z "${TARGET_REPOSITORY}" ]]; then
-    die "${EXIT_NO_REPO}" \
-      'the git remote resolved to an empty repository name.' \
-      'Export GH_REPO=OWNER/REPO and retry.'
-  fi
-
-  log "Repository resolved from the git remote: ${TARGET_REPOSITORY}"
-}
-
-#######################################
-# Fails if any managed variable resolved to an empty value.
-#
-# Only the entries in REQUIRED_VARIABLE_SOURCES can be empty — every other
-# key carries a documented literal — but the check is written over the whole
-# map so a future key without a default cannot slip through.
-# Globals:
-#   ACTION_VARIABLES, ACTION_VARIABLE_ORDER, REQUIRED_VARIABLE_SOURCES
-# Returns:
-#   0 when every value is set; exits EXIT_MISSING_VALUE otherwise.
-#######################################
-validate_variable_values() {
-  local -a missing_names=()
-  local variable_name
-
-  log 'Validating that every managed variable resolved to a value.'
-  for variable_name in "${ACTION_VARIABLE_ORDER[@]}"; do
-    if [[ -z "${ACTION_VARIABLES[${variable_name}]}" ]]; then
-      missing_names+=("${variable_name}")
+    if ! os::is_installed "${tool}"; then
+      msg::warn "Missing a required tool [%s].\n" "${tool}"
+      return 127
     fi
-  done
 
-  if (( ${#missing_names[@]} == 0 )); then
-    log 'All values present.'
+  done
+}
+
+#####################################################################
+## Verifies gh is authenticated. Installation itself was already
+## checked by check_required_tool().
+## Arguments:
+##  None.
+## Returns:
+##   0 when authenticated; 1 otherwise.
+#####################################################################
+require_github_auth() {
+  msg::debug "checking gh authentication.\n"
+
+  if ! gh auth status > /dev/null 2>&1; then
+    msg::error "gh is not authenticated.\n"
+    msg::error "Run: gh auth login\n"
+    return 1
+  fi
+}
+
+#####################################################################
+## Resolves the repository every gh call targets. Prefers GH_REPO
+## (which gh itself honours), then asks gh to read the git remote.
+## Arguments:
+##  None.
+## Outputs:
+##  stdout: the resolved "OWNER/REPO".
+## Returns:
+##   0 on success; 1 when no repository can be determined.
+#####################################################################
+resolve_repository() {
+  local repo
+
+  if [[ -n "${GH_REPO:-}" ]]; then
+    printf "%s" "${GH_REPO}"
     return 0
   fi
 
-  {
-    printf 'ERROR: %d variable(s) have no value.\n' "${#missing_names[@]}"
-    printf 'Export the shell variable named below and retry:\n'
-    for variable_name in "${missing_names[@]}"; do
-      printf '  %-38s <- %s\n' "${variable_name}" \
-        "${REQUIRED_VARIABLE_SOURCES[${variable_name}]:-${variable_name}}"
-    done
-    printf 'See docs/INITIAL_SETUP.md for where each value comes from.\n'
-  } >&2
-  exit "${EXIT_MISSING_VALUE}"
+  if ! repo="$(
+    gh repo view --json nameWithOwner --jq '.nameWithOwner' \
+      2> /dev/null
+  )" || [[ -z "${repo}" ]]; then
+    msg::error "could not determine the target repository.\n"
+    msg::error \
+      "Run inside the clone, or export GH_REPO=OWNER/REPO.\n"
+    return 1
+  fi
+
+  printf "%s" "${repo}"
 }
 
-#######################################
-# Prints the gh/git environment this run will act under.
-#
-# Shown before the prompt so the operator can confirm the host, repository and
-# identity before anything is deleted.
-# Globals:
-#   TARGET_REPOSITORY
-# Outputs:
-#   Writes the environment block to stdout.
-#######################################
+#####################################################################
+## Fails if any managed Actions variable resolved to an empty
+## value.
+## Globals:
+##  ACTION_VARIABLES
+##  ACTION_VARIABLE_ORDER
+##  REQUIRED_VARIABLE_SOURCES
+## Arguments:
+##  None.
+## Returns:
+##   0 when every value is set; 1 otherwise.
+#####################################################################
+validate_variable_values() {
+  local -a missing=()
+  local name
+
+  for name in "${ACTION_VARIABLE_ORDER[@]}"; do
+    [[ -z "${ACTION_VARIABLES[${name}]}" ]] && missing+=("${name}")
+  done
+
+  (( ${#missing[@]} == 0 )) && return 0
+
+  msg::error "%d variable(s) have no value.\n" "${#missing[@]}"
+  for name in "${missing[@]}"; do
+    msg::error "  %-38s <- %s\n" "${name}" \
+      "${REQUIRED_VARIABLE_SOURCES[${name}]:-${name}}"
+  done
+  msg::error "See docs/INITIAL_SETUP.md for each value's source.\n"
+
+  return 1
+}
+
+#####################################################################
+## Fails if any managed Actions secret resolved to an empty value.
+## Globals:
+##  ACTION_SECRETS
+##  ACTION_SECRET_ORDER
+##  REQUIRED_SECRET_SOURCES
+## Arguments:
+##  None.
+## Returns:
+##   0 when every value is set; 1 otherwise.
+#####################################################################
+validate_secret_values() {
+  local -a missing=()
+  local name
+
+  for name in "${ACTION_SECRET_ORDER[@]}"; do
+    [[ -z "${ACTION_SECRETS[${name}]}" ]] && missing+=("${name}")
+  done
+
+  (( ${#missing[@]} == 0 )) && return 0
+
+  msg::error "%d secret(s) have no value.\n" "${#missing[@]}"
+  for name in "${missing[@]}"; do
+    msg::error "  %-38s <- %s\n" "${name}" \
+      "${REQUIRED_SECRET_SOURCES[${name}]:-${name}}"
+  done
+  msg::error "See docs/INITIAL_SETUP.md for each value's source.\n"
+
+  return 1
+}
+
+#####################################################################
+## Prints the gh/git environment this run will act under.
+## Arguments:
+##  1: target repository ("OWNER/REPO").
+## Outputs:
+##  Writes the environment block to stdout.
+## Returns:
+##   0 always.
+#####################################################################
 print_gh_environment() {
-  local -ar reported_variables=(
+  local -r repo="${1:?repo is required}"
+  local -ar names=(
     GH_HOST
     GH_REPO
     GITHUB_USER
@@ -358,195 +542,418 @@ print_gh_environment() {
     GIT_COMMITTER_EMAIL
     GIT_AUTHOR_NAME
   )
-  local variable_name
+  local name
 
-  info 'GitHub environment'
-  info '------------------'
-  for variable_name in "${reported_variables[@]}"; do
-    printf '  %-20s %s\n' "${variable_name}" \
-      "${!variable_name:-<unset>}"
+  printf "GitHub environment\n"
+  printf "%s\n" "------------------"
+
+  for name in "${names[@]}"; do
+    printf "  %-20s %s\n" "${name}" "${!name:-<unset>}"
   done
-  printf '  %-20s %s\n' 'target repository' "${TARGET_REPOSITORY}"
-  info ''
+
+  printf "  %-20s %s\n" "target repository" "${repo}"
+  printf "\n"
 }
 
-#######################################
-# Prints the variables that will be deleted and recreated.
-#
-# Values are shown so a wrong one is caught at the prompt rather than after
-# the fact. None of these are secrets — GitHub renders repository variables in
-# plain text in the settings UI and in workflow logs.
-# Globals:
-#   ACTION_VARIABLES, ACTION_VARIABLE_ORDER
-# Outputs:
-#   Writes the variable table to stdout.
-#######################################
+#####################################################################
+## Prints the Actions variables this run will change. Values are
+## shown -- GitHub renders repository variables in plain text, so
+## none of this is sensitive.
+## Globals:
+##  ACTION_VARIABLES
+##  ACTION_VARIABLE_ORDER
+## Arguments:
+##  1: TRUE when running delete-only, FALSE otherwise.
+## Outputs:
+##  Writes the variable table to stdout.
+## Returns:
+##   0 always.
+#####################################################################
 print_planned_variables() {
-  local variable_name
+  local -r is_delete_only="${1:?is_delete_only is required}"
+  local action="delete and recreate"
+  local name
 
-  info "Actions variables to reset (${#ACTION_VARIABLE_ORDER[@]}):"
-  for variable_name in "${ACTION_VARIABLE_ORDER[@]}"; do
-    printf '  %-38s = %s\n' "${variable_name}" \
-      "${ACTION_VARIABLES[${variable_name}]}"
+  [[ "${is_delete_only}" == TRUE ]] && action="delete"
+
+  printf "Actions variables to %s (%d):\n" \
+    "${action}" "${#ACTION_VARIABLE_ORDER[@]}"
+
+  for name in "${ACTION_VARIABLE_ORDER[@]}"; do
+    printf "  %-38s = %s\n" "${name}" "${ACTION_VARIABLES[${name}]}"
   done
-  info ''
+
+  printf "\n"
 }
 
-#######################################
-# Prompts for confirmation and exits unless the answer is exactly Y or y.
-# Globals:
-#   TARGET_REPOSITORY
-# Outputs:
-#   Writes the prompt to stdout.
-# Returns:
-#   0 when confirmed; exits EXIT_DECLINED otherwise.
-#######################################
-confirm_or_exit() {
-  local answer=""
+#####################################################################
+## Prints the Actions secrets this run will change. Values are
+## never shown.
+## Globals:
+##  ACTION_SECRET_ORDER
+## Arguments:
+##  1: TRUE when running delete-only, FALSE otherwise.
+## Outputs:
+##  Writes the secret name table to stdout.
+## Returns:
+##   0 always.
+#####################################################################
+print_planned_secrets() {
+  local -r is_delete_only="${1:?is_delete_only is required}"
+  local action="delete and recreate"
+  local name
 
-  printf 'Delete and recreate these variables on %s? [Y/n] ' \
-    "${TARGET_REPOSITORY}"
+  [[ "${is_delete_only}" == TRUE ]] && action="delete"
 
-  # `read` returns non-zero at EOF (a piped or non-interactive run). Guard it
-  # so `set -e` does not abort before the declined message is printed.
-  if ! read -r answer; then
-    answer=""
-  fi
+  printf "Actions secrets to %s (%d):\n" \
+    "${action}" "${#ACTION_SECRET_ORDER[@]}"
 
-  if [[ "${answer}" != "Y" && "${answer}" != "y" ]]; then
-    info 'Declined. Nothing was changed.'
-    exit "${EXIT_DECLINED}"
-  fi
-  info ''
+  for name in "${ACTION_SECRET_ORDER[@]}"; do
+    printf "  %-38s (value hidden)\n" "${name}"
+  done
+
+  printf "\n"
 }
 
-#######################################
-# Lists the variable names that currently exist on the repository.
-# Globals:
-#   TARGET_REPOSITORY
-# Outputs:
-#   Writes one variable name per line to stdout.
-# Returns:
-#   0 on success; exits EXIT_GH_FAILED if the listing fails.
-#######################################
-list_remote_variable_names() {
-  if ! gh variable list --repo "${TARGET_REPOSITORY}" \
-      --json name --jq '.[].name' 2>/dev/null; then
-    die "${EXIT_GH_FAILED}" \
-      "could not list Actions variables on ${TARGET_REPOSITORY}." \
-      'Check that the token carries the admin:repo scope.'
+#####################################################################
+## Prompts for confirmation before any Actions variable or secret
+## is changed.
+## Arguments:
+##  1: target repository ("OWNER/REPO").
+##  2: TRUE when running delete-only, FALSE otherwise.
+## Returns:
+##   0 when confirmed; 1 when declined.
+#####################################################################
+confirm_changes() {
+  local -r repo="${1:?repo is required}"
+  local -r is_delete_only="${2:?is_delete_only is required}"
+  local action="Delete and recreate"
+
+  [[ "${is_delete_only}" == TRUE ]] && action="Delete"
+
+  printf "%s these Actions variables and secrets on %s?\n" \
+    "${action}" "${repo}" >&2
+
+  msg::yes_no
+}
+
+#####################################################################
+## Lists the names that currently exist remotely for a kind.
+## Arguments:
+##  1: kind, "variable" or "secret".
+##  2: target repository ("OWNER/REPO").
+## Outputs:
+##  stdout: one name per line.
+## Returns:
+##   0 on success; 1 if the listing fails.
+#####################################################################
+list_remote_names() {
+  local -r kind="${1:?kind is required}"
+  local -r repo="${2:?repo is required}"
+
+  if ! gh "${kind}" list --repo "${repo}" \
+      --json name --jq '.[].name' 2> /dev/null; then
+    msg::error "could not list Actions %ss on %s.\n" \
+      "${kind}" "${repo}"
+    msg::error "Check that the token has the repo admin scope.\n"
+    return 1
   fi
 }
 
-#######################################
-# Deletes every managed variable that currently exists on the repository.
-#
-# Only variables present remotely are deleted: `gh variable delete` exits
-# non-zero on an unknown name, and a partially-populated repository is the
-# normal case (INITIAL_SETUP.md lists more variables than a repository
-# provisioned before the list grew).
-#
-# RETIRED_ACTION_VARIABLES are swept here as well, so a repository provisioned
-# before a variable was retired loses it on the next run. They are absent from
-# the create phase, which is what makes the delete stick.
-#
-# Variables outside both lists are left alone — this script owns its map, not
-# the whole namespace.
-# Globals:
-#   ACTION_VARIABLE_ORDER, RETIRED_ACTION_VARIABLES, TARGET_REPOSITORY
-# Outputs:
-#   Writes progress to stdout.
-# Returns:
-#   0 on success; exits EXIT_GH_FAILED on the first failed delete.
-#######################################
+#####################################################################
+## Deletes a single Actions variable or secret.
+## Arguments:
+##  1: kind, "variable" or "secret".
+##  2: name to delete.
+##  3: target repository ("OWNER/REPO").
+## Returns:
+##   0 on success; 1 if the delete fails.
+#####################################################################
+gh_delete_one() {
+  local -r kind="${1:?kind is required}"
+  local -r name="${2:?name is required}"
+  local -r repo="${3:?repo is required}"
+
+  if ! gh "${kind}" delete "${name}" --repo "${repo}" \
+      > /dev/null 2>&1; then
+    msg::error "failed to delete %s %s on %s.\n" \
+      "${kind}" "${name}" "${repo}"
+    return 1
+  fi
+}
+
+#####################################################################
+## Creates (upserts) a single Actions variable or secret.
+## Arguments:
+##  1: kind, "variable" or "secret".
+##  2: name to create.
+##  3: value to set.
+##  4: target repository ("OWNER/REPO").
+## Returns:
+##   0 on success; 1 if the create fails.
+#####################################################################
+gh_create_one() {
+  local -r kind="${1:?kind is required}"
+  local -r name="${2:?name is required}"
+  local -r value="${3:?value is required}"
+  local -r repo="${4:?repo is required}"
+
+  if ! gh "${kind}" set "${name}" --repo "${repo}" \
+      --body "${value}" > /dev/null 2>&1; then
+    msg::error "failed to set %s %s on %s.\n" \
+      "${kind}" "${name}" "${repo}"
+    return 1
+  fi
+}
+
+#####################################################################
+## Deletes every managed variable that currently exists remotely,
+## plus any RETIRED_ACTION_VARIABLES. Only names present remotely
+## are deleted -- a partially-populated repository is the normal
+## case.
+## Globals:
+##  ACTION_VARIABLE_ORDER
+##  RETIRED_ACTION_VARIABLES
+## Arguments:
+##  1: target repository ("OWNER/REPO").
+## Outputs:
+##  Writes progress to stdout.
+## Returns:
+##   0 on success; 1 on the first failed delete.
+#####################################################################
 delete_action_variables() {
-  local remote_names
-  local variable_name
-  local deleted_count=0
-  local skipped_count=0
+  local -r repo="${1:?repo is required}"
+  local remote
+  local name
 
-  log "Listing existing variables on ${TARGET_REPOSITORY}."
-  remote_names="$(list_remote_variable_names)"
+  remote="$(list_remote_names "variable" "${repo}")" || return 1
 
-  info 'Deleting Actions variables...'
-  for variable_name in "${ACTION_VARIABLE_ORDER[@]}" "${RETIRED_ACTION_VARIABLES[@]}"; do
-    # Exact line match, so TF_VAR_APPS never matches TF_VAR_APPS_EXTRA.
-    if ! grep -Fxq "${variable_name}" <<< "${remote_names}"; then
-      log "  skip   ${variable_name} (not present on the repository)"
-      (( ++skipped_count ))
+  printf "Deleting Actions variables...\n"
+
+  for name in "${ACTION_VARIABLE_ORDER[@]}" \
+      "${RETIRED_ACTION_VARIABLES[@]}"; do
+
+    if ! grep -Fxq "${name}" <<< "${remote}"; then
+      msg::debug "  skip   %s (not present)\n" "${name}"
       continue
     fi
 
-    log "  delete ${variable_name}"
-    if ! gh variable delete "${variable_name}" \
-        --repo "${TARGET_REPOSITORY}" > /dev/null 2>&1; then
-      die "${EXIT_GH_FAILED}" \
-        "failed to delete ${variable_name} on ${TARGET_REPOSITORY}."
-    fi
-    (( ++deleted_count ))
-  done
+    msg::debug "  delete %s\n" "${name}"
+    gh_delete_one "variable" "${name}" "${repo}" || return 1
 
-  info "  deleted ${deleted_count}, skipped ${skipped_count} (absent)"
+  done
 }
 
-#######################################
-# Creates every managed variable from the resolved map.
-#
-# `gh variable set` is an upsert, so this also repairs a run interrupted
-# between the delete and create phases.
-# Globals:
-#   ACTION_VARIABLES, ACTION_VARIABLE_ORDER, TARGET_REPOSITORY
-# Outputs:
-#   Writes progress to stdout.
-# Returns:
-#   0 on success; exits EXIT_GH_FAILED on the first failed create.
-#######################################
+#####################################################################
+## Deletes every managed secret that currently exists remotely,
+## plus any RETIRED_ACTION_SECRETS. Only names present remotely are
+## deleted -- a partially-populated repository is the normal case.
+## Globals:
+##  ACTION_SECRET_ORDER
+##  RETIRED_ACTION_SECRETS
+## Arguments:
+##  1: target repository ("OWNER/REPO").
+## Outputs:
+##  Writes progress to stdout.
+## Returns:
+##   0 on success; 1 on the first failed delete.
+#####################################################################
+delete_action_secrets() {
+  local -r repo="${1:?repo is required}"
+  local remote
+  local name
+
+  remote="$(list_remote_names "secret" "${repo}")" || return 1
+
+  printf "Deleting Actions secrets...\n"
+
+  for name in "${ACTION_SECRET_ORDER[@]}" \
+      "${RETIRED_ACTION_SECRETS[@]}"; do
+
+    if ! grep -Fxq "${name}" <<< "${remote}"; then
+      msg::debug "  skip   %s (not present)\n" "${name}"
+      continue
+    fi
+
+    msg::debug "  delete %s\n" "${name}"
+    gh_delete_one "secret" "${name}" "${repo}" || return 1
+
+  done
+}
+
+#####################################################################
+## Creates every managed variable from ACTION_VARIABLES. gh's "set"
+## is an upsert, so this also repairs a run interrupted between the
+## delete and create phases.
+## Globals:
+##  ACTION_VARIABLES
+##  ACTION_VARIABLE_ORDER
+## Arguments:
+##  1: target repository ("OWNER/REPO").
+## Outputs:
+##  Writes progress to stdout.
+## Returns:
+##   0 on success; 1 on the first failed create.
+#####################################################################
 create_action_variables() {
-  local variable_name
-  local variable_value
-  local created_count=0
+  local -r repo="${1:?repo is required}"
+  local name
+  local value
 
-  info 'Creating Actions variables...'
-  for variable_name in "${ACTION_VARIABLE_ORDER[@]}"; do
-    variable_value="${ACTION_VARIABLES[${variable_name}]}"
+  printf "Creating Actions variables...\n"
 
-    log "  create ${variable_name}=${variable_value}"
-    if ! gh variable set "${variable_name}" \
-        --repo "${TARGET_REPOSITORY}" \
-        --body "${variable_value}" > /dev/null 2>&1; then
-      die "${EXIT_GH_FAILED}" \
-        "failed to set ${variable_name} on ${TARGET_REPOSITORY}."
-    fi
-    (( ++created_count ))
+  for name in "${ACTION_VARIABLE_ORDER[@]}"; do
+    value="${ACTION_VARIABLES[${name}]}"
+    msg::debug "  create %s=%s\n" "${name}" "${value}"
+    gh_create_one "variable" "${name}" "${value}" "${repo}" \
+      || return 1
   done
-
-  info "  created ${created_count}"
 }
 
-#######################################
-# Entry point.
-# Arguments:
-#   The script's own "$@".
-#######################################
+#####################################################################
+## Creates every managed secret from ACTION_SECRETS. gh's "set" is
+## an upsert, so this also repairs a run interrupted between the
+## delete and create phases. The value is never logged.
+## Globals:
+##  ACTION_SECRETS
+##  ACTION_SECRET_ORDER
+## Arguments:
+##  1: target repository ("OWNER/REPO").
+## Outputs:
+##  Writes progress to stdout.
+## Returns:
+##   0 on success; 1 on the first failed create.
+#####################################################################
+create_action_secrets() {
+  local -r repo="${1:?repo is required}"
+  local name
+  local value
+
+  printf "Creating Actions secrets...\n"
+
+  for name in "${ACTION_SECRET_ORDER[@]}"; do
+    value="${ACTION_SECRETS[${name}]}"
+    msg::debug "  create %s\n" "${name}"
+    gh_create_one "secret" "${name}" "${value}" "${repo}" \
+      || return 1
+  done
+}
+
+#####################################################################
+## Catches and handles signals defined in the "trap" command.
+## Globals:
+##  FUNCNAME
+## Arguments:
+##  1: signal name, as passed by sh::curry_trap_command.
+## Exits:
+##   An exit status code based on the signal being handled.
+#####################################################################
+signal_handler() {
+  local -r rc=$?
+  local -r signal="${1:-}"
+  local exit_code="${rc}"
+
+  trap - ERR EXIT HUP INT QUIT TERM
+
+  case "${signal}" in
+    HUP)
+      msg::warn "controlling terminal hung up: SIGHUP\n"
+      exit_code=129 # 1+128
+      ;;
+    INT)
+      msg::warn "interrupted by the user (control-c): SIGINT\n"
+      exit_code=130 # 2+128
+      ;;
+    QUIT)
+      msg::warn "interrupted by an unexpected event: SIGQUIT\n"
+      exit_code=131 # 3+128
+      ;;
+    TERM)
+      msg::warn "asked to stop: SIGTERM\n"
+      exit_code=143 # 15+128
+      ;;
+    ERR)
+      msg::warn "interrupted by a Bash ERR trap.\n"
+      ;;
+    EXIT) ;;
+    *)
+      msg::warn "unexpected signal: %s\n" "${signal}"
+      ;;
+  esac
+
+  exit "${exit_code}"
+}
+
+#####################################################################
+## Entry point.
+## Globals:
+##  IS_DEBUGGER
+##  PRG
+##  g_is_delete_only
+##  g_is_dry_run
+## Arguments:
+##  The script's own "$@".
+## Returns:
+##   0 on success; non-zero otherwise.
+#####################################################################
 main() {
-  parse_command_line "$@"
+  reset_globals
 
-  log 'Starting initvars.sh'
-  require_github_cli
-  resolve_repository
-  validate_variable_values
+  check_required_tool || return
 
-  print_gh_environment
-  print_planned_variables
-  confirm_or_exit
+  parse_options "$@" || return
 
-  delete_action_variables
-  create_action_variables
+  msg::debug "Bash version: %s\n" "${BASH_VERSION}"
+  msg::info "Running %s\n" "${PRG}"
 
-  info ''
-  info "Done. ${#ACTION_VARIABLE_ORDER[@]} variables reset on" \
-    "${TARGET_REPOSITORY}."
-  info 'Actions secrets were not touched.'
+  if [[ "${IS_DEBUGGER}" != TRUE ]]; then
+    sh::init || return
+    local -ar signals=("ERR" "HUP" "INT" "TERM" "QUIT" "EXIT")
+    sh::curry_trap_command "signal_handler" "${signals[*]}" \
+      || return
+  fi
+
+  require_github_auth || return
+
+  local repo
+  repo="$(resolve_repository)" || return
+
+  if [[ "${g_is_delete_only}" != TRUE ]]; then
+    validate_variable_values || return
+    validate_secret_values || return
+  fi
+
+  print_gh_environment "${repo}"
+  print_planned_variables "${g_is_delete_only}"
+  print_planned_secrets "${g_is_delete_only}"
+
+  if [[ "${g_is_dry_run}" == TRUE ]]; then
+    msg::info "Dry run: no changes made.\n"
+    return 0
+  fi
+
+  if ! confirm_changes "${repo}" "${g_is_delete_only}"; then
+    msg::info "Declined. Nothing was changed.\n"
+    exit 0
+  fi
+
+  delete_action_variables "${repo}" || return
+  delete_action_secrets "${repo}" || return
+
+  if [[ "${g_is_delete_only}" != TRUE ]]; then
+    create_action_variables "${repo}" || return
+    create_action_secrets "${repo}" || return
+  fi
+
+  msg::info "Done on %s.\n" "${repo}"
 }
 
-main "$@"
+#####################################################################
+## ------------------------------------------------------------------
+## -------------------- >>> Main Program Body <<< -------------------
+## ------------------------------------------------------------------
+
+if ! main "$@"; then
+  printf "\n%s failed!\n" "${PRG}" >&2
+  exit 1
+fi
