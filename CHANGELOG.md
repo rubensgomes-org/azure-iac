@@ -26,9 +26,22 @@ premise.
 
 ### Added
 
+- `docs/PRICING.md`: cost model for the ACR, private DNS, Container Apps,
+  Key Vault, and Log Analytics resources this estate provisions, linked from
+  the README.
+
 ### Changed
 
+- `sonar-project.properties`: narrowed `sonar.inclusions` to source files
+  (`.hcl`, `.json`, `.tf`, `.yml`), excluded `.md` files, and updated
+  `sonar.projectKey`.
+- `.gitignore`: ignore Sonar scratch/config directories (`.sonar/`,
+  `**/.scannerwork/`, `.sonarlint/`).
+
 ### Fixed
+
+- `.gitignore` had unresolved, nested merge-conflict markers left over from
+  a bad merge; removed the duplicate blocks.
 
 ## [0.0.10] - 2026-09-15
 

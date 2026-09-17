@@ -30,16 +30,8 @@ override.tf.json
 # !example_override.tf
 
 # Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
-<<<<<<< HEAD
-# example: *tfplan*
-=======
-<<<<<<< HEAD
-# example: *tfplan*
-=======
-# example: 
+# example:
 *tfplan*
->>>>>>> 944b06c (initial commit)
->>>>>>> 183ba0b (initial commit)
 
 # Ignore CLI configuration files
 .terraformrc
@@ -50,12 +42,6 @@ terraform.rc
 
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
-<<<<<<< HEAD
-# planout
-=======
-<<<<<<< HEAD
-# planout
-=======
 # planout
 
 ### IntelliJ IDEA ###
@@ -121,11 +107,21 @@ credentials.json
 # ever present if awk or mv died mid-rewrite; it must never be committed.
 CHANGELOG.md.tmp
 
+###############################################################################
+# Sonar (static analysis built files)
+###############################################################################
+
+# SonarQube scanner files
+.sonar/
+
 # Scratch directory the Sonar scanner writes at the repo root (`make sonar`,
 # and the scan step in release.yml). Not ignoring it bites indirectly:
 # `make release-check` fails on a dirty working tree, so a local `make sonar`
 # followed by `make release-patch` would abort the bump for a reason that looks
 # nothing like the cause.
 .scannerwork/
->>>>>>> 944b06c (initial commit)
->>>>>>> 183ba0b (initial commit)
+
+**/.scannerwork/
+
+# SonarLint local files (if using IDE plugins)
+.sonarlint/

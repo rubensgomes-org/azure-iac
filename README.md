@@ -72,6 +72,11 @@ Follow the instructions in [TEARDOWN](./docs/TEARDOWN.md) to completely
 destroy both the Azure infrastructure estate and the Terraform bootstrap backend
 resources provisioned by this project.
 
+### Pricing
+
+See [PRICING](./docs/PRICING.md) for a cost model of the estate's resources
+and which ones bill a flat fee versus only while actually used.
+
 ## GitHub Actions
 
 | Workflow          | Purpose                                                                                                 |
