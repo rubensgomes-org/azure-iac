@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.11] - 2026-09-17
+
+### Added
+
 - `docs/PRICING.md`: cost model for the ACR, private DNS, Container Apps,
   Key Vault, and Log Analytics resources this estate provisions, linked from
   the README.
