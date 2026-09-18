@@ -26,6 +26,22 @@ premise.
 
 ### Added
 
+- `modules/container-app-environment`, `roots/10-container-app-environment`:
+  optional `cae_name` variable to override the environment's resource name.
+  Defaults to `cae-<workload>-<env>` when unset/empty, unchanged from before.
+- `cae-create.yml`/`cae-destroy.yml`: read the optional `TF_VAR_cae_name`
+  repository variable (same pattern as `TF_VAR_workload`), no workflow input.
+  `cae-create.yml` gains a pre-apply guard comparing the resolved name
+  against Terraform state (name is ForceNew). `cae-destroy.yml` now resolves
+  the target name from Terraform state rather than the `workload`/`env`
+  formula, cross-checking `TF_VAR_cae_name` against it, so its dependent-apps
+  guard and post-destroy verification can't silently run against the wrong
+  name.
+- `scripts/initvars.sh`: manages `TF_VAR_CAE_NAME`, but only when
+  `TF_VAR_cae_name` is exported locally, so an operator who has never used
+  it is not forced to invent one. Documented in `docs/INITIAL_SETUP.md`
+  as a note, separate from the required Action Variables list.
+
 ### Changed
 
 ### Fixed

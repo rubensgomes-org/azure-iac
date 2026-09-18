@@ -89,6 +89,14 @@ jobs:
       # blocks; never `${{ inputs.* }}`. Enforced by main-verify.yml.
       ENV_NAME: ${{ inputs.environment_name }}
 
+      # Optional override for the environment's resource name. Same pattern
+      # as TF_VAR_workload/TF_VAR_location below -- a repository variable,
+      # not a workflow input, so it's set once per estate rather than typed
+      # at dispatch time. An undefined repository variable resolves to "",
+      # which the child module treats identically to unset (see its
+      # `cae_name` variable): falls through to `cae-<workload>-<env>`.
+      TF_VAR_cae_name: ${{ vars.TF_VAR_cae_name }}
+
       # `|| 'rgomes'` is load-bearing: an undefined repository variable
       # resolves to "" and would hand Terraform an explicit empty workload,
       # naming the RGs differently from a local run. `name` is ForceNew on
@@ -165,8 +173,14 @@ jobs:
             echo "such as 'centralus'."
             exit 1
           fi
+          if [ -n "${TF_VAR_cae_name}" ] \
+             && ! printf '%s' "${TF_VAR_cae_name}" | grep -qE '^[a-z][a-z0-9-]{0,30}[a-z0-9]$'; then
+            echo "FAIL: TF_VAR_cae_name must be 2-32 chars: lowercase alnum/hyphen,"
+            echo "starting with a letter, not ending in a hyphen."
+            exit 1
+          fi
 
-          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}'."
+          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}' cae_name='${TF_VAR_cae_name:-<default>}'."
 
       # A repository variable is edited in the GitHub UI with no review and no
       # diff, so its shape is checked before it reaches Make or Terraform.
@@ -277,11 +291,49 @@ jobs:
           make ENV="$ENV_NAME" \
             init-log-analytics plan-log-analytics apply-log-analytics
 
+      # Split out from plan/apply so the guard below can read module 10's
+      # current state before anything is planned against it.
+      - name: Module 10 - init
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" init-container-app-environment
+
+      # `name` is ForceNew on azurerm_container_app_environment, so a
+      # TF_VAR_cae_name that disagrees with what's already provisioned is a
+      # destroy+recreate, not a rename. Empty state means first provision
+      # (or the environment was already destroyed), which is the one time
+      # a change here is safe. Mirrors the module-01 workload guard above.
+      - name: GUARD - Assert requested cae_name matches Terraform state
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/10-container-app-environment
+        run: |
+          set -euo pipefail
+          current="$(terraform output -raw cae_name 2>/dev/null || true)"
+          expected="${TF_VAR_cae_name:-cae-${TF_VAR_workload}-${ENV_NAME}}"
+
+          if [ -z "$current" ]; then
+            echo "Module 10 state is empty -- first provision."
+            echo "Will create ${expected}."
+          elif [ "$current" != "$expected" ]; then
+            echo "FAIL: module 10's state holds '${current}',"
+            echo "      but this run resolves to '${expected}'."
+            echo ""
+            echo "name is ForceNew on azurerm_container_app_environment."
+            echo "Applying this would plan a destroy+recreate of the"
+            echo "environment, not a rename."
+            echo ""
+            echo "Tear the environment down first (cae-destroy.yml), or"
+            echo "leave TF_VAR_cae_name unset/matching to keep the existing one."
+            exit 1
+          else
+            echo "OK: resolved name matches state (${current})."
+          fi
+
       - name: Module 10 - container app environment
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
-            init-container-app-environment plan-container-app-environment apply-container-app-environment
+            plan-container-app-environment apply-container-app-environment
 
       # Published so callers (e.g. a container-apps pipeline) reference the
       # environment by output rather than re-deriving its name or ID.

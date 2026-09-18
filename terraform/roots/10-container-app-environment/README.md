@@ -101,6 +101,8 @@ App Environments do not use a soft-delete window.
 - **Log Analytics wiring** uses `log_analytics_workspace_id` (the ARM
   resource ID), not the legacy `customer_id` + `primary_shared_key`
   pair. Cleaner and passwordless.
-- **Fixed name `cae-${TF_VAR_workload:-rgomes}-${TF_VAR_env:-lab}`** — no random suffix. Container App
+- **Default name `cae-${TF_VAR_workload:-rgomes}-${TF_VAR_env:-lab}`** — no random suffix. Container App
   Environments have no soft-delete recycle bin, so destroy+recreate is
-  free of the naming dance PG / KV / LAW go through.
+  free of the naming dance PG / KV / LAW go through. Override with
+  `TF_VAR_cae_name`; `name` is ForceNew either way, so changing it on a
+  live environment is a destroy+recreate, not a rename.

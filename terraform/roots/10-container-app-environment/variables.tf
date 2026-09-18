@@ -41,6 +41,17 @@ variable "location" {
   type        = string
 }
 
+# `null` rather than a literal default so an unset value falls through to the
+# child module's own default (`cae-<workload>-<env>`). Not sourced from
+# env.tfvars like `workload`/`env` -- this is meant to be an ad hoc override
+# passed as `TF_VAR_cae_name`, the same way `cae-create.yml`/`cae-destroy.yml`
+# thread it through.
+variable "cae_name" {
+  description = "Optional override for the environment name. Defaults to cae-<workload>-<env> when unset/empty."
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Common tag map. Applied to the environment. Per-run override; committed defaults live in ../../envs/<env>/tags.json."
   type        = map(string)

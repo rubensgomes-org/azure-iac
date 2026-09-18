@@ -53,6 +53,30 @@ variable "env" {
   }
 }
 
+variable "cae_name" {
+  description = <<-EOT
+    Optional override for the environment's resource name. Leave unset
+    (or empty) to use the default CAF name `cae-<workload>-<env>`.
+
+    `name` is ForceNew regardless of where it comes from, so changing
+    this on a live environment is a destroy+recreate, not a rename. Set
+    it at first provision, or after a full teardown.
+  EOT
+  type        = string
+  default     = null
+
+  validation {
+    # A no-op when unset: the empty-string branch lets a CI workflow bind
+    # this straight from an optional, unfilled string input (which resolves
+    # to "", not null) without tripping the regex.
+    condition = (
+      var.cae_name == null || var.cae_name == "" ||
+      can(regex("^[a-z][a-z0-9-]{0,30}[a-z0-9]$", var.cae_name))
+    )
+    error_message = "cae_name must be 2-32 chars: lowercase alnum/hyphen, starting with a letter, not ending in a hyphen."
+  }
+}
+
 variable "location" {
   description = <<-EOT
     Azure region for the environment. Must match the location of the RG

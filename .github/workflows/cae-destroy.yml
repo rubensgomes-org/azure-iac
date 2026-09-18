@@ -131,6 +131,13 @@ jobs:
       # credentials in scope. Reference "$ENV_NAME"; never `${{ inputs.* }}`.
       ENV_NAME: ${{ inputs.environment_name }}
 
+      # Optional override for the environment's resource name -- a
+      # repository variable, not a workflow input, so it's set once per
+      # estate rather than typed at dispatch time. An undefined repository
+      # variable resolves to "", which "GUARD - Resolve and verify
+      # cae_name" below treats identically to unset.
+      TF_VAR_cae_name: ${{ vars.TF_VAR_cae_name }}
+
       # The only two GitHub accounts permitted to run a destructive workflow
       # in this repo. Enforced on BOTH triggers: on workflow_call
       # `github.actor` is whoever triggered the caller's run, so a push by
@@ -143,10 +150,10 @@ jobs:
 
       # Runs BEFORE any credential is used, so a failed confirmation never
       # reaches Azure. Identical on both triggers: a workflow_call caller is
-      # checked by the same two comparisons a human at the form is. Also
-      # derives the CAE name and app RG here (module 10's naming convention),
-      # since -- unlike ACR -- there is no user-supplied name to match
-      # against Terraform state.
+      # checked by the same two comparisons a human at the form is. Derives
+      # only APP_RG here (module 10's naming convention) -- CAE_NAME is
+      # resolved from Terraform state later, by "GUARD - Resolve and verify
+      # cae_name", since TF_VAR_cae_name might disagree with it.
       - name: SAFEGUARD - Validate actor and confirmation
         shell: bash
         env:
@@ -193,11 +200,10 @@ jobs:
             exit 1
           fi
 
-          # Mirrors module 10's own naming: `cae-<workload>-<env>`, in the
-          # app RG `rg-<workload>app-<env>`. Neither is a workflow input.
-          echo "CAE_NAME=cae-${TF_VAR_workload}-${ENV_NAME}" >> "$GITHUB_ENV"
+          # Mirrors module 11's app RG naming: `rg-<workload>app-<env>`. Not
+          # a workflow input.
           echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}" >> "$GITHUB_ENV"
-          echo "Safeguard passed. Target environment: cae-${TF_VAR_workload}-${ENV_NAME} (env ${ENV_NAME})"
+          echo "Safeguard passed. Target env: ${ENV_NAME} (app RG rg-${TF_VAR_workload}app-${ENV_NAME})"
           echo "Scope: module 10 (container-app-environment) only. Modules 01, 02 and 03 are not touched."
 
       # Shape check, not the authorization check -- the safeguard above has
@@ -217,8 +223,14 @@ jobs:
             echo "such as 'centralus'."
             exit 1
           fi
+          if [ -n "${TF_VAR_cae_name}" ] \
+             && ! printf '%s' "${TF_VAR_cae_name}" | grep -qE '^[a-z][a-z0-9-]{0,30}[a-z0-9]$'; then
+            echo "FAIL: TF_VAR_cae_name must be 2-32 chars: lowercase alnum/hyphen,"
+            echo "starting with a letter, not ending in a hyphen."
+            exit 1
+          fi
 
-          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}'."
+          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}' cae_name='${TF_VAR_cae_name:-<default>}'."
 
       # A missing variable or secret resolves to an empty string, which would
       # fail deep inside init with an opaque auth error.
@@ -295,6 +307,56 @@ jobs:
              "tenantId":"${{ vars.AZURE_TENANT_ID }}",
              "subscriptionId":"${{ vars.AZURE_SUBSCRIPTION_ID }}"}
 
+      # terraform_wrapper is false: the wrapper intercepts stdout, which both
+      # the `terraform output` call below and the `terraform show -json`
+      # call in the plan-scope guard depend on.
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      # Split out from plan/destroy so the guard below can read module 10's
+      # current state before anything else runs against it.
+      - name: Module 10 - init
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" init-container-app-environment
+
+      # Resolves the target name from Terraform state -- the source of
+      # truth -- rather than trusting TF_VAR_cae_name outright: the guard
+      # and verification steps below key off `${CAE_NAME}`, so if the
+      # repository variable ever disagreed with what's actually
+      # provisioned (e.g. changed after the environment was created), those
+      # checks would silently run against the WRONG name while the
+      # `terraform destroy` later (which acts on state, not on this
+      # variable) removes the real environment unguarded. Mirrors
+      # acr-destroy.yml's "GUARD - Assert requested registry matches
+      # Terraform state".
+      - name: GUARD - Resolve and verify cae_name
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          state_name="$(cd "${ROOTS_DIR}/10-container-app-environment" && terraform output -raw cae_name 2>/dev/null || true)"
+          fallback="cae-${TF_VAR_workload}-${ENV_NAME}"
+
+          if [ -z "${state_name}" ]; then
+            resolved="${TF_VAR_cae_name:-${fallback}}"
+            echo "Module 10 state has no cae_name output; treating this as an already-destroyed run."
+          elif [ -n "${TF_VAR_cae_name}" ] && [ "${TF_VAR_cae_name}" != "${state_name}" ]; then
+            echo "DENIED: module 10 state holds '${state_name}',"
+            echo "but the TF_VAR_cae_name repository variable is '${TF_VAR_cae_name}'."
+            echo "Fix the repository variable to match the environment"
+            echo "actually provisioned, then re-run this workflow."
+            exit 1
+          else
+            resolved="${state_name}"
+          fi
+
+          echo "CAE_NAME=${resolved}" >> "$GITHUB_ENV"
+          echo "Resolved target environment: ${resolved}"
+
       # Azure's own API refuses to delete an environment that still has apps
       # in it, so this guard is not the only thing stopping a broken
       # teardown -- but it fails fast, before Terraform plans anything, with
@@ -327,14 +389,6 @@ jobs:
           echo "Destroy module 11 first (aca-destroy.yml, confirm: Yes) for"
           echo "'${ENV_NAME}', then re-run this workflow."
           exit 1
-
-      # terraform_wrapper is false: the wrapper intercepts stdout, which the
-      # `terraform show -json` call in the plan-scope guard depends on.
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: "1.16.0"
-          terraform_wrapper: false
 
       # Belt-and-braces: module 10 has its own state key, so its plan
       # structurally cannot contain an RG, a subnet or the Log Analytics
