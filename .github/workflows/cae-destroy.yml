@@ -459,6 +459,7 @@ jobs:
       - name: Plan the destroy - module 10 (container-app-environment)
         shell: bash
         run: |
+          echo "TF_VAR_cae_name='${TF_VAR_cae_name:-<empty, using default naming>}'"
           make ENV="$ENV_NAME" plan-destroy-container-app-environment
 
       - name: GUARD - Assert module 10's plan destroys only the environment

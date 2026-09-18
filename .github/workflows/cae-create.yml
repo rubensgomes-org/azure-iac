@@ -332,6 +332,7 @@ jobs:
       - name: Module 10 - container app environment
         shell: bash
         run: |
+          echo "TF_VAR_cae_name='${TF_VAR_cae_name:-<empty, using default naming>}'"
           make ENV="$ENV_NAME" \
             plan-container-app-environment apply-container-app-environment
 
