@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.13] - 2026-09-18
+
+### Added
+
+### Changed
+
 - `modules/container-apps`, `roots/11-container-apps`: `ingress_external_enabled`
   now defaults to `false` (internal-only ingress), matching the environment's
   `internal_load_balancer_enabled = true` (module 10). Comments, READMEs,
