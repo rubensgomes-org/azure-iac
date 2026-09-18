@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.14] - 2026-09-18
+
+### Added
+
 - `modules/container-app-environment`, `roots/10-container-app-environment`:
   optional `cae_name` variable to override the environment's resource name.
   Defaults to `cae-<workload>-<env>` when unset/empty, unchanged from before.
