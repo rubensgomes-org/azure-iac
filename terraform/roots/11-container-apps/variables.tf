@@ -125,9 +125,9 @@ variable "max_replicas" {
 }
 
 variable "ingress_external_enabled" {
-  description = "true = each app gets a public FQDN on the environment's static IP; false = ingress internal to the environment."
+  description = "true = each app gets an FQDN on the environment's static IP; false = ingress internal to the environment. Default false matches this environment's `internal_load_balancer_enabled = true`."
   type        = bool
-  default     = true
+  default     = false
 }
 
 # ---- Declared for env.tfvars parity, unused by this module -----------------

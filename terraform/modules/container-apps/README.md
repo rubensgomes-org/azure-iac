@@ -32,17 +32,17 @@ makes the env vars below usable at runtime.
 | `memory`                       | string       | `"0.5Gi"`                                  | Memory per replica.                                                          |
 | `min_replicas`                 | number       | `0`                                        | `0` = scale-to-zero when idle.                                               |
 | `max_replicas`                 | number       | `1`                                        | Horizontal cap per app.                                                      |
-| `ingress_external_enabled`     | bool         | `true`                                     | `true` = public FQDN on the environment's static IP.                         |
+| `ingress_external_enabled`     | bool         | `false`                                    | `true` = expose the app on the environment's static IP.                      |
 | `tags`                         | map(string)  | `{}`                                       | Merged with `component` + `app` tags.                                        |
 
 **Outputs:**
 
-| Name                   | Description                                                              |
-|------------------------|--------------------------------------------------------------------------|
-| `app_ids`              | Map app → full Azure Resource ID.                                        |
-| `app_names`            | Map app → deployed resource name (`ca-<workload><app>-<env>`).           |
-| `app_fqdns`            | Map app → externally-reachable FQDN, or `null` when ingress is disabled. |
-| `app_latest_revisions` | Map app → latest revision name.                                          |
+| Name                   | Description                                                                   |
+|------------------------|-------------------------------------------------------------------------------|
+| `app_ids`              | Map app → full Azure Resource ID.                                             |
+| `app_names`            | Map app → deployed resource name (`ca-<workload><app>-<env>`).                |
+| `app_fqdns`            | Map app → FQDN, or `null` when ingress is disabled. Internal-only by default. |
+| `app_latest_revisions` | Map app → latest revision name.                                               |
 
 ## Design decisions
 

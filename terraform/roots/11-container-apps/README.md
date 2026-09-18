@@ -81,7 +81,8 @@ quickly from `mcr.microsoft.com`. Real Java / Spring Boot images can add
 az containerapp list -g "rg-${TF_VAR_workload:-rgomes}app-${TF_VAR_env:-lab}" -o table
 # Expect one row per entry in var.apps (e.g. ca-dev-api, ca-dev-worker).
 
-# Ingress FQDNs (matches terraform output app_fqdns)
+# Ingress FQDNs (matches terraform output app_fqdns). Internal-only by
+# default — resolvable and reachable only from the VNet.
 az containerapp list -g "rg-${TF_VAR_workload:-rgomes}app-${TF_VAR_env:-lab}" \
   --query "[].{name:name, fqdn:properties.configuration.ingress.fqdn}" \
   -o table
@@ -93,7 +94,9 @@ az containerapp list -g "rg-${TF_VAR_workload:-rgomes}app-${TF_VAR_env:-lab}" \
   -o table
 # Expect uami column to equal $UAMI_ID for every row.
 
-# Placeholder image reachable (200 OK returns Azure's hello page)
+# Placeholder image reachable (200 OK returns Azure's hello page).
+# Run from a client on the VNet (VPN / bastion / peered VNet) — the
+# environment's internal ingress has no public route.
 API_FQDN=$(terraform output -json app_fqdns | jq -r '.api')
 curl -sSf "https://$API_FQDN/" | head -20
 ```
@@ -101,7 +104,7 @@ curl -sSf "https://$API_FQDN/" | head -20
 Sanity outputs from Terraform:
 
 ```bash
-terraform output app_fqdns              # per-app public URLs
+terraform output app_fqdns              # per-app VNet-internal URLs
 terraform output app_latest_revisions   # for rollback / diagnostics
 ```
 
@@ -169,6 +172,11 @@ immediately.
 - **Scale-to-zero by default.** `min_replicas = 0` means apps sleep
   after 5 minutes of idle. First request after idle pays a cold-start
   latency. Export `TF_VAR_min_replicas=1` for latency-sensitive apps.
+- **Internal-only ingress by default.** `ingress_external_enabled =
+  false`, matching the environment's `internal_load_balancer_enabled =
+  true` (module 10). Apps are reachable only from the VNet, not the
+  internet. Export `TF_VAR_ingress_external_enabled=true` to expose
+  apps on the environment's static IP instead.
 - **No `secret {}` blocks.** Nothing to put in them under the
   passwordless model — the UAMI is the credential.
 - **Minimal by design.** No database, blob storage, or Service Bus

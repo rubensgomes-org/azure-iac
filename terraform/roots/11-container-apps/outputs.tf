@@ -16,7 +16,7 @@ output "app_names" {
 }
 
 output "app_fqdns" {
-  description = "Map from app name → externally-reachable FQDN, or `null` when ingress is disabled. Publish these URLs in the README and to API callers."
+  description = "Map from app name → FQDN, or `null` when ingress is disabled. Internal-only by default — reachable from the VNet, not the internet. Publish these URLs in the README and to API callers."
   value       = module.container_apps.app_fqdns
 }
 

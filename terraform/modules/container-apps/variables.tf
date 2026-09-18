@@ -9,7 +9,7 @@
 #   - the same Key Vault (`var.key_vault_uri`) for secrets.
 #
 # Fixed design decisions (Consumption workload profile, single-revision mode,
-# external ingress on by default, scale-to-zero) live in main.tf as locals or
+# internal ingress by default, scale-to-zero) live in main.tf as locals or
 # hard-coded fields with an explanatory comment. Things that could reasonably
 # vary per app or per env (image reference, replica counts, target port,
 # CPU/memory) are variables.
@@ -247,14 +247,17 @@ variable "max_replicas" {
 
 variable "ingress_external_enabled" {
   description = <<-EOT
-    `true` exposes each app on the environment's public static IP with an
-    auto-assigned FQDN (`<app>.<cae_default_domain>`). `false` keeps
-    ingress internal to the environment (reachable only from other apps
-    or clients on the delegated subnet). Playground default: `true` so
-    you can `curl` the apps from your browser.
+    `true` exposes each app on the environment's static IP with an
+    auto-assigned FQDN (`<app>.<cae_default_domain>`) — reachable from
+    the VNet, or the internet if the environment also has
+    `internal_load_balancer_enabled = false`. `false` keeps ingress
+    internal to the environment (reachable only from other apps on the
+    delegated subnet). Default `false`: this environment provisions with
+    `internal_load_balancer_enabled = true`, so apps stay internal-only
+    unless a workload needs cross-app-boundary reachability.
   EOT
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "tags" {

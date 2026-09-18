@@ -36,7 +36,7 @@ on:
         description: 'JSON map from app name to deployed resource name, e.g. ca-rgomesapi-lab.'
         value: ${{ jobs.provision.outputs.app_names }}
       app_fqdns:
-        description: 'JSON map from app name to externally-reachable FQDN, or null when ingress is disabled.'
+        description: 'JSON map from app name to FQDN (internal-only by default), or null when ingress is disabled.'
         value: ${{ jobs.provision.outputs.app_fqdns }}
       app_latest_revisions:
         description: 'JSON map from app name to latest revision name.'

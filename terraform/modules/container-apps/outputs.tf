@@ -20,7 +20,7 @@ output "app_names" {
 }
 
 output "app_fqdns" {
-  description = "Map from app name → externally-reachable FQDN (`<app>.<cae_default_domain>`), or `null` for apps where ingress is disabled. Publish these URLs in the README and to callers of the API."
+  description = "Map from app name → FQDN (`<app>.<cae_default_domain>`), or `null` for apps with ingress disabled. Reachable only within the VNet when `internal_load_balancer_enabled = true` on the environment and/or `var.ingress_external_enabled = false`. Publish these URLs in the README and to callers of the API."
   value       = { for k, a in azurerm_container_app.app : k => try(a.ingress[0].fqdn, null) }
 }
 

@@ -66,8 +66,8 @@ resource "azurerm_container_app" "app" {
     identity = var.uami_id
   }
 
-  # Ingress. External by default so browsers can hit the apps at
-  # `<app>.<cae_default_domain>`. Toggle via `var.ingress_external_enabled`.
+  # Ingress. Internal by default — reachable only from other apps on the
+  # environment's delegated subnet. Toggle via `var.ingress_external_enabled`.
   ingress {
     external_enabled = var.ingress_external_enabled
     target_port      = var.target_port

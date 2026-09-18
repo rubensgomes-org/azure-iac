@@ -12,7 +12,7 @@ owned by the caller — this module has no `backend` block.
 
 | Type                                | Name                   | Notes                                                                                                  |
 |-------------------------------------|------------------------|--------------------------------------------------------------------------------------------------------|
-| `azurerm_container_app_environment` | `cae-<workload>-<env>` | Consumption-only, VNet-integrated on `snet-<workload>app-<env>`, external ingress, no zone redundancy. |
+| `azurerm_container_app_environment` | `cae-<workload>-<env>` | Consumption-only, VNet-integrated on `snet-<workload>app-<env>`, internal-only ingress, no zone redundancy. |
 
 ## Inputs
 
@@ -30,7 +30,7 @@ owned by the caller — this module has no `backend` block.
 - `cae_id` — full Azure Resource ID; consumed by module 11.
 - `cae_name`
 - `cae_default_domain` — DNS suffix Azure assigns to apps in this env.
-- `cae_static_ip_address` — public static IP for external ingress.
+- `cae_static_ip_address` — private static IP for internal ingress.
 - `cae_location`
 
 ## Design decisions
@@ -39,10 +39,10 @@ owned by the caller — this module has no `backend` block.
   declared; azurerm 5.x treats that as Consumption-only, which bills
   per-request and needs no reserved capacity. Add explicit blocks (e.g.
   `D4`, `E4`) later if a workload needs dedicated compute.
-- **External ingress** (`internal_load_balancer_enabled = false`).
-  Public static IP so the browser can hit apps directly. Flip to
-  `true` for private-only ingress (requires VPN / bastion / peered
-  VNet).
+- **Internal-only ingress** (`internal_load_balancer_enabled = true`).
+  Private static IP; no public ingress. Reaching apps requires a
+  VNet-reachable client (VPN / bastion / peered VNet). Flip to
+  `false` for a public static IP instead.
 - **No zone redundancy** (`zone_redundancy_enabled = false`). Enabling
   it demands a subnet that spans all three AZs in the region; module
   02 provisions a single-AZ /23. Enabling here without fixing the

@@ -40,8 +40,8 @@ terraform apply tfplan
 ```
 
 Apply time is ~5-8 minutes on a fresh environment — Azure has to place
-the compute plane on the delegated subnet and provision the ingress
-static IP.
+the compute plane on the delegated subnet and provision the internal
+ingress static IP.
 
 ## Verify
 
@@ -67,7 +67,7 @@ Sanity outputs from Terraform:
 
 ```bash
 terraform output cae_default_domain   # <random>.centralus.azurecontainerapps.io
-terraform output cae_static_ip_address # public IP for external ingress
+terraform output cae_static_ip_address # private IP for internal ingress
 ```
 
 ## Destroy
@@ -93,9 +93,9 @@ App Environments do not use a soft-delete window.
   `workload_profile` block; azurerm 5.x treats that as Consumption-only
   and bills per-request. Add explicit profile blocks in the child
   module if a workload later needs dedicated compute (`D4`, `E4`, ...).
-- **External ingress** — the environment provisions a public static IP.
-  Flip `internal_load_balancer_enabled` to `true` in the child module
-  for private-only ingress (needs a VNet-reachable client).
+- **Internal-only ingress** — the environment provisions a private
+  static IP, no public access. Flip `internal_load_balancer_enabled`
+  to `false` in the child module for a public static IP instead.
 - **No zone redundancy** — enabling it demands a subnet that spans all
   three AZs; module 02 provisions a single-AZ /23.
 - **Log Analytics wiring** uses `log_analytics_workspace_id` (the ARM

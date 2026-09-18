@@ -28,7 +28,22 @@ premise.
 
 ### Changed
 
+- `modules/container-apps`, `roots/11-container-apps`: `ingress_external_enabled`
+  now defaults to `false` (internal-only ingress), matching the environment's
+  `internal_load_balancer_enabled = true` (module 10). Comments, READMEs,
+  outputs, and `aca-create.yml`'s output description updated to describe
+  internal-only reachability by default.
+
 ### Fixed
+
+- `modules/container-app-environment`, `roots/10-container-app-environment`:
+  comments and READMEs still described external ingress as the default even
+  though `internal_load_balancer_enabled = true` was already set; corrected
+  to match.
+- `cae-destroy.yml`: job `timeout-minutes` raised from 15 to 30. Deleting a
+  VNet-integrated Container App Environment routinely exceeds 15 minutes
+  while Azure tears down the VNet integration, which was canceling the
+  destroy job mid-apply.
 
 ## [0.0.12] - 2026-09-17
 

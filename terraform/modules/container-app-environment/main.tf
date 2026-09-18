@@ -13,10 +13,10 @@
 #   playground. Add explicit `workload_profile { workload_profile_type =
 #   "D4" ... }` blocks later if a workload needs dedicated compute.
 #
-# * **External ingress** (`internal_load_balancer_enabled = false`). The
-#   environment provisions a public static IP so the browser can hit the
-#   apps. Flip to `true` for private-only ingress (requires a
-#   VNet-reachable client — VPN / bastion / peered VNet).
+# * **Internal-only ingress** (`internal_load_balancer_enabled = true`).
+#   The environment gets a private static IP; no public ingress. Reaching
+#   the apps requires a VNet-reachable client (VPN / bastion / peered
+#   VNet). Flip to `false` for a public static IP instead.
 #
 # * **No zone redundancy** (`zone_redundancy_enabled = false`). Enabling it
 #   requires the subnet to span all three AZs in the region, which module
@@ -48,10 +48,8 @@ resource "azurerm_container_app_environment" "this" {
   # `Microsoft.App/environments` — module 02 handles that.
   infrastructure_subnet_id = var.infrastructure_subnet_id
 
-  # Public static IP for ingress. See file header for the flip-to-internal
-  # note.
-  #internal_load_balancer_enabled = false
-  # keep CAE private, no public access
+  # Private static IP, no public ingress. See file header for the
+  # flip-to-external note.
   internal_load_balancer_enabled = true
 
   # Zone redundancy off — subnet is not zone-redundant. See file header.

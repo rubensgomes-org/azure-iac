@@ -68,7 +68,11 @@ jobs:
   destroy:
     name: destroy
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Deleting a VNet-integrated CAE routinely runs past 15m while Azure
+    # tears down the environment's VNet integration before releasing the
+    # delegated subnet. Matches cae-create.yml's budget for the same
+    # reason, in the opposite direction.
+    timeout-minutes: 30
 
     # Also the hook for a required-reviewer approval gate. On workflow_call
     # this resolves in the CALLER's repository, so a calling repo must define

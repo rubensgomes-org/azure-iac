@@ -1,7 +1,7 @@
 # modules/container-app-environment/outputs.tf
 # -----------------------------------------------------------------------------
 # Publishes IDs, names, and endpoints for downstream callers. Module 11
-# (container-apps) consumes `cae_id`; DNS wiring and browser-facing docs
+# (container-apps) consumes `cae_id`; DNS wiring and VNet-facing docs
 # consume `cae_default_domain` and `cae_static_ip_address`.
 #
 # See docs/MODULES_DEPENDENCY.md for who consumes what.
@@ -23,7 +23,7 @@ output "cae_default_domain" {
 }
 
 output "cae_static_ip_address" {
-  description = "Public static IP that serves ingress for every external app in this environment. Point a CNAME / A record here if you attach a custom domain. Null-ish when `internal_load_balancer_enabled = true`."
+  description = "Static IP that serves ingress for every app in this environment. With `internal_load_balancer_enabled = true` this is a private IP reachable only from the delegated subnet (or a peered/VPN-connected client), not a public address."
   value       = azurerm_container_app_environment.this.static_ip_address
 }
 
