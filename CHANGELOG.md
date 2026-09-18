@@ -30,6 +30,14 @@ premise.
 
 ### Fixed
 
+## [0.0.15] - 2026-09-18
+
+### Added
+
+### Changed
+
+### Fixed
+
 ### Removed
 
 - `modules/container-app-environment`, `roots/10-container-app-environment`:
