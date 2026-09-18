@@ -98,13 +98,6 @@ source "${HOME}/lib/sh-lib/sh_lib.sh" || exit
 ## ACTION_VARIABLE_ORDER: acr-create.yml, acr-destroy.yml and
 ## destroy-all.yml each bind it from their own dispatch input, so a
 ## repository variable would pin every run to one environment.
-##
-## TF_VAR_CAE_NAME is different from every entry below: it has no
-## documented default because cae-create.yml/cae-destroy.yml already
-## fall back to `cae-<workload>-<env>` when it's unset, so forcing an
-## operator to export one here would defeat that. It's appended,
-## conditionally, right after this literal -- see below -- instead of
-## being declared in it.
 #####################################################################
 declare -A ACTION_VARIABLES=(
   [AZURE_CLIENT_ID]=\
@@ -155,17 +148,6 @@ declare -a ACTION_VARIABLE_ORDER=(
   TF_VAR_PG_ENTRA_ADMIN_GROUP_NAME
 )
 
-# TF_VAR_CAE_NAME is managed only when the local shell already has
-# TF_VAR_cae_name set to a non-empty value -- an operator who has never
-# used it locally is not asked to invent one, and validate_variable_values()
-# never sees it as "missing" because it simply isn't in the list. Run with
-# TF_VAR_cae_name still exported and -o/--delete-only to remove a
-# previously-set override from the repository.
-if [[ -n "${TF_VAR_cae_name:-}" ]]; then
-  ACTION_VARIABLES[TF_VAR_CAE_NAME]="${TF_VAR_cae_name}"
-  ACTION_VARIABLE_ORDER+=(TF_VAR_CAE_NAME)
-fi
-
 readonly ACTION_VARIABLES
 readonly ACTION_VARIABLE_ORDER
 
@@ -175,6 +157,7 @@ readonly ACTION_VARIABLE_ORDER
 declare -ar RETIRED_ACTION_VARIABLES=(
   TF_VAR_PREFIX
   TF_VAR_RG_SUFFIX
+  TF_VAR_CAE_NAME
 )
 
 # Variables with no documented literal, mapped to the shell variable

@@ -30,6 +30,17 @@ premise.
 
 ### Fixed
 
+### Removed
+
+- `modules/container-app-environment`, `roots/10-container-app-environment`:
+  the optional `cae_name` override added in `[0.0.14]`. The environment
+  name is once again always `cae-<workload>-<env>`.
+- `cae-create.yml`/`cae-destroy.yml`: the `TF_VAR_cae_name` handling and
+  its pre-apply/pre-destroy state-matching guards.
+- `scripts/initvars.sh`: no longer manages `TF_VAR_CAE_NAME`; added to
+  `RETIRED_ACTION_VARIABLES` so an existing repository variable gets
+  swept on the next delete pass.
+
 ## [0.0.14] - 2026-09-18
 
 ### Added

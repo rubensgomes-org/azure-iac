@@ -12,14 +12,13 @@ owned by the caller — this module has no `backend` block.
 
 | Type                                | Name                   | Notes                                                                                                  |
 |-------------------------------------|------------------------|--------------------------------------------------------------------------------------------------------|
-| `azurerm_container_app_environment` | `cae-<workload>-<env>` (or `cae_name`) | Consumption-only, VNet-integrated on `snet-<workload>app-<env>`, internal-only ingress, no zone redundancy. |
+| `azurerm_container_app_environment` | `cae-<workload>-<env>` | Consumption-only, VNet-integrated on `snet-<workload>app-<env>`, internal-only ingress, no zone redundancy. |
 
 ## Inputs
 
 | Name                         | Type          | Required | Notes                                                                                                  |
 |------------------------------|---------------|----------|--------------------------------------------------------------------------------------------------------|
 | `env`                        | `string`      | yes      | Baked into the environment name. `^[a-z][a-z0-9]{1,9}$`.                                               |
-| `cae_name`                   | `string`      | no       | Override for the environment name. Defaults to `cae-<workload>-<env>` when unset/empty.                |
 | `location`                   | `string`      | yes      | Azure region. Must match the RG and the subnet's VNet.                                                 |
 | `resource_group_name`        | `string`      | yes      | Caller passes `rg-<workload>app-<env>` (module 01 remote state).                                       |
 | `log_analytics_workspace_id` | `string`      | yes      | ARM resource ID of the LAW. Caller passes `law_id` (module 03 remote state).                           |
@@ -48,11 +47,11 @@ owned by the caller — this module has no `backend` block.
   it demands a subnet that spans all three AZs in the region; module
   02 provisions a single-AZ /23. Enabling here without fixing the
   subnet fails at apply time.
-- **Default name `cae-<workload>-<env>`, overridable via `cae_name`.**
-  Unlike LAW / KV / SA / PG, Container App Environments have no
-  soft-delete window — `terraform destroy` frees either name
-  immediately. No random suffix needed. `name` is ForceNew either way,
-  so changing `cae_name` on a live environment is a destroy+recreate.
+- **Fixed name `cae-<workload>-<env>`.** Unlike LAW / KV / SA / PG,
+  Container App Environments have no soft-delete window —
+  `terraform destroy` frees the name immediately. No random suffix
+  needed. `name` is ForceNew, so changing `workload`/`env` on a live
+  environment is a destroy+recreate.
 - **Log Analytics via `log_analytics_workspace_id`.** azurerm accepts
   the workspace's ARM resource ID directly; the legacy `customer_id` +
   `primary_shared_key` pair is not required. The module also sets

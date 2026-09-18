@@ -72,7 +72,7 @@ jobs:
     # tears down the environment's VNet integration before releasing the
     # delegated subnet. Matches cae-create.yml's budget for the same
     # reason, in the opposite direction.
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     # Also the hook for a required-reviewer approval gate. On workflow_call
     # this resolves in the CALLER's repository, so a calling repo must define
@@ -131,13 +131,6 @@ jobs:
       # credentials in scope. Reference "$ENV_NAME"; never `${{ inputs.* }}`.
       ENV_NAME: ${{ inputs.environment_name }}
 
-      # Optional override for the environment's resource name -- a
-      # repository variable, not a workflow input, so it's set once per
-      # estate rather than typed at dispatch time. An undefined repository
-      # variable resolves to "", which "GUARD - Resolve and verify
-      # cae_name" below treats identically to unset.
-      TF_VAR_cae_name: ${{ vars.TF_VAR_cae_name }}
-
       # The only two GitHub accounts permitted to run a destructive workflow
       # in this repo. Enforced on BOTH triggers: on workflow_call
       # `github.actor` is whoever triggered the caller's run, so a push by
@@ -153,7 +146,7 @@ jobs:
       # checked by the same two comparisons a human at the form is. Derives
       # only APP_RG here (module 10's naming convention) -- CAE_NAME is
       # resolved from Terraform state later, by "GUARD - Resolve and verify
-      # cae_name", since TF_VAR_cae_name might disagree with it.
+      # cae_name".
       - name: SAFEGUARD - Validate actor and confirmation
         shell: bash
         env:
@@ -223,14 +216,7 @@ jobs:
             echo "such as 'centralus'."
             exit 1
           fi
-          if [ -n "${TF_VAR_cae_name}" ] \
-             && ! printf '%s' "${TF_VAR_cae_name}" | grep -qE '^[a-z][a-z0-9-]{0,30}[a-z0-9]$'; then
-            echo "FAIL: TF_VAR_cae_name must be 2-32 chars: lowercase alnum/hyphen,"
-            echo "starting with a letter, not ending in a hyphen."
-            exit 1
-          fi
-
-          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}' cae_name='${TF_VAR_cae_name:-<default>}'."
+          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}'."
 
       # A missing variable or secret resolves to an empty string, which would
       # fail deep inside init with an opaque auth error.
@@ -324,15 +310,11 @@ jobs:
           make ENV="$ENV_NAME" init-container-app-environment
 
       # Resolves the target name from Terraform state -- the source of
-      # truth -- rather than trusting TF_VAR_cae_name outright: the guard
-      # and verification steps below key off `${CAE_NAME}`, so if the
-      # repository variable ever disagreed with what's actually
-      # provisioned (e.g. changed after the environment was created), those
-      # checks would silently run against the WRONG name while the
-      # `terraform destroy` later (which acts on state, not on this
-      # variable) removes the real environment unguarded. Mirrors
-      # acr-destroy.yml's "GUARD - Assert requested registry matches
-      # Terraform state".
+      # truth -- rather than the workload/env formula alone: the guard and
+      # verification steps below key off `${CAE_NAME}`, so if state is
+      # empty (already destroyed, or never provisioned) they fall back to
+      # the formula purely so those no-op checks have a name to compare
+      # against.
       - name: GUARD - Resolve and verify cae_name
         shell: bash
         run: |
@@ -342,14 +324,8 @@ jobs:
           fallback="cae-${TF_VAR_workload}-${ENV_NAME}"
 
           if [ -z "${state_name}" ]; then
-            resolved="${TF_VAR_cae_name:-${fallback}}"
+            resolved="${fallback}"
             echo "Module 10 state has no cae_name output; treating this as an already-destroyed run."
-          elif [ -n "${TF_VAR_cae_name}" ] && [ "${TF_VAR_cae_name}" != "${state_name}" ]; then
-            echo "DENIED: module 10 state holds '${state_name}',"
-            echo "but the TF_VAR_cae_name repository variable is '${TF_VAR_cae_name}'."
-            echo "Fix the repository variable to match the environment"
-            echo "actually provisioned, then re-run this workflow."
-            exit 1
           else
             resolved="${state_name}"
           fi
@@ -459,7 +435,6 @@ jobs:
       - name: Plan the destroy - module 10 (container-app-environment)
         shell: bash
         run: |
-          echo "TF_VAR_cae_name='${TF_VAR_cae_name:-<empty, using default naming>}'"
           make ENV="$ENV_NAME" plan-destroy-container-app-environment
 
       - name: GUARD - Assert module 10's plan destroys only the environment
@@ -478,6 +453,11 @@ jobs:
       - name: Destroy module 10 - container app environment
         shell: bash
         run: |
+          # deleting a VNet-integrated Container App Environment 
+          # routinely takes 20–30 minutes while Azure tears down 
+          # the VNet integration before releasing the delegated 
+          # subnet — that's exactly why the timeout was bumped 
+          # from 15 to 30 minutes a few turns ago.
           make ENV="$ENV_NAME" destroy-container-app-environment
 
       # Asserts all three halves of the contract: the environment is gone,

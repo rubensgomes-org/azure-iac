@@ -356,11 +356,5 @@ Follow [TF_BOOTSTRAP_CREATE](TF_BOOTSTRAP_CREATE.md).
 NOTE: The bash 4+ [initvars.sh](../scripts/initvars.sh) may be used to automate
 deleting and re-creating both the Action variables and secrets above. Pass
 `-o, --delete-only` to delete them without recreating them.
-
-NOTE: `initvars.sh` also manages `TF_VAR_CAE_NAME`, an optional override for
-the Container App Environment's name (see `roots/10-container-app-environment`),
-but only when `TF_VAR_cae_name` is exported in the local shell -- it's left
-out of the required list above because `cae-create.yml`/`cae-destroy.yml`
-already default to the estate's normal naming convention without it.
 ---
 Author:  [Rubens Gomes](https://rubensgomes.com/)

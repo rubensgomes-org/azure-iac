@@ -68,7 +68,6 @@ module "container_app_environment" {
 
   workload                   = var.workload
   env                        = var.env
-  cae_name                   = var.cae_name
   location                   = var.location
   resource_group_name        = data.terraform_remote_state.resource_groups.outputs.rg_app_name
   log_analytics_workspace_id = data.terraform_remote_state.log_analytics.outputs.law_id
