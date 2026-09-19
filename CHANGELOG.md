@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.16] - 2026-09-19
+
+### Added
+
+### Changed
+
 - `modules/container-apps`, `roots/11-container-apps`: Container App names
   no longer fold in the `workload` token — `ca-<app>-<env>` (e.g.
   `ca-api-lab`) instead of `ca-<workload><app>-<env>` (e.g.
