@@ -30,6 +30,14 @@ premise.
 
 ### Fixed
 
+## [0.0.20] - 2026-09-19
+
+### Added
+
+### Changed
+
+### Fixed
+
 - `aca-create.yml`, `aca-destroy.yml`, `cae-create.yml`, `cae-destroy.yml`,
   `acr-create.yml`, `acr-destroy.yml`: checkout's `ref:` now uses
   `job.workflow_sha` instead of `job.workflow_ref`. The latter is the FULL
