@@ -89,10 +89,6 @@ jobs:
     # Deliberately the SAME group string as aca-create.yml: the run that must
     # never overlap this one is a create of the same apps. Change it in one
     # file only and an apply and a destroy can race for the same state.
-    #
-    # Groups are scoped to the repository that owns the run, so a caller's
-    # create in another repo is not serialised by this. The azurerm blob
-    # lease is the real guard there. Never add -lock=false.
     concurrency:
       group: aca-lifecycle-${{ inputs.environment_name }}
       cancel-in-progress: false
@@ -135,22 +131,43 @@ jobs:
       TF_IN_AUTOMATION: "true"
 
       ROOTS_DIR: terraform/roots
-
-      # Bound here, not interpolated into run: bodies -- a `${{ }}` inside a
-      # run: block is substituted as raw text before the shell parses it, so a
-      # crafted value would execute on the runner ahead of a destroy, with
-      # credentials in scope. Reference "$ENV_NAME"; never `${{ inputs.* }}`.
       ENV_NAME: ${{ inputs.environment_name }}
 
       # The only two GitHub accounts permitted to run a destructive workflow
-      # in this repo. Enforced on BOTH triggers: on workflow_call
-      # `github.actor` is whoever triggered the caller's run, so a push by
-      # anyone else, or a bot or scheduled trigger upstream, is denied.
+      # in this repo.
       ALLOWED_ACTORS: "rubensgomes rubens-gomes_3CC"
 
     steps:
+      # actions/checkout defaults to github.repository at github.sha, but on
+      # workflow_call from another repository those resolve to the CALLER,
+      # not this repo -- checking out the caller and finding no Makefile
+      # here. job_workflow_ref names this reusable workflow's own repo and
+      # ref; it's empty on a direct dispatch, where github.repository and
+      # github.sha are already correct.
+      - name: Resolve this workflow's own repository and ref
+        id: workflow_source
+        shell: bash
+        env:
+          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
+          FALLBACK_REPOSITORY: ${{ github.repository }}
+          FALLBACK_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${JOB_WORKFLOW_REF}" ]; then
+            repository="${JOB_WORKFLOW_REF%%/.github/*}"
+            ref="${JOB_WORKFLOW_REF##*@}"
+          else
+            repository="${FALLBACK_REPOSITORY}"
+            ref="${FALLBACK_SHA}"
+          fi
+          echo "repository=${repository}" >> "$GITHUB_OUTPUT"
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.workflow_source.outputs.repository }}
+          ref: ${{ steps.workflow_source.outputs.ref }}
 
       # Runs BEFORE any credential is used, so a failed confirmation never
       # reaches Azure. Identical on both triggers: a workflow_call caller is

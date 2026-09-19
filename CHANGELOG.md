@@ -26,9 +26,19 @@ premise.
 
 ### Added
 
+- `release.yml`: publish/move a `vX` major-version tag (e.g. `v0`) to the
+  release commit after each GitHub Release, so callers can pin
+  `@v0` and track the latest `v0.y.z` release.
+
 ### Changed
 
 ### Fixed
+
+- `aca-create.yml`, `aca-destroy.yml`, `acr-create.yml`, `acr-destroy.yml`,
+  `cae-create.yml`, `cae-destroy.yml`: checkout now resolves this repo and
+  ref from `github.job_workflow_ref` instead of defaulting to
+  `github.repository`/`github.sha`, which resolve to the CALLER's repo on
+  `workflow_call` and checked out a repo with no `Makefile`.
 
 ## [0.0.17] - 2026-09-19
 

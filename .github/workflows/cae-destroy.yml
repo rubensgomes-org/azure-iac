@@ -145,8 +145,36 @@ jobs:
       ALLOWED_ACTORS: "rubensgomes rubens-gomes_3CC"
 
     steps:
+      # actions/checkout defaults to github.repository at github.sha, but on
+      # workflow_call from another repository those resolve to the CALLER,
+      # not this repo -- checking out the caller and finding no Makefile
+      # here. job_workflow_ref names this reusable workflow's own repo and
+      # ref; it's empty on a direct dispatch, where github.repository and
+      # github.sha are already correct.
+      - name: Resolve this workflow's own repository and ref
+        id: workflow_source
+        shell: bash
+        env:
+          JOB_WORKFLOW_REF: ${{ github.job_workflow_ref }}
+          FALLBACK_REPOSITORY: ${{ github.repository }}
+          FALLBACK_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${JOB_WORKFLOW_REF}" ]; then
+            repository="${JOB_WORKFLOW_REF%%/.github/*}"
+            ref="${JOB_WORKFLOW_REF##*@}"
+          else
+            repository="${FALLBACK_REPOSITORY}"
+            ref="${FALLBACK_SHA}"
+          fi
+          echo "repository=${repository}" >> "$GITHUB_OUTPUT"
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.workflow_source.outputs.repository }}
+          ref: ${{ steps.workflow_source.outputs.ref }}
 
       # Runs BEFORE any credential is used, so a failed confirmation never
       # reaches Azure. Identical on both triggers: a workflow_call caller is

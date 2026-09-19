@@ -159,3 +159,16 @@ jobs:
               --title "${RELEASE_TAG}" \
               --notes-file release-notes.md
           fi
+
+      # Lets a caller's `uses: .../aca-destroy.yml@v0` track the latest
+      # v0.y.z release, the convention most published Actions/reusable
+      # workflows use. Runs only after the Release above succeeds, so a
+      # failed release never leaves this tag pointing at a bad commit.
+      - name: Move the major-version tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          major_tag="v${version%%.*}"
+          git tag -f "${major_tag}" "${RELEASE_TAG}"
+          git push origin "${major_tag}" --force
+          echo "${major_tag} now points at ${RELEASE_TAG}."
