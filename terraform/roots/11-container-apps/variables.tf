@@ -18,26 +18,6 @@ variable "env" {
   type        = string
 }
 
-# CAF workload token. Every name this estate creates is
-# `<type>-<workload>-<env>`, so this value plus `env` determines the whole
-# namespace — see docs/NAMING.md.
-#
-# `name` is ForceNew on every resource composed from it. Changing this on a
-# LIVE estate is a destroy+recreate spread across twelve state files that know
-# nothing about each other, which is a broken estate rather than a rename. Set
-# it at first provision, or after a full teardown.
-#
-# `null` rather than a literal default so an unset value falls through to the
-# child module's own default (`rgomes`) instead of duplicating the literal in
-# twelve roots. The fall-through only works because the child declares
-# `nullable = false`: a null passed to a nullable variable is a VALUE, not an
-# absence, and would fail the child's validation rather than be replaced.
-variable "workload" {
-  description = "CAF workload token. Sourced from ../../envs/<env>/env.tfvars."
-  type        = string
-  default     = null
-}
-
 variable "apps" {
   description = <<-EOT
     Microservice names. One Container App per entry. Sourced from
@@ -131,6 +111,17 @@ variable "ingress_external_enabled" {
 }
 
 # ---- Declared for env.tfvars parity, unused by this module -----------------
+
+# CAF workload token, folded into most resource names elsewhere in the
+# estate — see docs/NAMING.md. Container apps are a named exception (`ca-
+# <app>-<env>`, no workload token), so this module has nothing to forward
+# it to. Still declared here so `-var-file`'s env.tfvars `workload` key
+# doesn't warn as undeclared.
+variable "workload" {
+  description = "CAF workload token. Not used here — Container Apps omit workload from their name. Declared for env.tfvars parity."
+  type        = string
+  default     = null
+}
 
 variable "location" {
   description = "Azure region. Not used here — Container Apps inherit region from the environment. Declared for env.tfvars parity."

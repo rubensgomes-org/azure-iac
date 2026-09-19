@@ -28,7 +28,26 @@ premise.
 
 ### Changed
 
+- `modules/container-apps`, `roots/11-container-apps`: Container App names
+  no longer fold in the `workload` token — `ca-<app>-<env>` (e.g.
+  `ca-api-lab`) instead of `ca-<workload><app>-<env>` (e.g.
+  `ca-rgomesapi-lab`). `name` is ForceNew, so applying this destroys and
+  recreates every existing Container App under its new name. See
+  `docs/NAMING.md`'s second exception.
+
 ### Fixed
+
+- `aca-destroy.yml`: the pre-destroy inventory and post-destroy
+  verification `az containerapp list` filters no longer match on
+  `ca-${TF_VAR_workload}`, which would otherwise have silently stopped
+  matching any Container App and turned the post-destroy check into a
+  false pass.
+
+### Removed
+
+- `modules/container-apps`: the `workload` input variable, now unused.
+  `roots/11-container-apps` no longer forwards it; the root variable is
+  retained only for `env.tfvars` parity.
 
 ## [0.0.15] - 2026-09-18
 

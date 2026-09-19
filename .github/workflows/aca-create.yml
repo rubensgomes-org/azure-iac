@@ -33,7 +33,7 @@ on:
         description: 'JSON map from app name to full Azure Resource ID.'
         value: ${{ jobs.provision.outputs.app_ids }}
       app_names:
-        description: 'JSON map from app name to deployed resource name, e.g. ca-rgomesapi-lab.'
+        description: 'JSON map from app name to deployed resource name, e.g. ca-api-lab.'
         value: ${{ jobs.provision.outputs.app_names }}
       app_fqdns:
         description: 'JSON map from app name to FQDN (internal-only by default), or null when ingress is disabled.'

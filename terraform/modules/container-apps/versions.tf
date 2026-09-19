@@ -7,8 +7,8 @@
 #
 # `azurerm_container_app` is the only resource this module manages, so
 # `azurerm` is the sole dependency. No `random` needed: each app's name is the
-# deterministic `ca-<workload><app>-<env>` derived from `var.apps`, and
-# Container Apps have no soft-delete window on the name.
+# deterministic `ca-<app>-<env>` derived from `var.apps`, and Container Apps
+# have no soft-delete window on the name.
 #
 # -----------------------------------------------------------------------------
 

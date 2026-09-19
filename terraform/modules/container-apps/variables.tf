@@ -3,7 +3,7 @@
 # Inputs consumed by main.tf.
 #
 # Every microservice in `var.apps` becomes one `azurerm_container_app` named
-# `ca-<env>-<app>`, all sharing:
+# `ca-<app>-<env>`, all sharing:
 #   - the same Container App Environment (`var.container_app_environment_id`),
 #   - the same UAMI (`var.uami_id`) for runtime identity AND ACR pull,
 #   - the same Key Vault (`var.key_vault_uri`) for secrets.
@@ -18,42 +18,10 @@
 # implements.
 # -----------------------------------------------------------------------------
 
-variable "workload" {
-  description = <<-EOT
-    Workload token in the CAF name `<type>-<workload>-<env>`, e.g. "rgomes"
-    produces ca-rgomesapi-lab.
-    Each app key is folded onto this token rather than given a dash of its
-    own, keeping the name at three tokens.
-
-    `name` is ForceNew on every resource named from it, so changing this on a
-    live estate is a destroy+recreate, not a rename. Set it at first provision,
-    or after a full teardown. See docs/NAMING.md.
-  EOT
-  type        = string
-  default     = "rgomes"
-
-  # `nullable = false` is load-bearing, not decoration. Every root declares
-  # `workload` with `default = null` so an env.tfvars that omits it falls
-  # through to this default -- but a null passed to a nullable variable is a
-  # VALUE, not an absence, so without this the fall-through hits the validation
-  # below and fails with "workload must be 2-16 lowercase alnum chars" naming
-  # nothing. With it, Terraform substitutes this default before validating.
-  nullable = false
-
-  validation {
-    # Lowercase alnum, 2-16 chars — the same shape enforced by every module, so
-    # one value can name the whole estate. The ceiling is set by the tightest
-    # consumer, the storage account name (st<workload><purpose><env>, 24 chars,
-    # no dashes). The leading letter avoids a name that looks numeric.
-    condition     = can(regex("^[a-z][a-z0-9]{1,15}$", var.workload))
-    error_message = "workload must be 2-16 lowercase alnum chars starting with a letter."
-  }
-}
-
 variable "env" {
   description = <<-EOT
     Environment name (e.g. "lab", "dev", "prod"). Trailing token of every
-    container app name: ca-<workload><app>-<env>.
+    container app name: ca-<app>-<env>.
   EOT
   type        = string
 
@@ -87,13 +55,13 @@ variable "apps" {
   description = <<-EOT
     List of microservice names. One `azurerm_container_app` is created per
     entry, keyed by `for_each = toset(var.apps)`. Names appear in the
-    resource name (`ca-<env>-<app>`), the `app` tag, and are used as the
+    resource name (`ca-<app>-<env>`), the `app` tag, and are used as the
     default key when looking up per-app values in `var.apps_image_map`.
 
     Each name must be a valid Container App name suffix: 2-27 chars,
     lowercase alnum + hyphens, starting with a letter. With the
-    `ca-<env>-` prefix (at most 13 chars for env="dev") that keeps the
-    full name under Azure's 32-char cap.
+    `ca-` prefix and `-<env>` suffix (at most 4 chars for env="dev") that
+    keeps the full name under Azure's 32-char cap.
   EOT
   type        = list(string)
 

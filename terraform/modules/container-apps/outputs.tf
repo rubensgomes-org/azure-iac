@@ -15,7 +15,7 @@ output "app_ids" {
 }
 
 output "app_names" {
-  description = "Map from app name → deployed resource name (`ca-<env>-<app>`). Convenience for `az containerapp show -n <this>`."
+  description = "Map from app name → deployed resource name (`ca-<app>-<env>`). Convenience for `az containerapp show -n <this>`."
   value       = { for k, a in azurerm_container_app.app : k => a.name }
 }
 
@@ -25,6 +25,6 @@ output "app_fqdns" {
 }
 
 output "app_latest_revisions" {
-  description = "Map from app name → name of the latest deployed revision (e.g. `ca-dev-api--<hash>`). Handy for `az containerapp revision show` and rollback commands."
+  description = "Map from app name → name of the latest deployed revision (e.g. `ca-api-dev--<hash>`). Handy for `az containerapp revision show` and rollback commands."
   value       = { for k, a in azurerm_container_app.app : k => a.latest_revision_name }
 }

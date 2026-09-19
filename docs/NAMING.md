@@ -15,10 +15,11 @@ the twelve modules under `terraform/modules/` takes both.
 
 **Purposes are folded onto the workload token, not dash-separated.** Several
 resources come as a set — five resource groups by lifecycle purpose, three
-subnets, one container app per entry in `apps`. CAF's three-token form has no
-slot for that fourth idea, so the set key is concatenated onto the workload:
-`rg-rgomesapp-lab`, not `rg-rgomes-app-lab`. Every name in the estate is
-therefore exactly three tokens.
+subnets. CAF's three-token form has no slot for that fourth idea, so the set
+key is concatenated onto the workload: `rg-rgomesapp-lab`, not
+`rg-rgomes-app-lab`. Every name in the estate is therefore exactly three
+tokens — except container apps, a
+[second exception](#a-second-exception-container-apps).
 
 **There are no random suffixes.** Key Vault, Storage, Log Analytics, Service Bus
 and PostgreSQL used to append four hex characters for global uniqueness. They no
@@ -45,7 +46,7 @@ Workload `rgomes`, environment `lab`.
 | Service Bus               | `sb-<workload>msg-<env>`                  | `sb-rgomesmsg-lab`                                                                                                             | `modules/service-bus`               |
 | PostgreSQL                | `psql-<workload>-<env>`                   | `psql-rgomes-lab`                                                                                                              | `modules/postgresql`                |
 | Container App Env         | `cae-<workload>-<env>`                    | `cae-rgomes-lab`                                                                                                               | `modules/container-app-environment` |
-| Container apps            | `ca-<workload><app>-<env>`                | `ca-rgomesapi-lab`                                                                                                             | `modules/container-apps`            |
+| Container apps            | *see [exception](#a-second-exception-container-apps)* | `ca-api-lab`                                                                                                  | `modules/container-apps`            |
 | Application Insights      | `appi-<workload>-<env>`                   | `appi-rgomes-lab`                                                                                                              | `modules/monitoring`                |
 | Action group              | `ag-<workload>ops-<env>`                  | `ag-rgomesops-lab`                                                                                                             | `modules/monitoring`                |
 | Action group `short_name` | `<workload>ops`                           | `rgomesops`                                                                                                                    | `modules/monitoring`                |
@@ -120,7 +121,7 @@ name already in module 01's state.
 Note that `workload` does **not** change between environments. `dev` and `lab`
 share `rgomes` and are told apart by the trailing token alone.
 
-## The one exception: ACR
+## The first exception: ACR
 
 `modules/acr` takes its name verbatim from `var.acr_name` (`TF_VAR_acr_name`)
 instead of composing one. Two reasons, both about the name being typed rather
@@ -132,6 +133,15 @@ Follow the convention anyway, spelled without the dashes ACR forbids:
 `cr<workload><env>` → `crrgomesdev`. The current values are `crrgomesdev01` in
 dev and `crrgomeslab02` in lab; the trailing digits are a collision escape
 hatch, which is the second reason this stays a human-chosen literal.
+
+## A second exception: container apps
+
+`modules/container-apps` omits the workload token: `ca-<app>-<env>`, e.g.
+`ca-api-lab`, not `ca-rgomesapi-lab`. `<app>` (an entry in `var.apps`) is
+already the leaf identifier callers type and read back from `app_names`, so
+folding a fixed, estate-wide `workload` token onto it added a prefix without
+adding information. Every other resource in the estate still folds in
+`workload`.
 
 ## The state backend
 

@@ -17,7 +17,7 @@ makes the env vars below usable at runtime.
 
 | Name                           | Type         | Default                                    | Description                                                                  |
 |--------------------------------|--------------|--------------------------------------------|------------------------------------------------------------------------------|
-| `env`                          | string       | —                                          | Environment token, baked into app names (`ca-<workload><app>-<env>`).        |
+| `env`                          | string       | —                                          | Environment token, baked into app names (`ca-<app>-<env>`).                  |
 | `resource_group_name`          | string       | —                                          | `rg-<workload>app-<env>` (from module 01).                                   |
 | `container_app_environment_id` | string       | —                                          | `cae_id` (from module 10).                                                   |
 | `apps`                         | list(string) | —                                          | Microservice names. Must match `var.apps` in `env.tfvars`.                   |
@@ -40,7 +40,7 @@ makes the env vars below usable at runtime.
 | Name                   | Description                                                                   |
 |------------------------|-------------------------------------------------------------------------------|
 | `app_ids`              | Map app → full Azure Resource ID.                                             |
-| `app_names`            | Map app → deployed resource name (`ca-<workload><app>-<env>`).                |
+| `app_names`            | Map app → deployed resource name (`ca-<app>-<env>`).                          |
 | `app_fqdns`            | Map app → FQDN, or `null` when ingress is disabled. Internal-only by default. |
 | `app_latest_revisions` | Map app → latest revision name.                                               |
 

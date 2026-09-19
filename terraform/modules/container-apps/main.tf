@@ -42,9 +42,9 @@
 resource "azurerm_container_app" "app" {
   for_each = toset(var.apps)
 
-  # CAF form `ca-<workload>-<env>` with the per-app key folded onto the
-  # workload token, as everywhere else in the estate: ca-rgomesapi-lab.
-  name                         = "ca-${var.workload}${each.key}-${var.env}"
+  # Exception to the CAF workload-folding rule (see docs/NAMING.md): no
+  # workload token, so the name stays legible for a set keyed by app name.
+  name                         = "ca-${each.key}-${var.env}"
   container_app_environment_id = var.container_app_environment_id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"

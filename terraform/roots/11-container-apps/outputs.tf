@@ -11,7 +11,7 @@ output "app_ids" {
 }
 
 output "app_names" {
-  description = "Map from app name → deployed resource name (`ca-<env>-<app>`). Convenience for `az containerapp show -n <this>`."
+  description = "Map from app name → deployed resource name (`ca-<app>-<env>`). Convenience for `az containerapp show -n <this>`."
   value       = module.container_apps.app_names
 }
 
@@ -21,6 +21,6 @@ output "app_fqdns" {
 }
 
 output "app_latest_revisions" {
-  description = "Map from app name → latest revision name (e.g. `ca-dev-api--<hash>`). Handy for `az containerapp revision show` and rollback commands."
+  description = "Map from app name → latest revision name (e.g. `ca-api-dev--<hash>`). Handy for `az containerapp revision show` and rollback commands."
   value       = module.container_apps.app_latest_revisions
 }

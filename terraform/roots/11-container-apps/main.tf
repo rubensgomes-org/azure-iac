@@ -99,7 +99,6 @@ data "terraform_remote_state" "container_app_environment" {
 module "container_apps" {
   source = "../../modules/container-apps"
 
-  workload                     = var.workload
   env                          = var.env
   resource_group_name          = data.terraform_remote_state.resource_groups.outputs.rg_app_name
   container_app_environment_id = data.terraform_remote_state.container_app_environment.outputs.cae_id

@@ -304,10 +304,10 @@ jobs:
 
           apps="$(az containerapp list \
             --resource-group "${APP_RG}" \
-            --query "[?starts_with(name, 'ca-${TF_VAR_workload}') && ends_with(name, '-${ENV_NAME}')].name" \
+            --query "[?starts_with(name, 'ca-') && ends_with(name, '-${ENV_NAME}')].name" \
             -o tsv 2>/dev/null || true)"
           if [ -z "${apps}" ]; then
-            echo "No container apps found in '${APP_RG}' matching ca-${TF_VAR_workload}*-${ENV_NAME}."
+            echo "No container apps found in '${APP_RG}' matching ca-*-${ENV_NAME}."
             exit 0
           fi
 
@@ -420,14 +420,14 @@ jobs:
 
           remaining_apps="$(az containerapp list \
             --resource-group "${APP_RG}" \
-            --query "[?starts_with(name, 'ca-${TF_VAR_workload}') && ends_with(name, '-${ENV_NAME}')].name" \
+            --query "[?starts_with(name, 'ca-') && ends_with(name, '-${ENV_NAME}')].name" \
             -o tsv 2>/dev/null || true)"
           if [ -n "${remaining_apps}" ]; then
             echo "FAIL: the following container apps still exist:"
             echo "${remaining_apps}" | sed 's/^/  /'
             rc=1
           else
-            echo "OK: no ca-${TF_VAR_workload}*-${ENV_NAME} container apps remain."
+            echo "OK: no ca-*-${ENV_NAME} container apps remain."
           fi
 
           # Its absence is not failed on -- module 10 may legitimately never
