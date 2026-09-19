@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.17] - 2026-09-19
+
+### Added
+
 - `aca-create.yml`, `aca-destroy.yml`: optional `apps` input on
   `workflow_call`, forwarded to `TF_VAR_apps`. Falls back to the
   `TF_VAR_apps` repository variable when omitted.
