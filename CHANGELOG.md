@@ -30,6 +30,13 @@ premise.
 
 ### Fixed
 
+- `aca-create.yml`, `aca-destroy.yml`, `cae-create.yml`, `cae-destroy.yml`,
+  `acr-create.yml`, `acr-destroy.yml`: checkout now resolves the reusable
+  workflow's own repo/ref via `job.workflow_repository`/`job.workflow_ref`.
+  `github.job_workflow_ref` was observed empty on an actual `workflow_call`
+  run, so checkout fetched the CALLER's repo instead of this one, and `make`
+  failed with "No rule to make target".
+
 ## [0.0.18] - 2026-09-19
 
 ### Added
