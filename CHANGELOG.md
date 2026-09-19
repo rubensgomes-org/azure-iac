@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.18] - 2026-09-19
+
+### Added
+
 - `release.yml`: publish/move a `vX` major-version tag (e.g. `v0`) to the
   release commit after each GitHub Release, so callers can pin
   `@v0` and track the latest `v0.y.z` release.
