@@ -135,16 +135,17 @@ jobs:
       # actions/checkout defaults to github.repository at github.sha, but on
       # workflow_call from another repository those resolve to the CALLER,
       # not this repo -- checking out the caller and finding no Makefile
-      # here. job.workflow_repository/job.workflow_ref name this reusable
-      # workflow's own repo and ref on every trigger, direct dispatch
-      # included. Do not swap this for github.job_workflow_ref: it was
-      # observed empty on an actual workflow_call run, which checked out the
-      # CALLER instead of this repo.
+      # here. job.workflow_repository/job.workflow_sha name this reusable
+      # workflow's own repo and commit on every trigger, direct dispatch
+      # included. job.workflow_ref is the FULL "owner/repo/path@ref" string,
+      # not a bare ref, and breaks actions/checkout's ref: input; do not use it
+      # here. github.job_workflow_ref is unrelated and was observed empty on an
+      # actual workflow_call run, checking out the CALLER instead of this repo.
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_ref }}
+          ref: ${{ job.workflow_sha }}
 
       # A missing caller `secrets:` entry resolves to an empty string, which
       # would fail deep inside `init` with an opaque authentication error.

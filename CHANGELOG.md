@@ -30,6 +30,13 @@ premise.
 
 ### Fixed
 
+- `aca-create.yml`, `aca-destroy.yml`, `cae-create.yml`, `cae-destroy.yml`,
+  `acr-create.yml`, `acr-destroy.yml`: checkout's `ref:` now uses
+  `job.workflow_sha` instead of `job.workflow_ref`. The latter is the FULL
+  `owner/repo/.github/workflows/file.yml@ref` string, not a bare ref, and
+  `actions/checkout` tried to use it as a refspec verbatim, failing with
+  "invalid refspec" on every `workflow_call` run.
+
 ## [0.0.19] - 2026-09-19
 
 ### Added
