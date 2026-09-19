@@ -30,6 +30,14 @@ premise.
 
 ### Fixed
 
+## [0.0.19] - 2026-09-19
+
+### Added
+
+### Changed
+
+### Fixed
+
 - `aca-create.yml`, `aca-destroy.yml`, `cae-create.yml`, `cae-destroy.yml`,
   `acr-create.yml`, `acr-destroy.yml`: checkout now resolves the reusable
   workflow's own repo/ref via `job.workflow_repository`/`job.workflow_ref`.
