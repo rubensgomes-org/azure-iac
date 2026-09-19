@@ -21,7 +21,9 @@ on:
   workflow_dispatch:
     inputs:
       environment_name:
-        description: 'Estate environment holding the registry. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
+        description: >
+          Estate environment holding the registry. Maps to the Makefile ENV
+          variable and selects terraform/envs/<env>.
         type: choice
         required: true
         options:
@@ -29,7 +31,9 @@ on:
           - lab
 
       acr_name:
-        description: 'Registry to destroy. Must match the acr_name recorded in module 06 state.'
+        description: >
+          Registry to destroy. Must match the acr_name recorded in module 06
+          state.
         type: choice
         required: true
         options:
@@ -55,17 +59,24 @@ on:
   workflow_call:
     inputs:
       environment_name:
-        description: 'Estate environment holding the registry. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
+        description: >
+          Estate environment holding the registry. Maps to the Makefile ENV
+          variable and selects terraform/envs/<env>.
         type: string
         required: true
 
       acr_name:
-        description: 'Registry to destroy. Must match the acr_name recorded in module 06 state.'
+        description: >
+          Registry to destroy. Must match the acr_name recorded in module 06
+          state.
         type: string
         required: true
 
       confirm:
-        description: 'SAFEGUARD: must be exactly "Yes". Destroys module 06 only — the registry and all its images. The shared UAMI and the resource groups are not touched.'
+        description: >
+          SAFEGUARD: must be exactly "Yes". Destroys module 06 only — the
+          registry and all its images. The shared UAMI and the resource
+          groups are not touched.
         type: string
         required: true
 
@@ -127,7 +138,8 @@ jobs:
       # DESTROY that is the worst failure mode -- an empty state reads as
       # "nothing exists", and the guards that compare plan scope against state
       # lose their footing.
-      TF_VAR_backend_resource_group_name: ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_backend_resource_group_name: >-
+        ${{ vars.TF_VAR_backend_resource_group_name }}
       TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
       TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
 
@@ -176,7 +188,8 @@ jobs:
             fi
           done
           if [ "${allowed}" != "true" ]; then
-            echo "Denied: this is a personal workflow currently being used by 'Rubens Gomes' only. Actor: '${actor}'."
+            echo "Denied: this is a personal workflow currently being used by"
+            echo "'Rubens Gomes' only. Actor: '${actor}'."
             exit 1
           fi
 
@@ -219,7 +232,8 @@ jobs:
           # below; not a workflow input.
           echo "ACR_NAME=${TYPED_ACR}" >> "$GITHUB_ENV"
           echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}" >> "$GITHUB_ENV"
-          echo "Safeguard passed. Target registry: ${TYPED_ACR} (env ${ENV_NAME})"
+          echo "Safeguard passed."
+          echo "Target registry: ${TYPED_ACR} (env ${ENV_NAME})"
           echo "Scope: module 06 (acr) only. Modules 04 and 01 are not touched."
 
       # Shape check, not the authorization check -- the safeguard above has
@@ -234,17 +248,20 @@ jobs:
             echo "characters starting with a letter."
             exit 1
           fi
-          if ! printf '%s' "${TF_VAR_location}" | grep -qE '^[a-z][a-z0-9]*$'; then
-            echo "FAIL: TF_VAR_location must be a lowercase Azure region identifier"
-            echo "such as 'centralus'."
+          if ! printf '%s' "${TF_VAR_location}" \
+              | grep -qE '^[a-z][a-z0-9]*$'; then
+            echo "FAIL: TF_VAR_location must be a lowercase Azure region"
+            echo "identifier such as 'centralus'."
             exit 1
           fi
-          if ! printf '%s' "${REQUESTED_ACR_NAME}" | grep -qE '^[A-Za-z0-9]{5,50}$'; then
+          if ! printf '%s' "${REQUESTED_ACR_NAME}" \
+              | grep -qE '^[A-Za-z0-9]{5,50}$'; then
             echo "FAIL: acr_name must be 5-50 alphanumeric characters."
             exit 1
           fi
 
-          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}' acr='${REQUESTED_ACR_NAME}'."
+          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}'"
+          echo "acr='${REQUESTED_ACR_NAME}'."
 
       # A missing variable or secret resolves to an empty string, which would
       # fail deep inside init with an opaque auth error.
@@ -253,10 +270,10 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID \
-                   TF_VAR_env TF_VAR_location TF_VAR_acr_name \
-                   TF_VAR_backend_resource_group_name TF_VAR_storage_account_id \
-                   TF_VAR_container_name; do
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_env TF_VAR_location \
+                   TF_VAR_acr_name TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
             if [ -z "${!v:-}" ]; then
               echo "Missing required secret/env var: ${v}"
               missing=1
@@ -266,11 +283,13 @@ jobs:
             echo "Check the calling repository's Actions configuration:"
             echo "  Variables: AZURE_CLIENT_ID, AZURE_TENANT_ID,"
             echo "             AZURE_SUBSCRIPTION_ID, TF_VAR_location,"
-            echo "             TF_VAR_backend_resource_group_name, TF_VAR_workload,"
-            echo "             TF_VAR_storage_account_id, TF_VAR_container_name"
+            echo "             TF_VAR_backend_resource_group_name,"
+            echo "             TF_VAR_workload, TF_VAR_storage_account_id,"
+            echo "             TF_VAR_container_name"
             echo "  Secret:    AZURE_CLIENT_SECRET"
-            echo "For workflow_call, variables resolve in the caller's repository;"
-            echo "pass the secret explicitly or define it in its AZURE Environment."
+            echo "For workflow_call, variables resolve in the caller's"
+            echo "repository; pass the secret explicitly or define it in"
+            echo "its AZURE Environment."
           fi
           exit $missing
 
@@ -281,33 +300,40 @@ jobs:
 
           # Mirrors the `workload` validation every module declares:
           # 2-16 lowercase alnum, starting with a letter.
-          if ! printf '%s' "${TF_VAR_workload}" | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+          if ! printf '%s' "${TF_VAR_workload}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
             echo "FAIL: TF_VAR_workload must be 2-16 lowercase alphanumeric"
             echo "characters starting with a letter."
             exit 1
           fi
           if [ "${TF_VAR_backend_resource_group_name: -1}" = "." ]; then
-            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with a period."
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with a"
+            echo "period."
             exit 1
           fi
           if [ "${#TF_VAR_backend_resource_group_name}" -gt 90 ]; then
-            echo "FAIL: TF_VAR_backend_resource_group_name cannot exceed 90 characters."
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot exceed 90"
+            echo "characters."
             exit 1
           fi
 
           # A typo here points Terraform at a different (or nonexistent)
           # state, where it sees an empty world.
-          if ! printf '%s' "${TF_VAR_storage_account_id}" | grep -qE '^[a-z0-9]{3,24}$'; then
+          if ! printf '%s' "${TF_VAR_storage_account_id}" \
+              | grep -qE '^[a-z0-9]{3,24}$'; then
             echo "FAIL: TF_VAR_storage_account_id must be 3-24 lowercase"
             echo "alphanumeric characters (an Azure storage account name)."
             exit 1
           fi
-          if ! printf '%s' "${TF_VAR_container_name}" | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
+          if ! printf '%s' "${TF_VAR_container_name}" \
+              | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
             echo "FAIL: TF_VAR_container_name must be 3-63 lowercase"
             echo "alphanumeric/hyphen characters starting with alphanumeric."
             exit 1
           fi
-          echo "Backend: ${TF_VAR_backend_resource_group_name}/${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
+          backend="${TF_VAR_backend_resource_group_name}/"
+          backend+="${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
+          echo "Backend: ${backend}"
 
       # Terraform does not need this; it reads ARM_* from the environment. The
       # az CLI is used for the inventory and verification steps.
@@ -333,16 +359,19 @@ jobs:
             exit 0
           fi
 
-          repos="$(az acr repository list -n "${ACR_NAME}" -o tsv 2>/dev/null || true)"
+          repos="$(az acr repository list -n "${ACR_NAME}" -o tsv \
+            2>/dev/null || true)"
           if [ -z "${repos}" ]; then
             echo "Registry '${ACR_NAME}' exists and holds no repositories."
             exit 0
           fi
 
-          echo "The following repositories and tags will be PERMANENTLY deleted:"
+          echo "The following repositories and tags will be PERMANENTLY"
+          echo "deleted:"
           echo "${repos}" | while IFS= read -r repo; do
             [ -n "${repo}" ] || continue
-            tags="$(az acr repository show-tags -n "${ACR_NAME}" --repository "${repo}" -o tsv 2>/dev/null | tr '\n' ' ')"
+            tags="$(az acr repository show-tags -n "${ACR_NAME}" \
+              --repository "${repo}" -o tsv 2>/dev/null | tr '\n' ' ')"
             echo "  ${repo}: ${tags:-<untagged manifests only>}"
           done
 
@@ -357,38 +386,48 @@ jobs:
         run: |
           set -euo pipefail
 
-          login_server="$(az acr show -n "${ACR_NAME}" --query loginServer -o tsv 2>/dev/null || true)"
+          login_server="$(az acr show -n "${ACR_NAME}" \
+            --query loginServer -o tsv 2>/dev/null || true)"
           if [ -z "${login_server}" ]; then
-            echo "Registry '${ACR_NAME}' does not exist. Nothing to guard against."
+            echo "Registry '${ACR_NAME}' does not exist. Nothing to guard"
+            echo "against."
             exit 0
           fi
 
-          apps_json="$(az containerapp list --resource-group "${APP_RG}" -o json 2>/dev/null || echo '[]')"
+          apps_json="$(az containerapp list --resource-group "${APP_RG}" \
+            -o json 2>/dev/null || echo '[]')"
           dependents="$(printf '%s' "${apps_json}" | jq -r \
             --arg workload "${TF_VAR_workload}" \
             --arg env "${ENV_NAME}" \
             --arg ls "${login_server}" '
               .[]
-              | select((.name | startswith("ca-" + $workload)) and (.name | endswith("-" + $env)))
               | select(
-                  (any(.properties.template.containers[]?; (.image // "") | startswith($ls + "/")))
-                  or (any(.properties.configuration.registries[]?; (.server // "") == $ls))
+                  (.name | startswith("ca-" + $workload))
+                  and (.name | endswith("-" + $env))
+                )
+              | select(
+                  (any(.properties.template.containers[]?;
+                    (.image // "") | startswith($ls + "/")))
+                  or (any(.properties.configuration.registries[]?;
+                    (.server // "") == $ls))
                 )
               | .name
             ' 2>/dev/null || true)"
           if [ -z "${dependents}" ]; then
-            echo "OK: no container apps in '${APP_RG}' reference '${login_server}'."
+            echo "OK: no container apps in '${APP_RG}' reference"
+            echo "'${login_server}'."
             exit 0
           fi
 
           echo "DENIED: the following container apps reference this registry:"
           echo "${dependents}" | sed 's/^/  /'
           echo ""
-          echo "Deleting the registry would not stop these apps immediately -- an"
-          echo "already-pulled image keeps running -- but any future pull (a new"
-          echo "revision, a scale-out, or the next cold start after scale-to-zero)"
-          echo "would fail. Point these apps at a different registry, or destroy"
-          echo "them first (aca-destroy.yml, confirm: Yes), then re-run this workflow."
+          echo "Deleting the registry would not stop these apps immediately --"
+          echo "an already-pulled image keeps running -- but any future pull (a"
+          echo "new revision, a scale-out, or the next cold start after"
+          echo "scale-to-zero) would fail. Point these apps at a different"
+          echo "registry, or destroy them first (aca-destroy.yml, confirm:"
+          echo "Yes), then re-run this workflow."
           exit 1
 
       # terraform_wrapper is false: the wrapper intercepts stdout, which the
@@ -408,13 +447,15 @@ jobs:
           outputs="$(cd "${ROOTS_DIR}/06-acr" && terraform output -json)"
           state_acr="$(jq -r '.acr_name.value // empty' <<< "${outputs}")"
           if [ -z "${state_acr}" ]; then
-            echo "Module 06 state has no acr_name output; treating this as an already-destroyed run."
+            echo "Module 06 state has no acr_name output; treating this as an"
+            echo "already-destroyed run."
           elif [ "${state_acr}" != "${REQUESTED_ACR_NAME}" ]; then
             echo "DENIED: module 06 state contains registry '${state_acr}',"
             echo "but this run requested '${REQUESTED_ACR_NAME}'."
             exit 1
           else
-            echo "OK: requested registry matches Terraform state (${state_acr})."
+            echo "OK: requested registry matches Terraform state"
+            echo "(${state_acr})."
           fi
 
       # Belt-and-braces: module 06 has its own state key, so its plan
@@ -440,7 +481,8 @@ jobs:
 
           # Written to RUNNER_TEMP, not the module directory: *tfplan* is
           # gitignored but plan.json would not be.
-          plan_json="${RUNNER_TEMP}/$(basename "${module_dir}")-destroy-plan.json"
+          plan_json="${RUNNER_TEMP}/$(basename "${module_dir}")"
+          plan_json="${plan_json}-destroy-plan.json"
           ( cd "${module_dir}" && terraform show -json tfplan ) > "${plan_json}"
 
           doomed="$(jq -r '
@@ -449,7 +491,8 @@ jobs:
             | "\(.type) \(.address)"' "${plan_json}")"
 
           if [ -z "${doomed}" ]; then
-            echo "${label}: plan proposes no deletions — already destroyed. The destroy step will be a no-op."
+            echo "${label}: plan proposes no deletions — already destroyed."
+            echo "The destroy step will be a no-op."
             exit 0
           fi
 
@@ -468,14 +511,16 @@ jobs:
 
           if [ -n "${forbidden}" ]; then
             echo ""
-            echo "DENIED: ${label}'s destroy plan reaches beyond its own module:"
+            echo "DENIED: ${label}'s destroy plan reaches beyond its own"
+            echo "module:"
             printf '%s' "${forbidden}"
             echo "Allowed types for this module: ${allowed}"
             echo "Aborting before any change."
             exit 1
           fi
 
-          echo "${label}: guard passed — nothing outside this module in scope."
+          echo "${label}: guard passed — nothing outside this module in"
+          echo "scope."
           GUARD
           chmod +x "${RUNNER_TEMP}/assert-plan-scope.sh"
 
@@ -516,7 +561,8 @@ jobs:
             echo "FAIL: registry '${ACR_NAME}' still exists."
             rc=1
           else
-            echo "OK: registry '${ACR_NAME}' is gone (name released; Basic SKU has no soft-delete)."
+            echo "OK: registry '${ACR_NAME}' is gone (name released; Basic"
+            echo "SKU has no soft-delete)."
           fi
 
           # Their absence is not failed on -- they may legitimately never have
@@ -529,34 +575,42 @@ jobs:
             --name "${uami}" \
             --query name -o tsv 2>/dev/null || true)"
           if [ -n "${identity}" ]; then
-            echo "OK: managed identity '${uami}' still present in '${platform_rg}' (module 04 untouched)."
+            echo "OK: managed identity '${uami}' still present in"
+            echo "'${platform_rg}' (module 04 untouched)."
           else
-            echo "WARNING: managed identity '${uami}' does not exist in '${platform_rg}'."
-            echo "         This workflow does not destroy module 04. If it was there"
-            echo "         before this run, the destroy scope leaked — investigate."
+            echo "WARNING: managed identity '${uami}' does not exist in"
+            echo "         '${platform_rg}'. This workflow does not destroy"
+            echo "         module 04. If it was there before this run, the"
+            echo "         destroy scope leaked — investigate."
           fi
 
           # Anchor on BOTH ends so a differently suffixed estate in the same
           # subscription is not counted. The backend RG matches both anchors
           # too and is excluded by name: counting it would let the OK branch
           # be satisfied by the backend alone.
-          remaining="$(az group list \
-            --query "[?starts_with(name, 'rg-${TF_VAR_workload}') && ends_with(name, '-${ENV_NAME}') && name != '${TF_VAR_backend_resource_group_name}'].name" \
-            -o tsv)"
+          query="[?starts_with(name, 'rg-${TF_VAR_workload}') &&"
+          query="${query} ends_with(name, '-${ENV_NAME}') &&"
+          query="${query} name != '${TF_VAR_backend_resource_group_name}'].name"
+          remaining="$(az group list --query "${query}" -o tsv)"
           if [ -n "${remaining}" ]; then
-            echo "OK: rg-${TF_VAR_workload}*-${ENV_NAME} resource groups still present (module 01 untouched):"
+            echo "OK: rg-${TF_VAR_workload}*-${ENV_NAME} resource groups still"
+            echo "present (module 01 untouched):"
             echo "${remaining}" | sed 's/^/  /'
           else
-            echo "WARNING: no rg-${TF_VAR_workload}*-${ENV_NAME} resource groups exist."
-            echo "         This workflow does not destroy module 01. If they were there"
-            echo "         before this run, the destroy scope leaked — investigate."
+            echo "WARNING: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
+            echo "         groups exist. This workflow does not destroy"
+            echo "         module 01. If they were there before this run, the"
+            echo "         destroy scope leaked — investigate."
           fi
 
           # The state backend is not this workflow's to delete.
-          if az group show -n "${TF_VAR_backend_resource_group_name}" -o none 2>/dev/null; then
-            echo "OK: state backend resource group '${TF_VAR_backend_resource_group_name}' preserved."
+          if az group show -n "${TF_VAR_backend_resource_group_name}" \
+              -o none 2>/dev/null; then
+            echo "OK: state backend resource group"
+            echo "'${TF_VAR_backend_resource_group_name}' preserved."
           else
-            echo "FAIL: '${TF_VAR_backend_resource_group_name}' is missing — the Terraform state backend is gone."
+            echo "FAIL: '${TF_VAR_backend_resource_group_name}' is missing —"
+            echo "the Terraform state backend is gone."
             rc=1
           fi
 

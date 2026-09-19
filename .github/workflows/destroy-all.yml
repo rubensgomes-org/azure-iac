@@ -19,7 +19,9 @@ on:
   workflow_dispatch:
     inputs:
       environment_name:
-        description: 'Estate environment to destroy. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
+        description: >
+          Estate environment to destroy. Maps to the Makefile ENV variable
+          and selects terraform/envs/<env>.
         type: choice
         required: true
         options:
@@ -102,8 +104,10 @@ jobs:
       TF_VAR_apps: ${{ vars.TF_VAR_apps }}
 
       # Required by 09-postgresql. Both describe the same Entra group.
-      TF_VAR_pg_entra_admin_group_object_id: ${{ vars.TF_VAR_pg_entra_admin_group_object_id }}
-      TF_VAR_pg_entra_admin_group_name: ${{ vars.TF_VAR_pg_entra_admin_group_name }}
+      TF_VAR_pg_entra_admin_group_object_id: >-
+        ${{ vars.TF_VAR_pg_entra_admin_group_object_id }}
+      TF_VAR_pg_entra_admin_group_name: >-
+        ${{ vars.TF_VAR_pg_entra_admin_group_name }}
 
       # Required by 12-monitoring.
       TF_VAR_action_group_email: ${{ vars.TF_VAR_action_group_email }}
@@ -112,7 +116,8 @@ jobs:
       # counts as a value and points Terraform at a nonexistent state. On a
       # destroy that is the worst failure mode there is -- every module plans
       # a clean no-op, the run reports success, and the estate is standing.
-      TF_VAR_backend_resource_group_name: ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_backend_resource_group_name: >-
+        ${{ vars.TF_VAR_backend_resource_group_name }}
       TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
       TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
 
@@ -154,7 +159,8 @@ jobs:
             fi
           done
           if [ "${allowed}" != "true" ]; then
-            echo "Denied: this is a personal workflow currently being used by 'Rubens Gomes' only. Actor: '${actor}'."
+            echo "Denied: this is a personal workflow currently being used"
+            echo "by 'Rubens Gomes' only. Actor: '${actor}'."
             exit 1
           fi
 
@@ -165,7 +171,8 @@ jobs:
           fi
 
           if [ "${DRY_RUN}" = "true" ]; then
-            echo "Dry run. The confirmation phrase is not required and is ignored."
+            echo "Dry run. The confirmation phrase is not required and is"
+            echo "ignored."
             echo "Nothing in Azure will be modified."
             exit 0
           fi
@@ -188,8 +195,10 @@ jobs:
             exit 1
           fi
 
-          echo "Safeguard passed. Target estate: ${ENV_NAME} (all twelve modules)."
-          echo "Scope: terraform/roots/ against env ${ENV_NAME} only. The state backend is NOT destroyed."
+          echo "Safeguard passed. Target estate: ${ENV_NAME} (all twelve"
+          echo "modules)."
+          echo "Scope: terraform/roots/ against env ${ENV_NAME} only. The"
+          echo "state backend is NOT destroyed."
 
       # Shape checks run here rather than being left to Terraform's own
       # `validation` blocks, which surface several minutes into a run.
@@ -198,14 +207,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          if ! printf '%s' "${TF_VAR_env}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+          if ! printf '%s' "${TF_VAR_env}" \
+              | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
             echo "FAIL: TF_VAR_env must be 2-10 lowercase alphanumeric"
             echo "characters starting with a letter."
             exit 1
           fi
-          if ! printf '%s' "${TF_VAR_location}" | grep -qE '^[a-z][a-z0-9]*$'; then
+          if ! printf '%s' "${TF_VAR_location}" \
+              | grep -qE '^[a-z][a-z0-9]*$'; then
             echo "FAIL: TF_VAR_location must be a lowercase Azure region token"
-            echo "such as centralus. Fix the TF_VAR_location repository variable."
+            echo "such as centralus. Fix the TF_VAR_location repository"
+            echo "variable."
             exit 1
           fi
           echo "Inputs OK: env=${TF_VAR_env} location=${TF_VAR_location}"
@@ -218,13 +230,13 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID \
-                   TF_VAR_env TF_VAR_location TF_VAR_acr_name \
-                   TF_VAR_apps TF_VAR_action_group_email \
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_env TF_VAR_location \
+                   TF_VAR_acr_name TF_VAR_apps TF_VAR_action_group_email \
                    TF_VAR_pg_entra_admin_group_object_id \
                    TF_VAR_pg_entra_admin_group_name \
-                   TF_VAR_backend_resource_group_name TF_VAR_storage_account_id \
-                   TF_VAR_container_name; do
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
             if [ -z "${!v:-}" ]; then
               echo "Missing required secret/env var: ${v}"
               missing=1
@@ -250,30 +262,36 @@ jobs:
 
           # Mirrors the `workload` validation every module declares:
           # 2-16 lowercase alnum, starting with a letter.
-          if ! printf '%s' "${TF_VAR_workload}" | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+          if ! printf '%s' "${TF_VAR_workload}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
             echo "FAIL: TF_VAR_workload must be 2-16 lowercase alphanumeric"
             echo "characters starting with a letter."
             exit 1
           fi
           if [ "${TF_VAR_backend_resource_group_name: -1}" = "." ]; then
-            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with a period."
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with"
+            echo "a period."
             exit 1
           fi
           if [ "${#TF_VAR_backend_resource_group_name}" -gt 90 ]; then
-            echo "FAIL: TF_VAR_backend_resource_group_name cannot exceed 90 characters."
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot exceed 90"
+            echo "characters."
             exit 1
           fi
-          if ! printf '%s' "${TF_VAR_storage_account_id}" | grep -qE '^[a-z0-9]{3,24}$'; then
+          if ! printf '%s' "${TF_VAR_storage_account_id}" \
+              | grep -qE '^[a-z0-9]{3,24}$'; then
             echo "FAIL: TF_VAR_storage_account_id must be 3-24 lowercase"
             echo "alphanumeric characters (an Azure storage account name)."
             exit 1
           fi
-          if ! printf '%s' "${TF_VAR_container_name}" | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
+          if ! printf '%s' "${TF_VAR_container_name}" \
+              | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
             echo "FAIL: TF_VAR_container_name must be 3-63 lowercase"
             echo "alphanumeric/hyphen characters starting with alphanumeric."
             exit 1
           fi
-          echo "Backend: ${TF_VAR_backend_resource_group_name}/${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
+          echo "Backend: ${TF_VAR_backend_resource_group_name}/\
+          ${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
           echo "RG names: rg-${TF_VAR_workload}<purpose>-${ENV_NAME}"
 
       # Terraform does not need this; it reads ARM_* from the environment.
@@ -308,11 +326,15 @@ jobs:
 
           # The backend RG follows the same rg-<workload><purpose>-<env>
           # pattern, so both anchors match it. It is never in scope.
-          rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && ends_with(name, '-${ENV_NAME}') && name != '${TF_VAR_backend_resource_group_name}'].name"
+          rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
+          ends_with(name, '-${ENV_NAME}') && \
+          name != '${TF_VAR_backend_resource_group_name}'].name"
 
-          groups="$(az group list --query "${rg_query}" -o tsv 2>/dev/null || true)"
+          groups="$(az group list --query "${rg_query}" \
+            -o tsv 2>/dev/null || true)"
           if [ -z "${groups}" ]; then
-            echo "No rg-${TF_VAR_workload}*-${ENV_NAME} resource groups exist. Nothing to inventory."
+            echo "No rg-${TF_VAR_workload}*-${ENV_NAME} resource groups"
+            echo "exist. Nothing to inventory."
             exit 0
           fi
 
@@ -398,7 +420,9 @@ jobs:
           # Anchoring BOTH ends distinguishes this estate from a parallel one
           # in the same subscription. Both anchors also match the backend RG,
           # which must survive: exclude it here and assert it separately.
-          rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && ends_with(name, '-${ENV_NAME}') && name != '${TF_VAR_backend_resource_group_name}'].name"
+          rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
+          ends_with(name, '-${ENV_NAME}') && \
+          name != '${TF_VAR_backend_resource_group_name}'].name"
           remaining="$(az group list --query "${rg_query}" -o tsv)"
           if [ -n "${remaining}" ]; then
             echo "FAIL: resource groups still exist after the destroy:"
@@ -406,7 +430,8 @@ jobs:
             echo "       Re-dispatch to resume — the teardown is idempotent."
             rc=1
           else
-            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME} resource groups remain."
+            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
+            echo "groups remain."
           fi
 
           # The vault name is the deterministic kv-<workload>-<env> with no
@@ -418,16 +443,20 @@ jobs:
           if [ -n "${deleted_vaults}" ]; then
             echo "WARNING: soft-deleted Key Vault(s) remain:"
             echo "${deleted_vaults}" | sed 's/^/  /'
-            echo "         Purge with: az keyvault purge --name <name> --location <region>"
+            echo "         Purge with: az keyvault purge --name <name>"
+            echo "         --location <region>"
           else
             echo "OK: no soft-deleted Key Vault left behind."
           fi
 
           # The state backend is not this workflow's to delete.
-          if az group show -n "${TF_VAR_backend_resource_group_name}" -o none 2>/dev/null; then
-            echo "OK: state backend resource group '${TF_VAR_backend_resource_group_name}' preserved."
+          if az group show -n "${TF_VAR_backend_resource_group_name}" \
+              -o none 2>/dev/null; then
+            echo "OK: state backend resource group"
+            echo "'${TF_VAR_backend_resource_group_name}' preserved."
           else
-            echo "FAIL: '${TF_VAR_backend_resource_group_name}' is missing — the Terraform state backend is gone."
+            echo "FAIL: '${TF_VAR_backend_resource_group_name}' is missing"
+            echo "— the Terraform state backend is gone."
             rc=1
           fi
 

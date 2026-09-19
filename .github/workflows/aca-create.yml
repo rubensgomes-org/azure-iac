@@ -19,24 +19,38 @@ on:
   workflow_call:
     inputs:
       environment_name:
-        description: 'Estate environment to provision. Maps to the Makefile ENV variable and selects terraform/envs/<env>.'
+        description: >
+          Estate environment to provision. Maps to the Makefile ENV variable
+          and selects terraform/envs/<env>.
         type: string
         required: true
 
       acr_name:
-        description: 'Registry to pull images from (module 06). Passed to Terraform as TF_VAR_acr_name.'
+        description: >
+          Registry to pull images from (module 06). Passed to Terraform as
+          TF_VAR_acr_name.
         type: string
         required: true
+
+      apps:
+        description: >
+          JSON array of app names to provision, e.g. ["api","worker"].
+          Defaults to the TF_VAR_apps repository variable when omitted.
+        type: string
+        required: false
 
     outputs:
       app_ids:
         description: 'JSON map from app name to full Azure Resource ID.'
         value: ${{ jobs.provision.outputs.app_ids }}
       app_names:
-        description: 'JSON map from app name to deployed resource name, e.g. ca-api-lab.'
+        description: >
+          JSON map from app name to deployed resource name, e.g. ca-api-lab.
         value: ${{ jobs.provision.outputs.app_names }}
       app_fqdns:
-        description: 'JSON map from app name to FQDN (internal-only by default), or null when ingress is disabled.'
+        description: >
+          JSON map from app name to FQDN (internal-only by default), or null
+          when ingress is disabled.
         value: ${{ jobs.provision.outputs.app_fqdns }}
       app_latest_revisions:
         description: 'JSON map from app name to latest revision name.'
@@ -89,7 +103,8 @@ jobs:
       app_ids: ${{ steps.aca_outputs.outputs.app_ids }}
       app_names: ${{ steps.aca_outputs.outputs.app_names }}
       app_fqdns: ${{ steps.aca_outputs.outputs.app_fqdns }}
-      app_latest_revisions: ${{ steps.aca_outputs.outputs.app_latest_revisions }}
+      app_latest_revisions: ${{
+        steps.aca_outputs.outputs.app_latest_revisions }}
 
     env:
       # Declared at job level so every `make` step inherits them; the recipes
@@ -132,7 +147,8 @@ jobs:
       # No `|| default` here, unlike TF_VAR_workload: an empty TF_VAR_ still
       # counts as a value and would point the state read at a nameless
       # storage account. The guard step below rejects that explicitly.
-      TF_VAR_backend_resource_group_name: ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_backend_resource_group_name: ${{
+        vars.TF_VAR_backend_resource_group_name }}
       TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
       TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
 
@@ -143,7 +159,9 @@ jobs:
       # Placeholder images only -- this workflow does not accept
       # apps_image_map/default_image/target_port overrides; swap real images
       # in locally per terraform/roots/11-container-apps/README.md.
-      TF_VAR_apps: ${{ vars.TF_VAR_apps }}
+      # `inputs.apps` is only set on workflow_call; a workflow_dispatch run
+      # falls through to the repository variable, same as before.
+      TF_VAR_apps: ${{ inputs.apps || vars.TF_VAR_apps }}
 
     steps:
       - name: Checkout repository
@@ -157,10 +175,11 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID \
-                   TF_VAR_env TF_VAR_location TF_VAR_apps TF_VAR_acr_name \
-                   TF_VAR_backend_resource_group_name TF_VAR_storage_account_id \
-                   TF_VAR_container_name; do
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_env TF_VAR_location \
+                   TF_VAR_apps TF_VAR_acr_name \
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
             if [ -z "${!v:-}" ]; then
               echo "Missing required secret/env var: ${v}"
               missing=1
@@ -169,12 +188,13 @@ jobs:
           if [ "$missing" -ne 0 ]; then
             echo "Check the calling repository's Actions configuration:"
             echo "  Variables: AZURE_CLIENT_ID, AZURE_TENANT_ID,"
-            echo "             AZURE_SUBSCRIPTION_ID, TF_VAR_location, TF_VAR_apps,"
+            echo "             AZURE_SUBSCRIPTION_ID, TF_VAR_location,"
+            echo "             TF_VAR_apps,"
             echo "             TF_VAR_backend_resource_group_name,"
             echo "             TF_VAR_storage_account_id, TF_VAR_container_name"
             echo "  Secret:    AZURE_CLIENT_SECRET"
-            echo "  TF_VAR_env and TF_VAR_acr_name are derived from the workflow"
-            echo "  inputs, not from repository variables."
+            echo "  TF_VAR_env and TF_VAR_acr_name are derived from the"
+            echo "  workflow inputs, not from repository variables."
           fi
           exit $missing
 
@@ -186,26 +206,32 @@ jobs:
           set -euo pipefail
 
           if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
-            echo "FAIL: environment_name must be 2-10 lowercase alphanumeric characters"
-            echo "starting with a letter."
+            echo "FAIL: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
             exit 1
           fi
-          if ! printf '%s' "${TF_VAR_location}" | grep -qE '^[a-z][a-z0-9]*$'; then
-            echo "FAIL: TF_VAR_location must be a lowercase Azure region identifier"
-            echo "such as 'centralus'."
+          if ! printf '%s' "${TF_VAR_location}" \
+              | grep -qE '^[a-z][a-z0-9]*$'; then
+            echo "FAIL: TF_VAR_location must be a lowercase Azure region"
+            echo "identifier such as 'centralus'."
             exit 1
           fi
-          if ! printf '%s' "${TF_VAR_apps}" | jq -e 'type == "array" and length > 0 and all(.[]; type == "string")' >/dev/null 2>&1; then
+          if ! printf '%s' "${TF_VAR_apps}" \
+              | jq -e 'type == "array" and length > 0
+                       and all(.[]; type == "string")' >/dev/null 2>&1; then
             echo "FAIL: TF_VAR_apps must be a non-empty JSON array of strings,"
-            echo "e.g. [\"api\",\"worker\"]. Set the TF_VAR_apps repository variable."
+            echo "e.g. [\"api\",\"worker\"]. Set the TF_VAR_apps repository"
+            echo "variable."
             exit 1
           fi
-          if ! printf '%s' "${REQUESTED_ACR_NAME}" | grep -qE '^[A-Za-z0-9]{5,50}$'; then
+          if ! printf '%s' "${REQUESTED_ACR_NAME}" \
+              | grep -qE '^[A-Za-z0-9]{5,50}$'; then
             echo "FAIL: acr_name must be 5-50 alphanumeric characters."
             exit 1
           fi
 
-          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}' apps='${TF_VAR_apps}' acr='${REQUESTED_ACR_NAME}'."
+          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}'"
+          echo "apps='${TF_VAR_apps}' acr='${REQUESTED_ACR_NAME}'."
 
       # A repository variable is edited in the GitHub UI with no review and no
       # diff, so its shape is checked before it reaches Make or Terraform.
@@ -213,10 +239,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Resolved workload: '${TF_VAR_workload:-}' (RG names look like rg-${TF_VAR_workload:-}app-${ENV_NAME})"
+          echo "Resolved workload: '${TF_VAR_workload:-}' (RG names look"
+          echo "like rg-${TF_VAR_workload:-}app-${ENV_NAME})"
           # Mirrors the `workload` validation every module declares:
           # 2-16 lowercase alnum, starting with a letter.
-          if ! printf '%s' "${TF_VAR_workload:-}" | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+          if ! printf '%s' "${TF_VAR_workload:-}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
             echo "FAIL: workload must be 2-16 lowercase alphanumeric"
             echo "characters starting with a letter."
             echo "Fix the TF_VAR_workload repository variable:"
@@ -227,12 +255,14 @@ jobs:
           # A typo here points Terraform at a different (or nonexistent)
           # state, where it sees an empty world and proposes to create the
           # estate a second time.
-          if ! printf '%s' "${TF_VAR_storage_account_id}" | grep -qE '^[a-z0-9]{3,24}$'; then
+          if ! printf '%s' "${TF_VAR_storage_account_id}" \
+              | grep -qE '^[a-z0-9]{3,24}$'; then
             echo "FAIL: TF_VAR_storage_account_id must be 3-24 lowercase"
             echo "alphanumeric characters (an Azure storage account name)."
             exit 1
           fi
-          if ! printf '%s' "${TF_VAR_container_name}" | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
+          if ! printf '%s' "${TF_VAR_container_name}" \
+              | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
             echo "FAIL: TF_VAR_container_name must be 3-63 lowercase"
             echo "alphanumeric/hyphen characters starting with alphanumeric."
             exit 1
@@ -243,7 +273,8 @@ jobs:
             echo "period or exceed 90 characters."
             exit 1
           fi
-          echo "Backend: ${TF_VAR_backend_resource_group_name}/${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
+          echo "Backend: ${TF_VAR_backend_resource_group_name}/"
+          echo "${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
 
       # terraform_wrapper is false: the wrapper intercepts stdout, which would
       # break the `terraform output` calls in the outputs step.
@@ -280,8 +311,8 @@ jobs:
             echo "      but TF_VAR_workload asks for '${expected}'."
             echo ""
             echo "workload is ForceNew on azurerm_resource_group. Applying this"
-            echo "would plan a destroy+recreate of all five resource groups, not"
-            echo "a rename, and every resource inside them is owned by a"
+            echo "would plan a destroy+recreate of all five resource groups,"
+            echo "not a rename, and every resource inside them is owned by a"
             echo "different state file that knows nothing about the change."
             echo ""
             echo "Tear the estate down first with make destroy,"
@@ -321,7 +352,8 @@ jobs:
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
-            init-managed-identities plan-managed-identities apply-managed-identities
+            init-managed-identities plan-managed-identities \
+            apply-managed-identities
 
       # Module 11 injects this vault's URI into every app as KEY_VAULT_URI.
       - name: Module 05 - key vault
@@ -342,7 +374,9 @@ jobs:
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
-            init-container-app-environment plan-container-app-environment apply-container-app-environment
+            init-container-app-environment \
+            plan-container-app-environment \
+            apply-container-app-environment
 
       - name: Module 11 - container apps
         shell: bash
@@ -364,9 +398,11 @@ jobs:
           app_ids="$(terraform output -json app_ids | jq -c .)"
           app_names="$(terraform output -json app_names | jq -c .)"
           app_fqdns="$(terraform output -json app_fqdns | jq -c .)"
-          app_latest_revisions="$(terraform output -json app_latest_revisions | jq -c .)"
-          echo "app_ids=${app_ids}"                             >> "$GITHUB_OUTPUT"
-          echo "app_names=${app_names}"                         >> "$GITHUB_OUTPUT"
-          echo "app_fqdns=${app_fqdns}"                         >> "$GITHUB_OUTPUT"
-          echo "app_latest_revisions=${app_latest_revisions}"   >> "$GITHUB_OUTPUT"
+          app_latest_revisions="$(terraform output -json \
+            app_latest_revisions | jq -c .)"
+          echo "app_ids=${app_ids}" >> "$GITHUB_OUTPUT"
+          echo "app_names=${app_names}" >> "$GITHUB_OUTPUT"
+          echo "app_fqdns=${app_fqdns}" >> "$GITHUB_OUTPUT"
+          echo "app_latest_revisions=${app_latest_revisions}" \
+            >> "$GITHUB_OUTPUT"
           echo "Apps ready: ${app_fqdns}"

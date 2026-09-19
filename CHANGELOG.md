@@ -26,7 +26,14 @@ premise.
 
 ### Added
 
+- `aca-create.yml`, `aca-destroy.yml`: optional `apps` input on
+  `workflow_call`, forwarded to `TF_VAR_apps`. Falls back to the
+  `TF_VAR_apps` repository variable when omitted.
+
 ### Changed
+
+- All `.github/workflows/*.yml` reflowed to a maximum line width of 80
+  columns. No functional changes.
 
 ### Fixed
 

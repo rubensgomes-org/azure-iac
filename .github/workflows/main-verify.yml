@@ -18,7 +18,8 @@ on:
       # Defaults to false, so a bare dispatch skips the sonar job. It reports
       # as skipped, not as a pass: a skipped scan is not a green gate.
       run_sonar:
-        description: "Also run the SonarCloud scan (publishes main's quality gate)"
+        description: >
+          Also run the SonarCloud scan (publishes main's quality gate)
         required: false
         type: boolean
         default: false
@@ -109,8 +110,9 @@ jobs:
               end
             end
             bad.each do |f, name, m|
-              puts "::error file=#{f}::#{m} appears inside the run body of step " \
-                   "\x27#{name}\x27. Bind it to an env: key and reference \"$VAR\" instead."
+              puts "::error file=#{f}::#{m} appears inside the run body " \
+                   "of step \x27#{name}\x27. Bind it to an env: key and " \
+                   "reference \"$VAR\" instead."
             end
             if bad.empty?
               puts "clean: no run body interpolates a GitHub expression"
@@ -145,8 +147,9 @@ jobs:
           set -euo pipefail
           if [ "${SOURCE_REF}" != "refs/heads/main" ]; then
             echo "Denied: the sonar job analyses 'main' only."
-            echo "sonar-project.properties pins sonar.branch.name=main, so a run"
-            echo "from another ref would publish its code as main's analysis."
+            echo "sonar-project.properties pins sonar.branch.name=main, so a"
+            echo "run from another ref would publish its code as main's"
+            echo "analysis."
             echo "Ref: '${SOURCE_REF}'"
             exit 1
           fi

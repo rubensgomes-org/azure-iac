@@ -69,7 +69,11 @@ jobs:
           echo "Triggering ref: ${RELEASE_TAG}"
 
           if [ "${expected}" != "${RELEASE_TAG}" ]; then
-            echo "::error::Ref ${RELEASE_TAG} does not match VERSION (${expected}). Cut releases with 'make release-<level>'; if dispatching by hand, dispatch from the tag ref, not a branch."
+            msg="::error::Ref ${RELEASE_TAG} does not match VERSION "
+            msg+="(${expected}). Cut releases with 'make release-<level>'; "
+            msg+="if dispatching by hand, dispatch from the tag ref, not a "
+            msg+="branch."
+            echo "${msg}"
             exit 1
           fi
 
@@ -124,7 +128,8 @@ jobs:
 
           # Print everything between this version's heading and the next one.
           awk -v ver="${version}" '
-            $0 == "## [" ver "]" || index($0, "## [" ver "] ") == 1 { f = 1; next }
+            $0 == "## [" ver "]" ||
+              index($0, "## [" ver "] ") == 1 { f = 1; next }
             f && /^## \[/ { exit }
             f { print }
           ' CHANGELOG.md > release-notes.md
