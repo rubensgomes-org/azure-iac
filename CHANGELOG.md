@@ -28,6 +28,10 @@ premise.
 
 ### Changed
 
+- `aca-create.yml`: accepts a `TF_VAR_target_port` override from the
+  calling repository's Action Variables, defaulting to `80` (the
+  quickstart placeholder image's port) when unset.
+
 ### Fixed
 
 ## [0.0.20] - 2026-09-19

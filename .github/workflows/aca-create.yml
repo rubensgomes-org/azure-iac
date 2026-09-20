@@ -140,6 +140,13 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_location }}
       TF_VAR_acr_name: ${{ inputs.acr_name }}
 
+      # `|| 80` matches the quickstart placeholder image (module 11's own
+      # default), so a caller that never sets TF_VAR_target_port still
+      # provisions cleanly. Real images typically need 8080 (Spring Boot,
+      # .NET 8+, this project's own apps) -- set the TF_VAR_target_port
+      # repository variable to override.
+      TF_VAR_target_port: ${{ vars.TF_VAR_target_port || 80 }}
+
       # Unset falls through to tags.json: locals.tf coalesces on the first
       # non-null, non-empty value.
       TF_VAR_owner: ${{ vars.TF_VAR_owner }}
@@ -157,8 +164,8 @@ jobs:
       # still a value, and the GUARD step below rejects it explicitly rather
       # than let Terraform fail deep inside plan with an opaque type error.
       # Placeholder images only -- this workflow does not accept
-      # apps_image_map/default_image/target_port overrides; swap real images
-      # in locally per terraform/roots/11-container-apps/README.md.
+      # apps_image_map/default_image overrides; swap real images in
+      # locally per terraform/roots/11-container-apps/README.md.
       # `inputs.apps` is only set on workflow_call; a workflow_dispatch run
       # falls through to the repository variable, same as before.
       TF_VAR_apps: ${{ inputs.apps || vars.TF_VAR_apps }}

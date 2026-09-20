@@ -257,6 +257,9 @@ section for what has to change to target it.
     # A JSON array containing the names of ACA (Azure Container Apps) being
     # provisioned by this project.
     export TF_VAR_apps='[ "api", "worker" ]'
+    # TCP port the containers listen on; 8080 for Spring Boot images, 80 for
+    # the quickstart placeholder.
+    export TF_VAR_target_port='80'
 
     # ATTENTION: this MUST be a globally unique ACR name in Azure. Follow the
     # CAF convention spelled without dashes: cr<workload><env>. See docs/NAMING.md.
@@ -338,6 +341,7 @@ Follow [TF_BOOTSTRAP_CREATE](TF_BOOTSTRAP_CREATE.md).
     TF_VAR_LOCATION
     TF_VAR_OWNER
     TF_VAR_APPS
+    TF_VAR_TARGET_PORT
     TF_VAR_WORKLOAD
     TF_VAR_ACR_NAME
     TF_VAR_ACTION_GROUP_EMAIL
