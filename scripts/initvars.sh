@@ -120,6 +120,8 @@ declare -A ACTION_VARIABLES=(
 "${TF_VAR_owner:-rubens.gomes@3cloudsolutions.com}"
   [TF_VAR_APPS]="${TF_VAR_apps:-[ \"api\", \"worker\" ]}"
   [TF_VAR_TARGET_PORT]="${TF_VAR_target_port:-80}"
+  [TF_VAR_APPS_WITHOUT_INGRESS]=\
+"${TF_VAR_apps_without_ingress:-[]}"
   [TF_VAR_WORKLOAD]="${TF_VAR_workload:-rgomes}"
   [TF_VAR_ACR_NAME]="${TF_VAR_acr_name:-crrgomesdev01}"
   [TF_VAR_ACTION_GROUP_EMAIL]=\
@@ -143,6 +145,7 @@ declare -a ACTION_VARIABLE_ORDER=(
   TF_VAR_OWNER
   TF_VAR_APPS
   TF_VAR_TARGET_PORT
+  TF_VAR_APPS_WITHOUT_INGRESS
   TF_VAR_WORKLOAD
   TF_VAR_ACR_NAME
   TF_VAR_ACTION_GROUP_EMAIL

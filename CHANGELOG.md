@@ -26,6 +26,11 @@ premise.
 
 ### Added
 
+- `docs/INITIAL_SETUP.md`: documented `TF_VAR_apps_without_ingress` in the
+  Terraform (tfvars) Environment Variables section.
+- `scripts/initvars.sh`: manages `TF_VAR_APPS_WITHOUT_INGRESS`, defaulting
+  to `[]`.
+
 ### Changed
 
 ### Fixed
