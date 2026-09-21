@@ -128,6 +128,7 @@ module "container_apps" {
   min_replicas             = var.min_replicas
   max_replicas             = var.max_replicas
   ingress_external_enabled = var.ingress_external_enabled
+  apps_without_ingress     = var.apps_without_ingress
 
   tags = local.tags
 }

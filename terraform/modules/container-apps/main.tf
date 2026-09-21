@@ -68,14 +68,20 @@ resource "azurerm_container_app" "app" {
 
   # Ingress. Internal by default — reachable only from other apps on the
   # environment's delegated subnet. Toggle via `var.ingress_external_enabled`.
-  ingress {
-    external_enabled = var.ingress_external_enabled
-    target_port      = var.target_port
-    transport        = "auto"
+  # Omitted entirely for `var.apps_without_ingress` — see that variable's
+  # description for why (default StartUp probe, not just routing).
+  dynamic "ingress" {
+    for_each = contains(var.apps_without_ingress, each.key) ? [] : [1]
 
-    traffic_weight {
-      latest_revision = true
-      percentage      = 100
+    content {
+      external_enabled = var.ingress_external_enabled
+      target_port      = var.target_port
+      transport        = "auto"
+
+      traffic_weight {
+        latest_revision = true
+        percentage      = 100
+      }
     }
   }
 

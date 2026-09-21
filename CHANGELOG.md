@@ -26,7 +26,16 @@ premise.
 
 ### Added
 
+- `container-apps` module: `apps_without_ingress` variable (`set(string)`,
+  default `[]`). Apps listed get no `ingress` block at all, so Azure
+  never injects the default StartUp probe a non-HTTP app (no listener)
+  can never pass.
+
 ### Changed
+
+- `aca-create.yml`: accepts an `apps_without_ingress` input, falling
+  back to the `TF_VAR_apps_without_ingress` repository variable, then
+  `[]`. Forwarded to module 11.
 
 ### Fixed
 
