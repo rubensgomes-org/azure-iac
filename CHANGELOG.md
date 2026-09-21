@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.22] - 2026-09-21
+
+### Added
+
 - `container-apps` module: `apps_without_ingress` variable (`set(string)`,
   default `[]`). Apps listed get no `ingress` block at all, so Azure
   never injects the default StartUp probe a non-HTTP app (no listener)
