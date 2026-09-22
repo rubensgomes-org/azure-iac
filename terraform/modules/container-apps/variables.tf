@@ -228,19 +228,6 @@ variable "ingress_external_enabled" {
   default     = false
 }
 
-variable "apps_without_ingress" {
-  description = <<-EOT
-    App names (from `var.apps`) that get no `ingress` block at all. For a
-    non-HTTP app (a debug/exec toolbox with no listener), Azure Container
-    Apps auto-injects a default StartUp probe against `ingress.target_port`
-    whenever the block is present, and that probe can never succeed with
-    nothing listening — the app crash-loops. Omitting the block entirely
-    avoids the default probe; it does not just disable routing.
-  EOT
-  type        = set(string)
-  default     = []
-}
-
 variable "tags" {
   description = <<-EOT
     Tags applied to every container app. Merged with per-app tags

@@ -260,9 +260,6 @@ section for what has to change to target it.
     # TCP port the containers listen on; 8080 for Spring Boot images, 80 for
     # the quickstart placeholder.
     export TF_VAR_target_port='80'
-    # Names (from TF_VAR_apps) that get no ingress block -- for non-HTTP
-    # apps with no listener, e.g. a debug/exec toolbox. Empty by default.
-    export TF_VAR_apps_without_ingress='[ "nettools" ]'
 
     # ATTENTION: this MUST be a globally unique ACR name in Azure. Follow the
     # CAF convention spelled without dashes: cr<workload><env>. See docs/NAMING.md.

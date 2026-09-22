@@ -28,6 +28,15 @@ premise.
 
 ### Changed
 
+### Removed
+
+- `apps_without_ingress` (added in 0.0.22, documented in 0.0.23):
+  every app now gets an `ingress` block again, provisioned identically.
+  Non-HTTP apps must ship a listener on `target_port` instead of
+  opting out of ingress. Removed from the `container-apps` module,
+  the `11-container-apps` root, `aca-create.yml`, and
+  `scripts/initvars.sh`.
+
 ### Fixed
 
 ## [0.0.23] - 2026-09-21

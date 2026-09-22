@@ -177,11 +177,10 @@ immediately.
   true` (module 10). Apps are reachable only from the VNet, not the
   internet. Export `TF_VAR_ingress_external_enabled=true` to expose
   apps on the environment's static IP instead.
-- **No ingress block for non-HTTP apps.** List app names in
-  `TF_VAR_apps_without_ingress` to skip the `ingress` block entirely.
-  With ingress present, Azure auto-injects a default StartUp probe
-  against `target_port`; an app with no listener (a debug/exec
-  toolbox) can never satisfy it and crash-loops.
+- **Every app gets an `ingress` block.** Azure auto-injects a default
+  StartUp probe against `target_port` whenever ingress is present, so
+  every app's image must actually listen on that port or it
+  crash-loops — there is no per-app opt-out.
 - **No `secret {}` blocks.** Nothing to put in them under the
   passwordless model — the UAMI is the credential.
 - **Minimal by design.** No database, blob storage, or Service Bus

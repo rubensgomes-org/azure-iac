@@ -39,16 +39,6 @@ on:
         type: string
         required: false
 
-      apps_without_ingress:
-        description: >
-          JSON array of app names (from `apps`) that get no `ingress`
-          block, e.g. ["nettools"]. For non-HTTP apps with no listener --
-          an ingress block makes Azure inject a default StartUp probe the
-          app can never pass. Defaults to the TF_VAR_apps_without_ingress
-          repository variable, then to an empty array.
-        type: string
-        required: false
-
     outputs:
       app_ids:
         description: 'JSON map from app name to full Azure Resource ID.'
@@ -180,13 +170,6 @@ jobs:
       # falls through to the repository variable, same as before.
       TF_VAR_apps: ${{ inputs.apps || vars.TF_VAR_apps }}
 
-      # Unlike TF_VAR_apps, an empty array is a valid, common value here --
-      # most apps DO want ingress -- so the final fallback is '[]', not a
-      # GUARD failure.
-      TF_VAR_apps_without_ingress: ${{
-        inputs.apps_without_ingress || vars.TF_VAR_apps_without_ingress
-        || '[]' }}
-
     steps:
       # actions/checkout defaults to github.repository at github.sha, but on
       # workflow_call from another repository those resolve to the CALLER,
@@ -258,13 +241,6 @@ jobs:
             echo "FAIL: TF_VAR_apps must be a non-empty JSON array of strings,"
             echo "e.g. [\"api\",\"worker\"]. Set the TF_VAR_apps repository"
             echo "variable."
-            exit 1
-          fi
-          if ! printf '%s' "${TF_VAR_apps_without_ingress}" \
-              | jq -e 'type == "array" and all(.[]; type == "string")' \
-              >/dev/null 2>&1; then
-            echo "FAIL: TF_VAR_apps_without_ingress must be a JSON array of"
-            echo "strings, e.g. [\"nettools\"] (empty array is valid)."
             exit 1
           fi
           if ! printf '%s' "${REQUESTED_ACR_NAME}" \

@@ -110,12 +110,6 @@ variable "ingress_external_enabled" {
   default     = false
 }
 
-variable "apps_without_ingress" {
-  description = "App names (from `var.apps`) that get no `ingress` block at all, and so no default StartUp probe. For non-HTTP apps (debug/exec toolboxes with no listener)."
-  type        = set(string)
-  default     = []
-}
-
 # ---- Declared for env.tfvars parity, unused by this module -----------------
 
 # CAF workload token, folded into most resource names elsewhere in the

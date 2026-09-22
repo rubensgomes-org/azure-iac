@@ -33,7 +33,6 @@ makes the env vars below usable at runtime.
 | `min_replicas`                 | number       | `0`                                        | `0` = scale-to-zero when idle.                                               |
 | `max_replicas`                 | number       | `1`                                        | Horizontal cap per app.                                                      |
 | `ingress_external_enabled`     | bool         | `false`                                    | `true` = expose the app on the environment's static IP.                      |
-| `apps_without_ingress`         | set(string)  | `[]`                                       | Apps with no `ingress` block at all — no default StartUp probe.              |
 | `tags`                         | map(string)  | `{}`                                       | Merged with `component` + `app` tags.                                        |
 
 **Outputs:**
