@@ -30,6 +30,14 @@ premise.
 
 ### Fixed
 
+## [0.0.26] - 2026-09-22
+
+### Added
+
+### Changed
+
+### Fixed
+
 - `aca-destroy` verification now checks only the apps in `TF_VAR_apps`,
   instead of failing on other repositories' `ca-*-<env>` apps left
   standing in the shared environment. The pre-destroy inventory no longer
