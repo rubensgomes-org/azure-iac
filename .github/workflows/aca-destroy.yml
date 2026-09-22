@@ -346,8 +346,9 @@ jobs:
             exit 0
           fi
 
-          echo "The following container apps will be PERMANENTLY destroyed:"
+          echo "Container apps in '${APP_RG}' before destroy:"
           echo "${apps}" | sed 's/^/  /'
+          echo "Only these are in scope: ${TF_VAR_apps}"
 
       # terraform_wrapper is false: the wrapper intercepts stdout, which the
       # `terraform show -json` call in the plan-scope guard depends on.
@@ -449,27 +450,31 @@ jobs:
         run: |
           make ENV="$ENV_NAME" destroy-container-apps
 
-      # Asserts all three halves of the contract: the apps are gone, the
-      # environment and resource groups are NOT, and the state backend still
-      # exists.
+      # Asserts all three halves of the contract: the targeted apps are gone,
+      # the environment and resource groups are NOT, and the state backend
+      # still exists.
       - name: Verify the apps are destroyed and nothing else was touched
         shell: bash
         run: |
           set -euo pipefail
           rc=0
 
-          apps_query="[?starts_with(name, 'ca-')"
-          apps_query+=" && ends_with(name, '-${ENV_NAME}')].name"
-          remaining_apps="$(az containerapp list \
-            --resource-group "${APP_RG}" \
-            --query "${apps_query}" \
-            -o tsv 2>/dev/null || true)"
+          # Only the apps in TF_VAR_apps were targeted; other repos' apps
+          # sharing this environment must survive.
+          remaining_apps=""
+          for app_name in $(printf '%s' "${TF_VAR_apps}" \
+              | jq -r --arg env "${ENV_NAME}" '.[] | "ca-\(.)-\($env)"'); do
+            if az containerapp show --name "${app_name}" \
+                --resource-group "${APP_RG}" -o none 2>/dev/null; then
+              remaining_apps+="${app_name}"$'\n'
+            fi
+          done
           if [ -n "${remaining_apps}" ]; then
             echo "FAIL: the following container apps still exist:"
-            echo "${remaining_apps}" | sed 's/^/  /'
+            printf '%s' "${remaining_apps}" | sed 's/^/  /'
             rc=1
           else
-            echo "OK: no ca-*-${ENV_NAME} container apps remain."
+            echo "OK: targeted container apps destroyed: ${TF_VAR_apps}."
           fi
 
           # Its absence is not failed on -- module 10 may legitimately never
