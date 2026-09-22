@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.24] - 2026-09-21
+
+### Added
+
+### Changed
+
 ### Removed
 
 - `apps_without_ingress` (added in 0.0.22, documented in 0.0.23):
