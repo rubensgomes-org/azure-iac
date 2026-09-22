@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.27] - 2026-09-22
+
+### Added
+
 - Module 11 `health_probe_paths` (app name → path): listed apps get HTTP
   startup, readiness, and liveness probes on `target_port`. Exposed as the
   `health_probe_paths` input of `aca-create.yml`.
