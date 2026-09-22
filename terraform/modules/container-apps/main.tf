@@ -39,6 +39,13 @@
 # per-service env-var contract.
 # -----------------------------------------------------------------------------
 
+locals {
+  # App name -> zero- or one-element list, for the dynamic probe blocks.
+  probe_paths = {
+    for app in var.apps : app => compact([lookup(var.health_probe_paths, app, "")])
+  }
+}
+
 resource "azurerm_container_app" "app" {
   for_each = toset(var.apps)
 
@@ -102,6 +109,46 @@ resource "azurerm_container_app" "app" {
       env {
         name  = "KEY_VAULT_URI"
         value = var.key_vault_uri
+      }
+
+      # HTTP probes only for apps listed in `var.health_probe_paths`; the
+      # rest keep ACA's default TCP probe on `target_port`.
+      dynamic "startup_probe" {
+        for_each = local.probe_paths[each.key]
+        content {
+          transport               = "HTTP"
+          port                    = var.target_port
+          path                    = startup_probe.value
+          initial_delay           = 3
+          interval_seconds        = 2
+          timeout                 = 2
+          failure_count_threshold = 30
+        }
+      }
+
+      dynamic "readiness_probe" {
+        for_each = local.probe_paths[each.key]
+        content {
+          transport               = "HTTP"
+          port                    = var.target_port
+          path                    = readiness_probe.value
+          interval_seconds        = 10
+          timeout                 = 3
+          failure_count_threshold = 3
+          success_count_threshold = 1
+        }
+      }
+
+      dynamic "liveness_probe" {
+        for_each = local.probe_paths[each.key]
+        content {
+          transport               = "HTTP"
+          port                    = var.target_port
+          path                    = liveness_probe.value
+          interval_seconds        = 30
+          timeout                 = 5
+          failure_count_threshold = 3
+        }
       }
     }
   }

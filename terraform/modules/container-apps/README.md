@@ -28,6 +28,7 @@ makes the env vars below usable at runtime.
 | `apps_image_map`               | map(string)  | `{}`                                       | Optional per-app image reference. Missing keys fall back to `default_image`. |
 | `default_image`                | string       | `mcr.microsoft.com/k8se/quickstart:latest` | Placeholder image while ACR is empty.                                        |
 | `target_port`                  | number       | `80`                                       | Container listen port. `8080` for typical Spring Boot images.                |
+| `health_probe_paths`           | map(string)  | `{}`                                       | Optional per-app HTTP probe path. Missing keys keep the default TCP probe.   |
 | `cpu`                          | number       | `0.25`                                     | vCPU per replica. Must pair with a compatible `memory`.                      |
 | `memory`                       | string       | `"0.5Gi"`                                  | Memory per replica.                                                          |
 | `min_replicas`                 | number       | `0`                                        | `0` = scale-to-zero when idle.                                               |

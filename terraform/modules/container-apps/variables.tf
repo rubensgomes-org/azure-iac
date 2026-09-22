@@ -159,6 +159,22 @@ variable "target_port" {
   }
 }
 
+variable "health_probe_paths" {
+  description = <<-EOT
+    Optional per-app HTTP health path. Map from app name → path (e.g.
+    `{ mathmcp = "/health" }`). Listed apps get HTTP startup, readiness,
+    and liveness probes on `target_port`; unlisted apps keep ACA's
+    default TCP probe.
+  EOT
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for p in values(var.health_probe_paths) : startswith(p, "/")])
+    error_message = "Each health_probe_paths value must start with \"/\"."
+  }
+}
+
 variable "cpu" {
   description = <<-EOT
     Per-container CPU allocation in vCPU units. `0.25` is the minimum

@@ -123,6 +123,7 @@ module "container_apps" {
   apps_image_map           = var.apps_image_map
   default_image            = var.default_image
   target_port              = var.target_port
+  health_probe_paths       = var.health_probe_paths
   cpu                      = var.cpu
   memory                   = var.memory
   min_replicas             = var.min_replicas

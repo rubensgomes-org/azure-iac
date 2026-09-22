@@ -80,6 +80,16 @@ variable "target_port" {
   default     = 80
 }
 
+variable "health_probe_paths" {
+  description = <<-EOT
+    Optional map from app name → HTTP health path (e.g.
+    `{"mathmcp":"/health"}`). Listed apps get HTTP probes; others keep
+    ACA's default TCP probe. Export as TF_VAR_health_probe_paths.
+  EOT
+  type        = map(string)
+  default     = {}
+}
+
 variable "cpu" {
   description = "Per-container vCPU allocation. Default 0.25 (Consumption minimum)."
   type        = number

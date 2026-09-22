@@ -39,6 +39,15 @@ on:
         type: string
         required: false
 
+      health_probe_paths:
+        description: >
+          JSON map from app name to HTTP health path, e.g.
+          {"api":"/health"}. Listed apps get HTTP probes; others keep the
+          default TCP probe.
+        type: string
+        required: false
+        default: '{}'
+
     outputs:
       app_ids:
         description: 'JSON map from app name to full Azure Resource ID.'
@@ -77,6 +86,12 @@ on:
         options:
           - crrgomesdev01
           - crrgomeslab02
+
+      health_probe_paths:
+        description: 'JSON map from app name to HTTP health path'
+        type: string
+        required: false
+        default: '{}'
 
 permissions:
   contents: read
@@ -169,6 +184,9 @@ jobs:
       # `inputs.apps` is only set on workflow_call; a workflow_dispatch run
       # falls through to the repository variable, same as before.
       TF_VAR_apps: ${{ inputs.apps || vars.TF_VAR_apps }}
+
+      # `|| '{}'`: an emptied dispatch field is not a valid map.
+      TF_VAR_health_probe_paths: ${{ inputs.health_probe_paths || '{}' }}
 
     steps:
       # actions/checkout defaults to github.repository at github.sha, but on

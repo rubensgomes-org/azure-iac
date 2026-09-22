@@ -185,7 +185,9 @@ immediately.
 - **Every app gets an `ingress` block.** Azure auto-injects a default
   StartUp probe against `target_port` whenever ingress is present, so
   every app's image must actually listen on that port or it
-  crash-loops — there is no per-app opt-out.
+  crash-loops — there is no per-app opt-out. Export
+  `TF_VAR_health_probe_paths='{"<app>":"/health"}'` to replace it with
+  HTTP startup, readiness, and liveness probes on that path.
 - **No `secret {}` blocks.** Nothing to put in them under the
   passwordless model — the UAMI is the credential.
 - **Minimal by design.** No database, blob storage, or Service Bus
