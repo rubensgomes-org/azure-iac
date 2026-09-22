@@ -30,6 +30,14 @@ premise.
 
 ### Fixed
 
+## [0.0.25] - 2026-09-22
+
+### Added
+
+### Changed
+
+### Fixed
+
 - Module 11's `plan-`/`apply-`/`destroy-container-apps` targets now act
   only on the apps named in `TF_VAR_apps`, passing one `-target` per app.
   `azurerm_container_app.app` is `for_each = toset(var.apps)` and each
