@@ -215,14 +215,148 @@ $(eval $(call MODULE_TARGETS,07-storage,storage))
 $(eval $(call MODULE_TARGETS,08-service-bus,service-bus))
 $(eval $(call MODULE_TARGETS,09-postgresql,postgresql))
 $(eval $(call MODULE_TARGETS,10-container-app-environment,container-app-environment))
-$(eval $(call MODULE_TARGETS,11-container-apps,container-apps))
+# 11-container-apps is deliberately NOT generated here. Its plan/apply/
+# destroy targets are hand-written below, scoped to TF_VAR_apps. See the
+# "Container Apps" section.
 $(eval $(call MODULE_TARGETS,12-monitoring,monitoring))
+
+# -----------------------------------------------------------------------------
+# Container Apps (module 11) — targets scoped to TF_VAR_apps
+# -----------------------------------------------------------------------------
+# Module 11 is the one root whose resources are keyed by a variable:
+# `azurerm_container_app.app` is `for_each = toset(var.apps)`. Every other
+# module owns a fixed set of resources, so the generic MODULE_TARGETS
+# recipes are right for them and wrong here.
+#
+# Wrong in BOTH directions, and neither announces itself:
+#
+#   * apply. Each app's own repository calls the reusable aca-create
+#     workflow passing only ITS app, so var.apps is a per-caller value
+#     rather than the estate's full list. An unscoped
+#     `terraform apply -auto-approve` reconciles the whole for_each map,
+#     so `TF_VAR_apps='["mathmcp"]'` plans `app["mathmcp"] will be
+#     created` AND `app["nettools"] will be destroyed (because key
+#     ["nettools"] is not in for_each map)`. A create in one repo deletes
+#     every other repo's app.
+#
+#   * destroy. `terraform destroy` ignores var.apps entirely and tears
+#     down every instance in state, so naming one app destroys them all.
+#
+# Both recipes below therefore pass one -target per app in TF_VAR_apps.
+# The whole-estate `apply` loop is guarded separately (see
+# ASSERT_APPS_COVER_STATE); the whole-estate `destroy` loop is NOT, and
+# deliberately so -- see its comment.
+
+# Validates TF_VAR_apps and builds the `targets` shell variable of
+# -target flags. Inlined into the recipes below, same as SWEEP_ORPHANS.
+#
+# The name charset check is load-bearing, not cosmetic. TF_VAR_apps can
+# arrive from a repository variable edited in the GitHub UI with no review
+# and no diff, and `$$targets` is expanded UNQUOTED by the recipes (it has
+# to be, to word-split into separate flags). A name such as
+# `x -auto-approve` would otherwise smuggle an argument into terraform.
+#
+# The jq program is kept on ONE physical line, for the same reason every
+# awk program in this file is: a `\`-continuation inside a single-quoted
+# program reaches jq literally, backslash and all, and fails to parse.
+define CONTAINER_APPS_TARGET_FLAGS
+if ! printf '%s' "$$TF_VAR_apps" \
+     | jq -e 'type=="array" and length>0 and all(.[];test("^[a-z][a-z0-9-]*$$"))' \
+       >/dev/null 2>&1; then \
+  echo "ERROR: TF_VAR_apps must be a non-empty JSON array of app names," >&2; \
+  echo "  lowercase letters/digits/hyphens, starting with a letter." >&2; \
+  echo "  e.g. TF_VAR_apps='[\"nettools\"]'" >&2; \
+  echo "  Got: '$$TF_VAR_apps'" >&2; \
+  exit 1; \
+fi; \
+_addr="module.container_apps.azurerm_container_app.app"; \
+targets=""; \
+for _app in $$(printf '%s' "$$TF_VAR_apps" | jq -r '.[]'); do \
+  targets="$$targets -target=$$_addr[\"$$_app\"]"; \
+done; \
+echo "  apps in scope: $$TF_VAR_apps"
+endef
+
+# Refuses an UNSCOPED apply that would destroy an app nobody asked about.
+# Used by the whole-estate `apply` loop, which runs terraform inline
+# rather than through apply-container-apps and so carries no -target.
+define ASSERT_APPS_COVER_STATE
+echo "=== GUARD module 11: TF_VAR_apps must cover state ==="; \
+_want=" $$(printf '%s' "$$TF_VAR_apps" | jq -r '.[]' 2>/dev/null \
+           | tr '\n' ' ')"; \
+_have=$$( cd $(ROOTS_DIR)/11-container-apps \
+          && terraform state list 2>/dev/null \
+          | sed -n 's/.*azurerm_container_app\.app\["\(.*\)"\]$$/\1/p' ); \
+_extra=""; \
+for _app in $$_have; do \
+  case "$$_want" in *" $$_app "*) ;; *) _extra="$$_extra $$_app";; esac; \
+done; \
+if [ -n "$$_extra" ]; then \
+  echo "ERROR: module 11's state holds app(s) absent from TF_VAR_apps:" >&2; \
+  echo "ERROR:$$_extra" >&2; \
+  echo "  A whole-estate apply reconciles the whole for_each map, so it" >&2; \
+  echo "  would DESTROY the app(s) above. TF_VAR_apps must name every" >&2; \
+  echo "  app this environment should have, not just the one you are" >&2; \
+  echo "  adding. To act on a single app, use apply-container-apps," >&2; \
+  echo "  which scopes to TF_VAR_apps with -target." >&2; \
+  exit 1; \
+fi; \
+echo "  ok: TF_VAR_apps covers every app in state"
+endef
+
+.PHONY: init-container-apps plan-container-apps plan-destroy-container-apps
+.PHONY: apply-container-apps destroy-container-apps
+
+init-container-apps: check-backend
+	@echo "=== INIT 11-container-apps ==="
+	@cd $(ROOTS_DIR)/11-container-apps && terraform init -reconfigure \
+	  -backend-config=../../envs/$(ENV)/backend.hcl \
+	  -backend-config="key=container-apps/terraform.tfstate" \
+	  $(BACKEND_OVERRIDES)
+
+# `set -f` on every recipe below is load-bearing. Recipes run under
+# /bin/sh (this Makefile sets no SHELL), so bash arrays are unavailable
+# and `$$targets` MUST expand unquoted to word-split into separate flags
+# -- which leaves the `[` and `]` in each resource address exposed to
+# pathname expansion. `set -f` turns globbing off for the rest of the
+# recipe. Do NOT "fix" this by quoting `$$targets`: that hands terraform
+# every flag as one argument.
+plan-container-apps: init-container-apps
+	@echo "=== PLAN 11-container-apps ==="
+	@set -f; $(CONTAINER_APPS_TARGET_FLAGS); \
+	 cd $(ROOTS_DIR)/11-container-apps && terraform plan \
+	   $(ENV_VARFILE) $$targets -out=tfplan
+
+# Speculative TEARDOWN plan; same tfplan-overwrite rationale as the
+# generic plan-destroy-<name> recipe in MODULE_TARGETS.
+plan-destroy-container-apps: init-container-apps
+	@echo "=== PLAN -destroy 11-container-apps ==="
+	@set -f; $(CONTAINER_APPS_TARGET_FLAGS); \
+	 cd $(ROOTS_DIR)/11-container-apps && terraform plan -destroy \
+	   $(ENV_VARFILE) $$targets -out=tfplan
+
+apply-container-apps: init-container-apps
+	@echo "=== APPLY 11-container-apps ==="
+	@set -f; $(CONTAINER_APPS_TARGET_FLAGS); \
+	 cd $(ROOTS_DIR)/11-container-apps && terraform apply -auto-approve \
+	   $(ENV_VARFILE) $$targets
+
+destroy-container-apps: init-container-apps
+	@echo "=== DESTROY 11-container-apps ==="
+	@set -f; $(CONTAINER_APPS_TARGET_FLAGS); \
+	 cd $(ROOTS_DIR)/11-container-apps && terraform destroy -auto-approve \
+	   $(ENV_VARFILE) $$targets
 
 # -----------------------------------------------------------------------------
 # Whole-estate: apply (01 → 12)
 # -----------------------------------------------------------------------------
 # Kept in a shell for-loop so ordering is strictly serial regardless of
 # `make -jN`.
+#
+# init and apply are two separate subshells, not one `&&` chain, so the
+# module 11 guard can read that module's state in between. The guard
+# needs an initialised module, and it must run before the apply it is
+# protecting against -- there is no third place to put it.
 .PHONY: apply
 apply: check-backend
 	@set -e; for d in $(DIRS); do \
@@ -232,7 +366,11 @@ apply: check-backend
 	    && terraform init -reconfigure \
 	         -backend-config=../../envs/$(ENV)/backend.hcl \
 	         -backend-config="key=$$key/terraform.tfstate" \
-	         $(BACKEND_OVERRIDES) \
+	         $(BACKEND_OVERRIDES) ); \
+	  if [ "$$d" = "11-container-apps" ]; then \
+	    $(ASSERT_APPS_COVER_STATE); \
+	  fi; \
+	  ( cd $(ROOTS_DIR)/$$d \
 	    && terraform apply -auto-approve \
 	         $(ENV_VARFILE) ); \
 	done
@@ -314,6 +452,13 @@ purge-orphans:
 # it for up to 7 days. There is still no step here because there is still no
 # command to write one with; `az postgres flexible-server revive-dropped` is
 # the recovery counterpart, and docs/TEARDOWN.md carries the procedure.
+#
+# Module 11 is NOT scoped to TF_VAR_apps here, unlike destroy-container-apps,
+# and carries no ASSERT_APPS_COVER_STATE guard the way `apply` does. That
+# asymmetry is deliberate: this target tears the whole estate down, so
+# destroying every container app is the intent, not an accident. The apply
+# loop is guarded because there "destroy an app" is a silent side effect of
+# asking to create a different one.
 .PHONY: destroy
 destroy: check-backend
 	@KV_NAME=$$( cd $(ROOTS_DIR)/05-key-vault 2>/dev/null \
@@ -835,6 +980,9 @@ help:
 	@echo "  plan-destroy-<name>  terraform plan -destroy -out=tfplan (preview only)"
 	@echo "  apply-<name>      terraform apply -auto-approve"
 	@echo "  destroy-<name>    terraform destroy -auto-approve"
+	@echo ""
+	@echo "  container-apps is the exception: its plan/apply/destroy targets"
+	@echo "  act ONLY on the apps named in TF_VAR_apps, one -target each."
 	@echo ""
 	@echo "Whole-estate:"
 	@echo "  apply             Apply all modules 01 -> 12"

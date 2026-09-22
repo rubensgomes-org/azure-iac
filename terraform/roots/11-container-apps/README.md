@@ -111,10 +111,15 @@ terraform output app_latest_revisions   # for rollback / diagnostics
 ## Destroy
 
 ```bash
-cd terraform/roots/11-container-apps
-
-terraform destroy
+# Destroys ONLY the apps named in TF_VAR_apps.
+make destroy-container-apps
 ```
+
+`make`'s `plan-`/`apply-`/`destroy-container-apps` pass one `-target` per
+app in `TF_VAR_apps`. Run by hand from this directory, `terraform apply`
+and `terraform destroy` are **not** scoped: apply destroys every app
+missing from `var.apps` (it is not in the `for_each` map), and destroy
+removes every app in state regardless of `var.apps`.
 
 Container Apps have no soft-delete window on their names, so a
 destroy+recreate is free of the naming dance PG / KV / LAW go through.

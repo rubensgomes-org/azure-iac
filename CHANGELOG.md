@@ -30,6 +30,18 @@ premise.
 
 ### Fixed
 
+- Module 11's `plan-`/`apply-`/`destroy-container-apps` targets now act
+  only on the apps named in `TF_VAR_apps`, passing one `-target` per app.
+  `azurerm_container_app.app` is `for_each = toset(var.apps)` and each
+  app's repository calls the reusable workflows passing only its own app,
+  so the unscoped recipes reconciled the whole `for_each` map against a
+  partial list: `apply-container-apps` destroyed every app NOT named
+  (silently, under `-auto-approve`, from a workflow called "create"), and
+  `destroy-container-apps` ignored `TF_VAR_apps` and destroyed every app
+  in state. The whole-estate `apply` now refuses to run when state holds
+  an app absent from `TF_VAR_apps`; whole-estate `destroy` is unchanged,
+  since a full teardown is meant to remove every app.
+
 ## [0.0.24] - 2026-09-21
 
 ### Added
