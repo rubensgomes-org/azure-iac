@@ -18,13 +18,13 @@
 #
 #     - `groups` collapses every action bump into ONE pull request per run,
 #       rather than one per action.
-#     - `schedule` is monthly, not daily or weekly.
+#     - `schedule` is daily, so bumps land promptly.
 #     - `open-pull-requests-limit: 1` means there is never a queue.
 #
-#   So the steady state is at most one Dependabot PR at a time, roughly
-#   monthly. Merge it or close it; either way main stays the only long-lived
-#   branch. If even that is unwanted, delete this file -- the pins keep
-#   working, they just stop being watched.
+#   So the steady state is at most one Dependabot PR at a time. Merge it or
+#   close it; either way main stays the only long-lived branch. If even that
+#   is unwanted, delete this file -- the pins keep working, they just stop
+#   being watched.
 #
 # Not covered here:
 #   Terraform. Dependabot can watch provider constraints too, but the twelve
@@ -32,6 +32,11 @@
 #   declare the same versions, so one provider release means 25 files in one
 #   PR, and a major bump needs the code changes and the plan review that the
 #   4.x -> 5.x upgrade needed. That stays a deliberate, human-run job.
+#
+# This project's source code and documentation were generated with the
+# assistance of Artificial Intelligence (AI). For more information, please
+# refer to the `AI_DISCLAIMER.md` document located in the project's root
+# directory.
 # =============================================================================
 
 version: 2
@@ -41,7 +46,7 @@ updates:
     directory: "/"
 
     schedule:
-      interval: "monthly"
+      interval: "daily"
 
     # One PR for all action bumps, not one per action.
     groups:

@@ -28,6 +28,8 @@ premise.
 
 ### Changed
 
+- Dependabot checks GitHub Actions pins daily instead of monthly.
+
 ### Fixed
 
 ## [0.0.27] - 2026-09-22
