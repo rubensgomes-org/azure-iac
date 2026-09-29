@@ -1,12 +1,17 @@
-[![AI Assisted](https://img.shields.io/badge/AI--Assisted-Development-007ACC?logo=openai&logoColor=white)](./AI_DISCLAIMER.md)
-
 # azure-iac
+
+[![GitHub](https://img.shields.io/badge/GitHub-Actions-0969da?logo=github+actions)](https://github.com/features/actions)
+[![Microsoft](https://img.shields.io/badge/Microsoft-Azure-0969da)](https://azure.microsoft.com/en-us)
+[![AI Assisted](https://img.shields.io/badge/AI%20Assisted-Development-d29922)](https://github.com/rubensgomes-org/azure-iac/blob/main/AI_DISCLAIMER.md)
+[![License](https://img.shields.io/badge/License-MIT-0969da)](https://github.com/rubensgomes-org/azure-iac/blob/main/LICENSE)
 
 An IaC (Infrastructure as Code) project to demonstrate the use of CICD GitHub
 Actions workflows and Terraform to init/plan/create/destroy several
 infrastructure resources (resource groups, networking, log analytics, managed
 identities, key vault, container registry, storage, service bus, PostgreSQL, a
 container app environment, container apps, and monitoring) in Azure Cloud.
+
+---
 
 ## AI Disclaimer
 
@@ -28,7 +33,6 @@ The following prerequisites are required:
 - An Azure RBAC role that allows you to create the resources, such as resource
   groups, container registry, container apps, and databases.
 - GitHub account
-- UNIX-based operating system (for example, AIX, Linux, macOS, or Solaris)
 - Azure CLI 2.90+
 - Terraform 1.16.0+
 - GitHub CLI (`gh`) 2.99+
@@ -91,10 +95,24 @@ and which ones bill a flat fee versus only while actually used.
 | `main-verify.yml` | manual checks on `main` — `terraform` and `workflows` always, `sonar` when `run_sonar` is true          |
 | `release.yml`     | fires on a `v*.*.*` tag push — validate the tag against `VERSION` + `CHANGELOG.md`, publish the release |
 
-## Development Workflow
+## License
 
-See [DEVELOPMENT_WORKFLOW](./docs/DEVELOPMENT_WORKFLOW.md) for guidance on
-developing, and cutting a release on this project.
+The project is licensed under
+[MIT License](https://github.com/rubensgomes-org/azure-iac/blob/main/LICENSE).
+
+## Links
+
+- [GitHub Project](https://github.com/rubensgomes-org/azure-iac)
+- [DEVELOPMENT_WORKFLOW](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/DEVELOPMENT_WORKFLOW.md)
+- [INITIAL_SETUP](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/INITIAL_SETUP.md)
+- [MISC](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/MISC.md)
+- [MODULES_DEPENDENCY](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/MODULES_DEPENDENCY.md)
+- [NAMING](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/NAMING.md)
+- [PRICING](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/PRICING.md)
+- [TEARDOWN](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/TEARDOWN.md)
+- [TF_BOOTSTRAP_CREATE](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/TF_BOOTSTRAP_CREATE.md)
+- [TF_BOOTSTRAP_DESTROY](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/TF_BOOTSTRAP_DESTROY.md)
+
 
 ---
 Author:  [Rubens Gomes](https://rubensgomes.com/)
