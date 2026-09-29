@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.29] - 2026-09-29
+
+### Added
+
+### Changed
+
 - `README.md` Links section lists every `docs/` file by full URL.
 
 ### Fixed
