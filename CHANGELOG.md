@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.30] - 2026-10-02
+
+### Added
+
 - `LICENSE` file (MIT).
 
 ### Changed
