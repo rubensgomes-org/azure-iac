@@ -31,8 +31,8 @@ The following prerequisites are required:
 
 - Microsoft Azure account
 - An active Azure subscription
-- An Azure RBAC role that allows you to create the resources, such as resource
-  groups, container registry, container apps, and databases.
+- An Azure RBAC role that allows you to create resources such as resource
+  groups, container registries, container apps, and databases.
 - GitHub account
 - Azure CLI 2.90+
 - Terraform 1.16.0+
@@ -109,4 +109,4 @@ This project is licensed under the
 - [Terraform Bootstrap Destroy](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/TF_BOOTSTRAP_DESTROY.md)
 
 ---
-Author:  [Rubens Gomes](https://rubensgomes.com/)
+Author: [Rubens Gomes](https://rubensgomes.com/)

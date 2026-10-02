@@ -30,6 +30,8 @@ premise.
 
 ### Fixed
 
+- Grammar in `AI_DISCLAIMER.md` and `README.md`.
+
 ## [0.0.30] - 2026-10-02
 
 ### Added
