@@ -1,15 +1,16 @@
-# azure-iac
+# Azure Infrastructure as Code
 
+[![terraform](https://img.shields.io/badge/terraform-1.16%2B-0969da?logo=terraform)](https://developer.hashicorp.com/terraform)
 [![GitHub](https://img.shields.io/badge/GitHub-Actions-0969da?logo=github+actions)](https://github.com/features/actions)
 [![Microsoft](https://img.shields.io/badge/Microsoft-Azure-0969da)](https://azure.microsoft.com/en-us)
-[![AI Assisted](https://img.shields.io/badge/AI%20Assisted-Development-d29922)](https://github.com/rubensgomes-org/azure-iac/blob/main/AI_DISCLAIMER.md)
-[![License](https://img.shields.io/badge/License-MIT-0969da)](https://github.com/rubensgomes-org/azure-iac/blob/main/LICENSE)
+[![AI](https://img.shields.io/badge/AI-Assisted-d29922?logo=claude+code)](https://github.com/rubensgomes-org/azure-iac/blob/main/AI_DISCLAIMER.md)
+[![license](https://img.shields.io/badge/license-MIT-1a7f37)](https://github.com/rubensgomes-org/azure-iac/blob/main/LICENSE)
 
-An IaC (Infrastructure as Code) project to demonstrate the use of CICD GitHub
+An IaC (Infrastructure as Code) project to demonstrate the use of CI/CD GitHub
 Actions workflows and Terraform to init/plan/create/destroy several
 infrastructure resources (resource groups, networking, log analytics, managed
 identities, key vault, container registry, storage, service bus, PostgreSQL, a
-container app environment, container apps, and monitoring) in Azure Cloud.
+container app environment, container apps, and monitoring) in Azure.
 
 ---
 
@@ -46,18 +47,17 @@ The following prerequisites are required:
 The authentication of Terraform against Azure is based on using an Azure
 "Service Principal" and a "Service Principal Secret".
 
-The steps in [INITIAL_SETUP](./docs/INITIAL_SETUP.md)
-should be initially followed and executed to ensure proper creation of a
-"Service Principal" account, assignment of roles, registration of Azure Resource
-Providers, and configuration of shell environment variables, and GitHub
-Repository Action Secrets and Variables.
+Follow the steps in [INITIAL_SETUP](./docs/INITIAL_SETUP.md) to create the
+"Service Principal" account, assign roles, register Azure Resource Providers,
+and configure shell environment variables and GitHub Repository Action Secrets
+and Variables.
 
 ### Terraform Bootstrap Backend
 
 Prior to provisioning any resource in Azure, `Terraform` requires some backend
 resources (e.g., Resource Group, Storage Account, and Storage Blob Container)
 to be provisioned in Azure. These resources are needed for `Terraform` to
-persist State information in Azure cloud.
+persist state information in Azure.
 
 Follow the steps in
 [TF_BOOTSTRAP_CREATE](./docs/TF_BOOTSTRAP_CREATE.md).
@@ -76,11 +76,6 @@ Follow the instructions in [TEARDOWN](./docs/TEARDOWN.md) to completely
 destroy both the Azure infrastructure estate and the Terraform bootstrap backend
 resources provisioned by this project.
 
-### Pricing
-
-See [PRICING](./docs/PRICING.md) for a cost model of the estate's resources
-and which ones bill a flat fee versus only while actually used.
-
 ## GitHub Actions
 
 | Workflow          | Purpose                                                                                                 |
@@ -97,22 +92,21 @@ and which ones bill a flat fee versus only while actually used.
 
 ## License
 
-The project is licensed under
+This project is licensed under the
 [MIT License](https://github.com/rubensgomes-org/azure-iac/blob/main/LICENSE).
 
 ## Links
 
 - [GitHub Project](https://github.com/rubensgomes-org/azure-iac)
-- [DEVELOPMENT_WORKFLOW](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/DEVELOPMENT_WORKFLOW.md)
-- [INITIAL_SETUP](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/INITIAL_SETUP.md)
-- [MISC](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/MISC.md)
-- [MODULES_DEPENDENCY](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/MODULES_DEPENDENCY.md)
-- [NAMING](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/NAMING.md)
-- [PRICING](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/PRICING.md)
-- [TEARDOWN](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/TEARDOWN.md)
-- [TF_BOOTSTRAP_CREATE](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/TF_BOOTSTRAP_CREATE.md)
-- [TF_BOOTSTRAP_DESTROY](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/TF_BOOTSTRAP_DESTROY.md)
-
+- [Development Workflow](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/DEVELOPMENT_WORKFLOW.md)
+- [Initial Setup](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/INITIAL_SETUP.md)
+- [Miscellaneous](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/MISC.md)
+- [Modules Dependency](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/MODULES_DEPENDENCY.md)
+- [IaC Naming](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/NAMING.md)
+- [IaC Consumption Pricing](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/PRICING.md)
+- [IaC Teardown](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/TEARDOWN.md)
+- [Terraform Bootstrap Create](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/TF_BOOTSTRAP_CREATE.md)
+- [Terraform Bootstrap Destroy](https://github.com/rubensgomes-org/azure-iac/blob/main/docs/TF_BOOTSTRAP_DESTROY.md)
 
 ---
 Author:  [Rubens Gomes](https://rubensgomes.com/)

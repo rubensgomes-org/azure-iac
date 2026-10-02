@@ -26,7 +26,13 @@ premise.
 
 ### Added
 
+- `LICENSE` file (MIT).
+
 ### Changed
+
+- `AI_DISCLAIMER.md` adds third-party, copyright, and liability notices.
+- `README.md`: new title and badges, descriptive Links titles, Pricing
+  section dropped (still in Links), and proofreading fixes.
 
 ### Fixed
 
