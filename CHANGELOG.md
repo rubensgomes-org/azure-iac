@@ -30,6 +30,14 @@ premise.
 
 ### Fixed
 
+## [0.0.33] - 2026-10-04
+
+### Added
+
+### Changed
+
+### Fixed
+
 - `README.md` Open Source Project Information: correct GitHub org link text
   and SonarQube Cloud link.
 
