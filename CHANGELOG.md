@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.32] - 2026-10-04
+
+### Added
+
 - `README.md` Open Source Project Information section (SonarCloud free-plan
   eligibility).
 
