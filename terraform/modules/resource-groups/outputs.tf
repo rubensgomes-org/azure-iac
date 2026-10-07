@@ -94,12 +94,27 @@ output "rg_observability_location" {
   value       = azurerm_resource_group.this["observability"].location
 }
 
+output "rg_ai_name" {
+  description = "Name of the AI RG (Foundry, MCP servers, AI agents)."
+  value       = azurerm_resource_group.this["ai"].name
+}
+
+output "rg_ai_id" {
+  description = "Resource ID of the AI RG."
+  value       = azurerm_resource_group.this["ai"].id
+}
+
+output "rg_ai_location" {
+  description = "Azure region of the AI RG."
+  value       = azurerm_resource_group.this["ai"].location
+}
+
 # -----------------------------------------------------------------------------
 # Map output
 # -----------------------------------------------------------------------------
 # Convenience for consumers that would rather iterate. Keys are the purpose
-# strings ("platform", "network", "data", "app", "observability"). Each value
-# has `name`, `id`, and `location`.
+# strings ("platform", "network", "data", "app", "observability", "ai"). Each
+# value has `name`, `id`, and `location`.
 output "resource_groups" {
   description = "Map of purpose => { name, id, location } for every RG created by this module."
   value = {

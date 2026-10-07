@@ -1,6 +1,6 @@
 # modules/resource-groups/main.tf
 # -----------------------------------------------------------------------------
-# Creates the 5 lifecycle-aligned Resource Groups.
+# Creates the 6 lifecycle-aligned Resource Groups.
 #
 # Naming follows the Microsoft Cloud Adoption Framework (CAF) form
 # `<resource type>-<workload>-<environment>`, e.g. `rg-rgomesapp-lab`. The
@@ -28,6 +28,7 @@ locals {
     data          = "PostgreSQL, Service Bus, Storage — stateful data plane"
     app           = "Container App Environment, Container Apps — fast-iterating runtime"
     observability = "Log Analytics, App Insights, Action Groups — orthogonal monitoring plane"
+    ai            = "Foundry, MCP servers, AI agents — AI workload plane"
   }
 }
 
@@ -39,7 +40,7 @@ locals {
 # lets outputs.tf publish per-purpose values via lookup.
 #
 # `name` is ForceNew. Changing `workload` or `env` on a LIVE estate plans a
-# destroy+recreate of all five RGs, but every resource inside them is owned by
+# destroy+recreate of all six RGs, but every resource inside them is owned by
 # a different state file that knows nothing about it — the result is a broken
 # estate, not a rename. Set both at first provision, or after a full teardown.
 #

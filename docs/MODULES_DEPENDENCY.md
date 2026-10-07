@@ -31,7 +31,7 @@ since most modules have more than one parent.
 
 | Module                         | Depends on                 | Why                                                                                  |
 |--------------------------------|----------------------------|--------------------------------------------------------------------------------------|
-| `01-resource-groups`           | —                          | Creates all five RGs.                                                                |
+| `01-resource-groups`           | —                          | Creates all six RGs.                                                                 |
 | `02-networking`                | 01                         | RG placement.                                                                        |
 | `03-log-analytics`             | 01                         | RG placement.                                                                        |
 | `04-managed-identities`        | 01                         | RG placement.                                                                        |

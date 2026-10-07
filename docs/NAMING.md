@@ -14,7 +14,7 @@ the twelve modules under `terraform/modules/` takes both.
 ## The two rules that are not obvious
 
 **Purposes are folded onto the workload token, not dash-separated.** Several
-resources come as a set — five resource groups by lifecycle purpose, three
+resources come as a set — six resource groups by lifecycle purpose, three
 subnets. CAF's three-token form has no slot for that fourth idea, so the set
 key is concatenated onto the workload: `rg-rgomesapp-lab`, not
 `rg-rgomes-app-lab`. Every name in the estate is therefore exactly three
@@ -31,25 +31,25 @@ below — read it before your first teardown.
 
 Workload `rgomes`, environment `lab`.
 
-| Resource                  | Pattern                                   | Example                                                                                                                        | Built in                            |
-|---------------------------|-------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|
-| Resource groups (5)       | `rg-<workload><purpose>-<env>`            | `rg-rgomesplatform-lab`<br>`rg-rgomesnetwork-lab`<br>`rg-rgomesdata-lab`<br>`rg-rgomesapp-lab`<br>`rg-rgomesobservability-lab` | `modules/resource-groups`           |
-| Virtual network           | `vnet-<workload>-<env>`                   | `vnet-rgomes-lab`                                                                                                              | `modules/networking`                |
-| Subnets (3)               | `snet-<workload><purpose>-<env>`          | `snet-rgomesapp-lab`, `snet-rgomespg-lab`, `snet-rgomespe-lab`                                                                 | `modules/networking`                |
-| NSGs (3)                  | `nsg-<workload><purpose>-<env>`           | `nsg-rgomesapp-lab`                                                                                                            | `modules/networking`                |
-| VNet links (5)            | `vnet-link-<workload><zone>-<env>`        | `vnet-link-rgomeskv-lab`                                                                                                       | `modules/networking`                |
-| Log Analytics             | `log-<workload>-<env>`                    | `log-rgomes-lab`                                                                                                               | `modules/log-analytics`             |
-| Managed identity          | `id-<workload>app-<env>`                  | `id-rgomesapp-lab`                                                                                                             | `modules/managed-identities`        |
-| Key Vault                 | `kv-<workload>-<env>`                     | `kv-rgomes-lab`                                                                                                                | `modules/key-vault`                 |
-| Container registry        | *see [exception](#the-one-exception-acr)* | `crrgomesdev01`                                                                                                                | `modules/acr`                       |
-| Storage account           | `st<workload>app<env>`                    | `strgomesapplab`                                                                                                               | `modules/storage`                   |
-| Service Bus               | `sb-<workload>msg-<env>`                  | `sb-rgomesmsg-lab`                                                                                                             | `modules/service-bus`               |
-| PostgreSQL                | `psql-<workload>-<env>`                   | `psql-rgomes-lab`                                                                                                              | `modules/postgresql`                |
-| Container App Env         | `cae-<workload>-<env>`                    | `cae-rgomes-lab`                                                                                                               | `modules/container-app-environment` |
-| Container apps            | *see [exception](#a-second-exception-container-apps)* | `ca-api-lab`                                                                                                  | `modules/container-apps`            |
-| Application Insights      | `appi-<workload>-<env>`                   | `appi-rgomes-lab`                                                                                                              | `modules/monitoring`                |
-| Action group              | `ag-<workload>ops-<env>`                  | `ag-rgomesops-lab`                                                                                                             | `modules/monitoring`                |
-| Action group `short_name` | `<workload>ops`                           | `rgomesops`                                                                                                                    | `modules/monitoring`                |
+| Resource                  | Pattern                                               | Example                                                                                                                                             | Built in                            |
+|---------------------------|-------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|
+| Resource groups (6)       | `rg-<workload><purpose>-<env>`                        | `rg-rgomesplatform-lab`<br>`rg-rgomesnetwork-lab`<br>`rg-rgomesdata-lab`<br>`rg-rgomesapp-lab`<br>`rg-rgomesobservability-lab`<br>`rg-rgomesai-lab` | `modules/resource-groups`           |
+| Virtual network           | `vnet-<workload>-<env>`                               | `vnet-rgomes-lab`                                                                                                                                   | `modules/networking`                |
+| Subnets (3)               | `snet-<workload><purpose>-<env>`                      | `snet-rgomesapp-lab`, `snet-rgomespg-lab`, `snet-rgomespe-lab`                                                                                      | `modules/networking`                |
+| NSGs (3)                  | `nsg-<workload><purpose>-<env>`                       | `nsg-rgomesapp-lab`                                                                                                                                 | `modules/networking`                |
+| VNet links (5)            | `vnet-link-<workload><zone>-<env>`                    | `vnet-link-rgomeskv-lab`                                                                                                                            | `modules/networking`                |
+| Log Analytics             | `log-<workload>-<env>`                                | `log-rgomes-lab`                                                                                                                                    | `modules/log-analytics`             |
+| Managed identity          | `id-<workload>app-<env>`                              | `id-rgomesapp-lab`                                                                                                                                  | `modules/managed-identities`        |
+| Key Vault                 | `kv-<workload>-<env>`                                 | `kv-rgomes-lab`                                                                                                                                     | `modules/key-vault`                 |
+| Container registry        | *see [exception](#the-one-exception-acr)*             | `crrgomesdev01`                                                                                                                                     | `modules/acr`                       |
+| Storage account           | `st<workload>app<env>`                                | `strgomesapplab`                                                                                                                                    | `modules/storage`                   |
+| Service Bus               | `sb-<workload>msg-<env>`                              | `sb-rgomesmsg-lab`                                                                                                                                  | `modules/service-bus`               |
+| PostgreSQL                | `psql-<workload>-<env>`                               | `psql-rgomes-lab`                                                                                                                                   | `modules/postgresql`                |
+| Container App Env         | `cae-<workload>-<env>`                                | `cae-rgomes-lab`                                                                                                                                    | `modules/container-app-environment` |
+| Container apps            | *see [exception](#a-second-exception-container-apps)* | `ca-api-lab`                                                                                                                                        | `modules/container-apps`            |
+| Application Insights      | `appi-<workload>-<env>`                               | `appi-rgomes-lab`                                                                                                                                   | `modules/monitoring`                |
+| Action group              | `ag-<workload>ops-<env>`                              | `ag-rgomesops-lab`                                                                                                                                  | `modules/monitoring`                |
+| Action group `short_name` | `<workload>ops`                                       | `rgomesops`                                                                                                                                         | `modules/monitoring`                |
 
 The storage account is the one name with no dashes — Azure forbids them there —
 so its three tokens simply run together in the same order.

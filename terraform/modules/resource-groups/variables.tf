@@ -3,10 +3,11 @@
 # Inputs consumed by main.tf.
 #
 # This module has a fixed contract: given a workload token, an environment name
-# and a location, it provisions the 5 lifecycle-aligned resource groups defined
-# in main.tf (`platform`, `network`, `data`, `app`, `observability`). The set of
-# purposes is intentionally hard-coded there — every downstream module addresses
-# them by name — so this module does not accept a "list of RGs to create" input.
+# and a location, it provisions the 6 lifecycle-aligned resource groups defined
+# in main.tf (`platform`, `network`, `data`, `app`, `observability`, `ai`). The
+# set of purposes is intentionally hard-coded there — every downstream module
+# addresses them by name — so this module does not accept a "list of RGs to
+# create" input.
 # -----------------------------------------------------------------------------
 
 variable "workload" {
@@ -20,7 +21,7 @@ variable "workload" {
     first. Two things to know before changing it:
 
       - `name` is ForceNew on azurerm_resource_group. Changing this value on a
-        LIVE estate plans a destroy+recreate of all five RGs, but every
+        LIVE estate plans a destroy+recreate of all six RGs, but every
         resource inside them is owned by a different state file that knows
         nothing about it — the result is a broken estate, not a rename. Set it
         at first provision, or after a full teardown.

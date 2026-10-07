@@ -1,6 +1,6 @@
 # resource-groups (child module)
 
-Creates the 5 lifecycle-aligned Azure Resource Groups that own every other
+Creates the 6 lifecycle-aligned Azure Resource Groups that own every other
 resource in this estate.
 
 - `rg-<workload>platform-<env>` — Managed identities, Key Vault, ACR
@@ -8,6 +8,7 @@ resource in this estate.
 - `rg-<workload>data-<env>` — PostgreSQL, Service Bus, Storage
 - `rg-<workload>app-<env>` — Container App Environment, Container Apps
 - `rg-<workload>observability-<env>` — Log Analytics, App Insights, Action Groups
+- `rg-<workload>ai-<env>` — Foundry, MCP servers, AI agents
 
 The set of RGs is intentionally fixed: one per lifecycle, so that a blast
 radius stops at an RG boundary and the dependency direction between modules
@@ -39,6 +40,7 @@ Flat per-purpose:
 - `rg_data_{name,id,location}`
 - `rg_app_{name,id,location}`
 - `rg_observability_{name,id,location}`
+- `rg_ai_{name,id,location}`
 
 Map form:
 

@@ -90,6 +90,23 @@ output "rg_observability_location" {
   value       = module.resource_groups.rg_observability_location
 }
 
+# ---- AI RG (Foundry, MCP servers, AI agents) ------------------------------
+
+output "rg_ai_name" {
+  description = "Name of rg-<env>-ai."
+  value       = module.resource_groups.rg_ai_name
+}
+
+output "rg_ai_id" {
+  description = "Resource ID of rg-<env>-ai."
+  value       = module.resource_groups.rg_ai_id
+}
+
+output "rg_ai_location" {
+  description = "Azure region of rg-<env>-ai."
+  value       = module.resource_groups.rg_ai_location
+}
+
 # ---- Convenience map -------------------------------------------------------
 
 output "resource_groups" {

@@ -142,7 +142,7 @@ jobs:
       # `|| 'rgomes'` is load-bearing: an undefined repository variable
       # resolves to "" and would hand Terraform an explicit empty workload,
       # naming the RGs differently from a local run. `name` is ForceNew on
-      # azurerm_resource_group, so that recreates five RGs. The literal is
+      # azurerm_resource_group, so that recreates six RGs. The literal is
       # duplicated in every module's `workload` default and Make's WORKLOAD.
       #
       # The key's case must match exactly: Terraform variable names are
@@ -329,7 +329,7 @@ jobs:
           make ENV="$ENV_NAME" init-resource-groups
 
       # `name` is ForceNew on azurerm_resource_group, so a changed workload is
-      # a destroy+recreate of all five RGs, not a rename. Empty state means
+      # a destroy+recreate of all six RGs, not a rename. Empty state means
       # first provision, which is the one time the change is safe. Module 11
       # consumes the APP resource group, same as module 10.
       - name: GUARD - Assert workload matches module 01's state
@@ -342,13 +342,13 @@ jobs:
 
           if [ -z "$current" ]; then
             echo "Module 01 state is empty -- first provision."
-            echo "Will create ${expected} and its four siblings."
+            echo "Will create ${expected} and its five siblings."
           elif [ "$current" != "$expected" ]; then
             echo "FAIL: module 01's state holds '${current}',"
             echo "      but TF_VAR_workload asks for '${expected}'."
             echo ""
             echo "workload is ForceNew on azurerm_resource_group. Applying this"
-            echo "would plan a destroy+recreate of all five resource groups,"
+            echo "would plan a destroy+recreate of all six resource groups,"
             echo "not a rename, and every resource inside them is owned by a"
             echo "different state file that knows nothing about the change."
             echo ""
