@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.37] - 2026-10-07
+
+### Added
+
 - `rg-create.yml` and `rg-destroy.yml` workflows to create or destroy one
   resource group, selected by `purpose`, with `dry_run` and, on destroy, a
   `Yes`/`No` `confirm` dropdown.
