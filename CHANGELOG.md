@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.35] - 2026-10-07
+
+### Added
+
 - `ai` resource group `rg-<workload>ai-<env>` for Foundry, MCP servers and AI
   agents, with `rg_ai_{name,id,location}` outputs from module 01.
 
