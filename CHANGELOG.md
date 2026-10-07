@@ -30,6 +30,14 @@ premise.
 
 ### Fixed
 
+## [0.0.34] - 2026-10-06
+
+### Added
+
+### Changed
+
+### Fixed
+
 - `make destroy` skips modules with no managed resources in state, so a
   module whose upstream state is already gone (e.g. 11 after 06) no longer
   fails.
