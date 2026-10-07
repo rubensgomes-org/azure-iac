@@ -459,6 +459,11 @@ purge-orphans:
 # destroying every container app is the intent, not an accident. The apply
 # loop is guarded because there "destroy an app" is a silent side effect of
 # asking to create a different one.
+#
+# A module whose state holds no managed resources is skipped: its config may
+# read outputs from an upstream state that is already gone (e.g. module 11
+# needs module 06's `acr_login_server`), and that fails evaluation even when
+# there is nothing to destroy.
 .PHONY: destroy
 destroy: check-backend
 	@KV_NAME=$$( cd $(ROOTS_DIR)/05-key-vault 2>/dev/null \
@@ -482,8 +487,14 @@ destroy: check-backend
 	          -backend-config=../../envs/$(ENV)/backend.hcl \
 	          -backend-config="key=$$key/terraform.tfstate" \
 	          $(BACKEND_OVERRIDES) \
-	     && terraform destroy -auto-approve \
-	          $(ENV_VARFILE) ); \
+	     && resources=$$(terraform state list) \
+	     && managed=$$(printf '%s\n' "$$resources" \
+	          | grep -Ev '(^|\.)data\.' || true) \
+	     && if [ -z "$$managed" ]; then \
+	          echo "  no managed resources in state -- skipping $$d"; \
+	        else \
+	          terraform destroy -auto-approve $(ENV_VARFILE); \
+	        fi ); \
 	 done; \
 	 if [ -n "$$KV_NAME" ]; then \
 	   echo "=== CHECK Key Vault $$KV_NAME ==="; \
