@@ -1,0 +1,233 @@
+# =============================================================================
+# RG Create
+#
+# Creates ONE module 01 resource group, selected by lifecycle purpose, for
+# one environment. With dry_run checked, plans only and leaves Azure
+# untouched.
+#
+# This project's source code and documentation were generated with the
+# assistance of Artificial Intelligence (AI). For more information, please
+# refer to the `AI_DISCLAIMER.md` document located in the project's root
+# directory.
+# =============================================================================
+
+name: RG Create
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: >
+          Estate environment to provision. Maps to the Makefile ENV variable
+          and selects terraform/envs/<env>.
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
+
+      purpose:
+        description: Lifecycle purpose of the resource group to create.
+        type: choice
+        required: true
+        options:
+          - platform
+          - network
+          - data
+          - app
+          - observability
+          - ai
+
+      dry_run:
+        description: >
+          Leave CHECKED to plan only. Clear it to create the resource group.
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  rg-create:
+    name: rg-create
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Shared verbatim with the other rg-* workflows so no two runs against
+    # module 01's state can overlap.
+    concurrency:
+      group: rg-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      TF_IN_AUTOMATION: "true"
+
+      ROOTS_DIR: terraform/roots
+
+      # Bound here because a `${{ }}` inside a `run:` body is substituted as
+      # raw text before the shell parses it. Enforced by main-verify.yml.
+      ENV_NAME: ${{ inputs.environment_name }}
+      PURPOSE: ${{ inputs.purpose }}
+
+      # `|| 'rgomes'` is load-bearing: an undefined repository variable
+      # resolves to "" and would rename (destroy+recreate) the RG. The
+      # literal is duplicated in every module's `workload` default and Make's
+      # WORKLOAD.
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      # No `|| default`: an empty value points Terraform at a nonexistent
+      # state. The guard step below rejects that explicitly.
+      TF_VAR_backend_resource_group_name: >-
+        ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Only the NAME of a missing variable is printed, never the value.
+      - name: Verify required Azure configuration is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_env TF_VAR_location \
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Define the missing ones under:"
+            echo "  Settings > Secrets and variables > Actions > Variables"
+            echo "  Secret:    AZURE_CLIENT_SECRET"
+          fi
+          exit $missing
+
+      - name: GUARD - Validate Terraform inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "${ENV_NAME}" \
+              | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "FAIL: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_location}" \
+              | grep -qE '^[a-z][a-z0-9]*$'; then
+            echo "FAIL: TF_VAR_location must be a lowercase Azure region"
+            echo "identifier such as 'centralus'."
+            exit 1
+          fi
+          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}'."
+
+      # A typo in a backend coordinate points Terraform at a different (or
+      # nonexistent) state, where it proposes to create the RG a second time.
+      - name: GUARD - Validate workload and backend coordinates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Mirrors the `workload` validation every module declares.
+          if ! printf '%s' "${TF_VAR_workload}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "FAIL: workload must be 2-16 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_storage_account_id}" \
+              | grep -qE '^[a-z0-9]{3,24}$'; then
+            echo "FAIL: TF_VAR_storage_account_id must be 3-24 lowercase"
+            echo "alphanumeric characters (an Azure storage account name)."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_container_name}" \
+              | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
+            echo "FAIL: TF_VAR_container_name must be 3-63 lowercase"
+            echo "alphanumeric/hyphen characters starting with alphanumeric."
+            exit 1
+          fi
+          if [ "${TF_VAR_backend_resource_group_name: -1}" = "." ] \
+             || [ "${#TF_VAR_backend_resource_group_name}" -gt 90 ]; then
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with a"
+            echo "period or exceed 90 characters."
+            exit 1
+          fi
+          echo "RG name: rg-${TF_VAR_workload}${PURPOSE}-${ENV_NAME}"
+
+      # terraform_wrapper is false: the wrapper intercepts stdout, which would
+      # break `terraform output -raw` in the workload guard.
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      - name: Module 01 - init
+        shell: bash
+        run: make ENV="$ENV_NAME" init-resource-groups
+
+      # `name` is ForceNew on azurerm_resource_group, so a changed workload
+      # would put a differently named RG beside the existing ones. Any RG in
+      # state is checked, since the selected one may not exist yet.
+      - name: GUARD - Assert workload matches module 01's state
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/01-resource-groups
+        run: |
+          set -euo pipefail
+          entries="$(terraform output -json resource_groups 2>/dev/null \
+            | jq -r 'to_entries[] | "\(.key) \(.value.name)"' || true)"
+
+          if [ -z "$entries" ]; then
+            echo "Module 01 state is empty -- first provision."
+            exit 0
+          fi
+
+          rc=0
+          while read -r purpose current; do
+            expected="rg-${TF_VAR_workload}${purpose}-${ENV_NAME}"
+            if [ "$current" != "$expected" ]; then
+              echo "FAIL: module 01's state holds '${current}',"
+              echo "      but TF_VAR_workload asks for '${expected}'."
+              rc=1
+            fi
+          done <<< "$entries"
+          if [ "$rc" -ne 0 ]; then
+            echo "Tear the estate down first, then change TF_VAR_workload."
+            exit 1
+          fi
+          echo "OK: workload matches state."
+
+      - name: Module 01 - plan (single resource group)
+        shell: bash
+        run: make ENV="$ENV_NAME" PURPOSE="$PURPOSE" plan-resource-group
+
+      - name: Dry run complete - nothing was created
+        if: ${{ inputs.dry_run }}
+        shell: bash
+        run: |
+          echo "Dry run complete. Azure was not modified."
+          echo "Re-dispatch with dry_run unchecked to create the RG."
+
+      # `apply-resource-group` re-plans internally under -auto-approve; the
+      # plan above is for the log only.
+      - name: Module 01 - apply (single resource group)
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        run: make ENV="$ENV_NAME" PURPOSE="$PURPOSE" apply-resource-group

@@ -215,10 +215,55 @@ $(eval $(call MODULE_TARGETS,07-storage,storage))
 $(eval $(call MODULE_TARGETS,08-service-bus,service-bus))
 $(eval $(call MODULE_TARGETS,09-postgresql,postgresql))
 $(eval $(call MODULE_TARGETS,10-container-app-environment,container-app-environment))
+
 # 11-container-apps is deliberately NOT generated here. Its plan/apply/
 # destroy targets are hand-written below, scoped to TF_VAR_apps. See the
 # "Container Apps" section.
 $(eval $(call MODULE_TARGETS,12-monitoring,monitoring))
+
+# -----------------------------------------------------------------------------
+# Single resource group (module 01) — targets scoped to PURPOSE
+# -----------------------------------------------------------------------------
+# All six RGs share one state, so acting on one needs -target. PURPOSE is
+# validated against the fixed set before it reaches terraform's argv.
+define RESOURCE_GROUP_TARGET_FLAG
+case '$(PURPOSE)' in \
+  platform|network|data|app|observability|ai) ;; \
+  *) echo "ERROR: PURPOSE must be one of:" >&2; \
+     echo "  platform network data app observability ai" >&2; \
+     echo "  Got: '$(PURPOSE)'" >&2; \
+     exit 1;; \
+esac; \
+target='-target=module.resource_groups.azurerm_resource_group.this["$(PURPOSE)"]'; \
+echo "  purpose in scope: $(PURPOSE)"
+endef
+
+.PHONY: plan-resource-group plan-destroy-resource-group
+.PHONY: apply-resource-group destroy-resource-group
+
+plan-resource-group: init-resource-groups
+	@echo "=== PLAN 01-resource-groups ($(PURPOSE)) ==="
+	@$(RESOURCE_GROUP_TARGET_FLAG); \
+	 cd $(ROOTS_DIR)/01-resource-groups && terraform plan \
+	   $(ENV_VARFILE) "$$target" -out=tfplan
+
+plan-destroy-resource-group: init-resource-groups
+	@echo "=== PLAN -destroy 01-resource-groups ($(PURPOSE)) ==="
+	@$(RESOURCE_GROUP_TARGET_FLAG); \
+	 cd $(ROOTS_DIR)/01-resource-groups && terraform plan -destroy \
+	   $(ENV_VARFILE) "$$target" -out=tfplan
+
+apply-resource-group: init-resource-groups
+	@echo "=== APPLY 01-resource-groups ($(PURPOSE)) ==="
+	@$(RESOURCE_GROUP_TARGET_FLAG); \
+	 cd $(ROOTS_DIR)/01-resource-groups && terraform apply -auto-approve \
+	   $(ENV_VARFILE) "$$target"
+
+destroy-resource-group: init-resource-groups
+	@echo "=== DESTROY 01-resource-groups ($(PURPOSE)) ==="
+	@$(RESOURCE_GROUP_TARGET_FLAG); \
+	 cd $(ROOTS_DIR)/01-resource-groups && terraform destroy -auto-approve \
+	   $(ENV_VARFILE) "$$target"
 
 # -----------------------------------------------------------------------------
 # Container Apps (module 11) — targets scoped to TF_VAR_apps
@@ -994,6 +1039,9 @@ help:
 	@echo ""
 	@echo "  container-apps is the exception: its plan/apply/destroy targets"
 	@echo "  act ONLY on the apps named in TF_VAR_apps, one -target each."
+	@echo ""
+	@echo "  plan-|plan-destroy-|apply-|destroy-resource-group PURPOSE=<p>"
+	@echo "                    act on ONE resource group (module 01)"
 	@echo ""
 	@echo "Whole-estate:"
 	@echo "  apply             Apply all modules 01 -> 12"

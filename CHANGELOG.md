@@ -26,7 +26,16 @@ premise.
 
 ### Added
 
+- `rg-create.yml` and `rg-destroy.yml` workflows to create or destroy one
+  resource group, selected by `purpose`, with `dry_run` and, on destroy, a
+  `Yes`/`No` `confirm` dropdown.
+- `make plan-|plan-destroy-|apply-|destroy-resource-group PURPOSE=<p>`.
+
 ### Changed
+
+- `destroy-all.yml` and `rg-destroy-all.yml` take a `Yes`/`No` `confirm`
+  dropdown instead of a typed phrase.
+- Module 01 per-purpose outputs return `null` for an absent resource group.
 
 ### Fixed
 

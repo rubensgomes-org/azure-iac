@@ -1,10 +1,10 @@
 # =============================================================================
-# RG Destroy All
+# RG Destroy
 #
-# Destroys module 01 (all six resource groups) for one environment. azurerm
-# refuses to delete a resource group that still holds resources, so this
-# succeeds only after modules 02-12 are destroyed. The Terraform state
-# backend is never in scope.
+# Destroys ONE module 01 resource group, selected by lifecycle purpose, for
+# one environment. azurerm refuses to delete a resource group that still
+# holds resources, so this succeeds only after the modules deployed into it
+# are destroyed. The Terraform state backend is never in scope.
 #
 # This project's source code and documentation were generated with the
 # assistance of Artificial Intelligence (AI). For more information, please
@@ -12,14 +12,14 @@
 # directory.
 # =============================================================================
 
-name: RG Destroy All
+name: RG Destroy
 
 on:
   workflow_dispatch:
     inputs:
       environment_name:
         description: >
-          Estate environment whose resource groups are destroyed. Maps to the
+          Estate environment whose resource group is destroyed. Maps to the
           Makefile ENV variable and selects terraform/envs/<env>.
         type: choice
         required: true
@@ -27,18 +27,30 @@ on:
           - dev
           - lab
 
+      purpose:
+        description: Lifecycle purpose of the resource group to destroy.
+        type: choice
+        required: true
+        options:
+          - platform
+          - network
+          - data
+          - app
+          - observability
+          - ai
+
       dry_run:
         description: >
           Leave CHECKED to plan the destroy and stop without touching Azure.
-          Clear it to actually delete the resource groups.
+          Clear it to actually delete the resource group.
         type: boolean
         required: false
         default: true
 
       confirm:
         description: >
-          DESTROYS ALL SIX RESOURCE GROUPS. Ignored on a dry run. Otherwise
-          must be "Yes" to proceed.
+          DESTROYS THE SELECTED RESOURCE GROUP. Ignored on a dry run.
+          Otherwise must be "Yes" to proceed.
         type: choice
         required: true
         default: "No"
@@ -50,16 +62,16 @@ permissions:
   contents: read
 
 jobs:
-  rg-destroy-all:
-    name: rg-destroy-all
+  rg-destroy:
+    name: rg-destroy
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     # Also the hook for a required-reviewer approval gate.
     environment: AZURE
 
-    # Shared verbatim with rg-create-all.yml. cancel-in-progress stays false:
-    # cancelling mid-destroy leaves an azurerm blob lease behind.
+    # Shared verbatim with the other rg-* workflows. cancel-in-progress
+    # stays false: cancelling mid-destroy leaves an azurerm blob lease behind.
     concurrency:
       group: rg-lifecycle-${{ inputs.environment_name }}
       cancel-in-progress: false
@@ -91,6 +103,10 @@ jobs:
       # githubactions:S7630, enforced by main-verify.yml).
       ROOTS_DIR: terraform/roots
       ENV_NAME: ${{ inputs.environment_name }}
+      PURPOSE: ${{ inputs.purpose }}
+      RG_NAME: >-
+        ${{ format('rg-{0}{1}-{2}', vars.TF_VAR_workload || 'rgomes',
+        inputs.purpose, inputs.environment_name) }}
 
       # The only two GitHub accounts permitted to run a destructive workflow
       # in this repo. Update on a rename.
@@ -142,8 +158,8 @@ jobs:
             exit 1
           fi
 
-          echo "Safeguard passed. Target: module 01 resource groups for"
-          echo "env ${ENV_NAME}. The state backend is NOT destroyed."
+          echo "Safeguard passed. Target: module 01 '${PURPOSE}' resource"
+          echo "group for env ${ENV_NAME}. The state backend is NOT destroyed."
 
       - name: Verify required Azure configuration is present
         shell: bash
@@ -201,7 +217,7 @@ jobs:
             echo "alphanumeric/hyphen characters starting with alphanumeric."
             exit 1
           fi
-          echo "RG names: rg-${TF_VAR_workload}<purpose>-${ENV_NAME}"
+          echo "RG name: ${RG_NAME}"
 
       # Terraform reads ARM_* itself; az is for the inventory and verify steps.
       - name: Azure Login (Service Principal Secret)
@@ -221,71 +237,55 @@ jobs:
           terraform_wrapper: false
 
       # Informational only. Any resource listed here blocks the destroy.
-      - name: Inventory the resource groups (pre-destroy record)
+      - name: Inventory the resource group (pre-destroy record)
         shell: bash
         run: |
           set -uo pipefail
 
-          # Both anchors also match the backend RG, which is never in scope.
-          rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
-          ends_with(name, '-${ENV_NAME}') && \
-          name != '${TF_VAR_backend_resource_group_name}'].name"
-
-          groups="$(az group list --query "${rg_query}" \
-            -o tsv 2>/dev/null || true)"
-          if [ -z "${groups}" ]; then
-            echo "No rg-${TF_VAR_workload}*-${ENV_NAME} resource groups exist."
+          if ! az group show -n "${RG_NAME}" -o none 2>/dev/null; then
+            echo "Resource group '${RG_NAME}' does not exist."
             exit 0
           fi
 
-          echo "Resource groups in scope (any contents block the destroy):"
-          echo "${groups}" | while IFS= read -r rg; do
-            [ -n "${rg}" ] || continue
-            echo ""
-            echo "  ${rg}"
-            az resource list -g "${rg}" \
-              --query "[].{Name:name, Type:type}" -o tsv 2>/dev/null \
-              | sed 's/^/    /' || true
-          done
+          echo "Resource group in scope (any contents block the destroy):"
+          echo "  ${RG_NAME}"
+          az resource list -g "${RG_NAME}" \
+            --query "[].{Name:name, Type:type}" -o tsv 2>/dev/null \
+            | sed 's/^/    /' || true
 
-      - name: Plan the destroy of module 01
+      - name: Plan the destroy of the resource group
         if: ${{ inputs.dry_run }}
         shell: bash
-        run: make ENV="$ENV_NAME" plan-destroy-resource-groups
+        run: |
+          make ENV="$ENV_NAME" PURPOSE="$PURPOSE" plan-destroy-resource-group
 
       - name: Dry run complete - nothing was destroyed
         if: ${{ inputs.dry_run }}
         shell: bash
         run: |
           echo "Dry run complete. Azure was not modified."
-          echo "To delete the resource groups, dispatch again with:"
+          echo "To delete the resource group, dispatch again with:"
           echo "  dry_run:  unchecked"
           echo "  confirm:  Yes"
 
-      - name: Destroy module 01 - resource groups
+      - name: Destroy the resource group
         if: ${{ !inputs.dry_run }}
         shell: bash
-        run: make ENV="$ENV_NAME" destroy-resource-groups
+        run: make ENV="$ENV_NAME" PURPOSE="$PURPOSE" destroy-resource-group
 
       # Accumulates into rc and exits once, so every assertion is reported.
-      - name: Verify the resource groups are gone and the backend survived
+      - name: Verify the resource group is gone and the backend survived
         if: ${{ !inputs.dry_run }}
         shell: bash
         run: |
           set -euo pipefail
           rc=0
 
-          rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
-          ends_with(name, '-${ENV_NAME}') && \
-          name != '${TF_VAR_backend_resource_group_name}'].name"
-          remaining="$(az group list --query "${rg_query}" -o tsv)"
-          if [ -n "${remaining}" ]; then
-            echo "FAIL: resource groups still exist after the destroy:"
-            echo "${remaining}" | sed 's/^/  /'
+          if az group show -n "${RG_NAME}" -o none 2>/dev/null; then
+            echo "FAIL: '${RG_NAME}' still exists after the destroy."
             rc=1
           else
-            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
-            echo "groups remain."
+            echo "OK: '${RG_NAME}' is gone."
           fi
 
           if az group show -n "${TF_VAR_backend_resource_group_name}" \

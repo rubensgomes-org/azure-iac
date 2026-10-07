@@ -21,92 +21,92 @@
 # -----------------------------------------------------------------------------
 output "rg_platform_name" {
   description = "Name of the platform RG (managed identities, KV, ACR)."
-  value       = azurerm_resource_group.this["platform"].name
+  value       = try(azurerm_resource_group.this["platform"].name, null)
 }
 
 output "rg_platform_id" {
   description = "Resource ID of the platform RG."
-  value       = azurerm_resource_group.this["platform"].id
+  value       = try(azurerm_resource_group.this["platform"].id, null)
 }
 
 output "rg_platform_location" {
   description = "Azure region of the platform RG."
-  value       = azurerm_resource_group.this["platform"].location
+  value       = try(azurerm_resource_group.this["platform"].location, null)
 }
 
 output "rg_network_name" {
   description = "Name of the network RG (VNet, NSGs, private DNS)."
-  value       = azurerm_resource_group.this["network"].name
+  value       = try(azurerm_resource_group.this["network"].name, null)
 }
 
 output "rg_network_id" {
   description = "Resource ID of the network RG."
-  value       = azurerm_resource_group.this["network"].id
+  value       = try(azurerm_resource_group.this["network"].id, null)
 }
 
 output "rg_network_location" {
   description = "Azure region of the network RG."
-  value       = azurerm_resource_group.this["network"].location
+  value       = try(azurerm_resource_group.this["network"].location, null)
 }
 
 output "rg_data_name" {
   description = "Name of the data RG (PostgreSQL, Service Bus, Storage)."
-  value       = azurerm_resource_group.this["data"].name
+  value       = try(azurerm_resource_group.this["data"].name, null)
 }
 
 output "rg_data_id" {
   description = "Resource ID of the data RG."
-  value       = azurerm_resource_group.this["data"].id
+  value       = try(azurerm_resource_group.this["data"].id, null)
 }
 
 output "rg_data_location" {
   description = "Azure region of the data RG."
-  value       = azurerm_resource_group.this["data"].location
+  value       = try(azurerm_resource_group.this["data"].location, null)
 }
 
 output "rg_app_name" {
   description = "Name of the app RG (Container App Environment, Container Apps)."
-  value       = azurerm_resource_group.this["app"].name
+  value       = try(azurerm_resource_group.this["app"].name, null)
 }
 
 output "rg_app_id" {
   description = "Resource ID of the app RG."
-  value       = azurerm_resource_group.this["app"].id
+  value       = try(azurerm_resource_group.this["app"].id, null)
 }
 
 output "rg_app_location" {
   description = "Azure region of the app RG."
-  value       = azurerm_resource_group.this["app"].location
+  value       = try(azurerm_resource_group.this["app"].location, null)
 }
 
 output "rg_observability_name" {
   description = "Name of the observability RG (Log Analytics, App Insights, Action Groups)."
-  value       = azurerm_resource_group.this["observability"].name
+  value       = try(azurerm_resource_group.this["observability"].name, null)
 }
 
 output "rg_observability_id" {
   description = "Resource ID of the observability RG."
-  value       = azurerm_resource_group.this["observability"].id
+  value       = try(azurerm_resource_group.this["observability"].id, null)
 }
 
 output "rg_observability_location" {
   description = "Azure region of the observability RG."
-  value       = azurerm_resource_group.this["observability"].location
+  value       = try(azurerm_resource_group.this["observability"].location, null)
 }
 
 output "rg_ai_name" {
   description = "Name of the AI RG (Foundry, MCP servers, AI agents)."
-  value       = azurerm_resource_group.this["ai"].name
+  value       = try(azurerm_resource_group.this["ai"].name, null)
 }
 
 output "rg_ai_id" {
   description = "Resource ID of the AI RG."
-  value       = azurerm_resource_group.this["ai"].id
+  value       = try(azurerm_resource_group.this["ai"].id, null)
 }
 
 output "rg_ai_location" {
   description = "Azure region of the AI RG."
-  value       = azurerm_resource_group.this["ai"].location
+  value       = try(azurerm_resource_group.this["ai"].location, null)
 }
 
 # -----------------------------------------------------------------------------

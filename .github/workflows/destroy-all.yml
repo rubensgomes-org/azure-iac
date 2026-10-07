@@ -44,10 +44,13 @@ on:
           Vault, the registry and all its images, storage and all its blobs,
           Service Bus, PostgreSQL and its databases, the container apps, and
           monitoring. Images and blobs are NOT recoverable.
-          Ignored on a dry run. Otherwise type EXACTLY "DESTROY ALL <env>",
-          naming the environment above — e.g. DESTROY ALL dev
-        type: string
-        required: false
+          Ignored on a dry run. Otherwise must be "Yes" to proceed.
+        type: choice
+        required: true
+        default: "No"
+        options:
+          - "No"
+          - "Yes"
 
 permissions:
   contents: read
@@ -138,14 +141,13 @@ jobs:
         uses: actions/checkout@v7
 
       # Runs before any credential is touched, so a denied run never reaches
-      # Azure. The typed phrase is enforced only when dry_run is false --
-      # demanding it to preview would train the habit of typing it. The actor
+      # Azure. confirm is enforced only when dry_run is false. The actor
       # allowlist applies to both paths.
-      - name: SAFEGUARD - Validate actor and confirmation phrase
+      - name: SAFEGUARD - Validate actor and confirmation
         shell: bash
         env:
           ACTOR: ${{ github.actor }}
-          TYPED_CONFIRM: ${{ inputs.confirm }}
+          CONFIRM: ${{ inputs.confirm }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
@@ -171,27 +173,14 @@ jobs:
           fi
 
           if [ "${DRY_RUN}" = "true" ]; then
-            echo "Dry run. The confirmation phrase is not required and is"
-            echo "ignored."
+            echo "Dry run. The confirm input is ignored."
             echo "Nothing in Azure will be modified."
             exit 0
           fi
 
-          # A copied phrase routinely arrives with a trailing space or stray
-          # newline -- a clipboard artefact, not a different intent. Only
-          # surrounding whitespace is stripped; the phrase itself must still
-          # match character for character.
-          trim_ws() {
-            printf '%s' "$1" | tr -d '\r' \
-              | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
-          }
-
-          expected_phrase="DESTROY ALL ${ENV_NAME}"
-          typed_phrase="$(trim_ws "${TYPED_CONFIRM:-}")"
-          if [ "${typed_phrase}" != "${expected_phrase}" ]; then
-            echo "Denied: confirmation phrase did not match exactly."
-            echo "Expected: '${expected_phrase}'"
-            echo "Got:      '${typed_phrase}'"
+          if [ "${CONFIRM}" != "Yes" ]; then
+            echo "Denied: confirm must be 'Yes' to proceed."
+            echo "Got: '${CONFIRM}'"
             exit 1
           fi
 
@@ -396,7 +385,7 @@ jobs:
           echo "To tear the estate down for real, dispatch this workflow again"
           echo "with:"
           echo "  dry_run:  unchecked"
-          echo "  confirm:  DESTROY ALL ${ENV_NAME}"
+          echo "  confirm:  Yes"
           echo ""
           echo "Read the plans above first. Registry images and storage blobs"
           echo "are not recoverable."
