@@ -1,0 +1,307 @@
+# =============================================================================
+# RG Destroy All
+#
+# Destroys module 01 (all six resource groups) for one environment. azurerm
+# refuses to delete a resource group that still holds resources, so this
+# succeeds only after modules 02-12 are destroyed. The Terraform state
+# backend is never in scope.
+#
+# This project's source code and documentation were generated with the
+# assistance of Artificial Intelligence (AI). For more information, please
+# refer to the `AI_DISCLAIMER.md` document located in the project's root
+# directory.
+# =============================================================================
+
+name: RG Destroy All
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: >
+          Estate environment whose resource groups are destroyed. Maps to the
+          Makefile ENV variable and selects terraform/envs/<env>.
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
+
+      dry_run:
+        description: >
+          Leave CHECKED to plan the destroy and stop without touching Azure.
+          Clear it to actually delete the resource groups.
+        type: boolean
+        required: false
+        default: true
+
+      confirm:
+        description: >
+          DESTROYS ALL SIX RESOURCE GROUPS. Ignored on a dry run. Otherwise
+          type EXACTLY "DESTROY ALL RG <env>", naming the environment above
+          — e.g. DESTROY ALL RG dev
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  rg-destroy-all:
+    name: rg-destroy-all
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Also the hook for a required-reviewer approval gate.
+    environment: AZURE
+
+    # Shared verbatim with rg-create-all.yml. cancel-in-progress stays false:
+    # cancelling mid-destroy leaves an azurerm blob lease behind.
+    concurrency:
+      group: rg-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # `|| 'rgomes'` is load-bearing: on a teardown, a wrong workload names
+      # RGs that do not exist, so the destroy is a no-op reported as success.
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      # No `|| default`: an empty value points Terraform at a nonexistent
+      # state, where the destroy plans a clean no-op and reports success.
+      TF_VAR_backend_resource_group_name: >-
+        ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
+      TF_IN_AUTOMATION: "true"
+
+      # Bound here, not interpolated into run: bodies (Sonar
+      # githubactions:S7630, enforced by main-verify.yml).
+      ROOTS_DIR: terraform/roots
+      ENV_NAME: ${{ inputs.environment_name }}
+
+      # The only two GitHub accounts permitted to run a destructive workflow
+      # in this repo. Update on a rename.
+      ALLOWED_ACTORS: "rubensgomes rubens-gomes_3CC"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Runs before any credential is touched. The typed phrase is enforced
+      # only when dry_run is false; the actor allowlist applies to both.
+      - name: SAFEGUARD - Validate actor and confirmation phrase
+        shell: bash
+        env:
+          ACTOR: ${{ github.actor }}
+          TYPED_CONFIRM: ${{ inputs.confirm }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          allowed=false
+          for allowed_actor in ${ALLOWED_ACTORS}; do
+            if [ "${ACTOR}" = "${allowed_actor}" ]; then
+              allowed=true
+              break
+            fi
+          done
+          if [ "${allowed}" != "true" ]; then
+            echo "Denied: this is a personal workflow currently being used"
+            echo "by 'Rubens Gomes' only. Actor: '${ACTOR}'."
+            exit 1
+          fi
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "Denied: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "Dry run. The confirmation phrase is ignored."
+            echo "Nothing in Azure will be modified."
+            exit 0
+          fi
+
+          # Only surrounding whitespace (a clipboard artefact) is stripped.
+          trim_ws() {
+            printf '%s' "$1" | tr -d '\r' \
+              | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+          }
+
+          expected_phrase="DESTROY ALL RG ${ENV_NAME}"
+          typed_phrase="$(trim_ws "${TYPED_CONFIRM:-}")"
+          if [ "${typed_phrase}" != "${expected_phrase}" ]; then
+            echo "Denied: confirmation phrase did not match exactly."
+            echo "Expected: '${expected_phrase}'"
+            echo "Got:      '${typed_phrase}'"
+            exit 1
+          fi
+
+          echo "Safeguard passed. Target: module 01 resource groups for"
+          echo "env ${ENV_NAME}. The state backend is NOT destroyed."
+
+      - name: Verify required Azure configuration is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_env TF_VAR_location \
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Define the missing ones under:"
+            echo "  Settings > Secrets and variables > Actions > Variables"
+            echo "  Secret:    AZURE_CLIENT_SECRET"
+          fi
+          exit $missing
+
+      - name: GUARD - Validate Terraform inputs and naming variables
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "${TF_VAR_location}" \
+              | grep -qE '^[a-z][a-z0-9]*$'; then
+            echo "FAIL: TF_VAR_location must be a lowercase Azure region"
+            echo "token such as centralus."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_workload}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "FAIL: TF_VAR_workload must be 2-16 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if [ "${TF_VAR_backend_resource_group_name: -1}" = "." ] \
+             || [ "${#TF_VAR_backend_resource_group_name}" -gt 90 ]; then
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with a"
+            echo "period or exceed 90 characters."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_storage_account_id}" \
+              | grep -qE '^[a-z0-9]{3,24}$'; then
+            echo "FAIL: TF_VAR_storage_account_id must be 3-24 lowercase"
+            echo "alphanumeric characters (an Azure storage account name)."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_container_name}" \
+              | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
+            echo "FAIL: TF_VAR_container_name must be 3-63 lowercase"
+            echo "alphanumeric/hyphen characters starting with alphanumeric."
+            exit 1
+          fi
+          echo "RG names: rg-${TF_VAR_workload}<purpose>-${ENV_NAME}"
+
+      # Terraform reads ARM_* itself; az is for the inventory and verify steps.
+      - name: Azure Login (Service Principal Secret)
+        uses: azure/login@v3
+        with:
+          auth-type: SERVICE_PRINCIPAL
+          creds: >-
+            {"clientId":"${{ vars.AZURE_CLIENT_ID }}",
+             "clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}",
+             "tenantId":"${{ vars.AZURE_TENANT_ID }}",
+             "subscriptionId":"${{ vars.AZURE_SUBSCRIPTION_ID }}"}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      # Informational only. Any resource listed here blocks the destroy.
+      - name: Inventory the resource groups (pre-destroy record)
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          # Both anchors also match the backend RG, which is never in scope.
+          rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
+          ends_with(name, '-${ENV_NAME}') && \
+          name != '${TF_VAR_backend_resource_group_name}'].name"
+
+          groups="$(az group list --query "${rg_query}" \
+            -o tsv 2>/dev/null || true)"
+          if [ -z "${groups}" ]; then
+            echo "No rg-${TF_VAR_workload}*-${ENV_NAME} resource groups exist."
+            exit 0
+          fi
+
+          echo "Resource groups in scope (any contents block the destroy):"
+          echo "${groups}" | while IFS= read -r rg; do
+            [ -n "${rg}" ] || continue
+            echo ""
+            echo "  ${rg}"
+            az resource list -g "${rg}" \
+              --query "[].{Name:name, Type:type}" -o tsv 2>/dev/null \
+              | sed 's/^/    /' || true
+          done
+
+      - name: Plan the destroy of module 01
+        if: ${{ inputs.dry_run }}
+        shell: bash
+        run: make ENV="$ENV_NAME" plan-destroy-resource-groups
+
+      - name: Dry run complete - nothing was destroyed
+        if: ${{ inputs.dry_run }}
+        shell: bash
+        run: |
+          echo "Dry run complete. Azure was not modified."
+          echo "To delete the resource groups, dispatch again with:"
+          echo "  dry_run:  unchecked"
+          echo "  confirm:  DESTROY ALL RG ${ENV_NAME}"
+
+      - name: Destroy module 01 - resource groups
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        run: make ENV="$ENV_NAME" destroy-resource-groups
+
+      # Accumulates into rc and exits once, so every assertion is reported.
+      - name: Verify the resource groups are gone and the backend survived
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+
+          rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
+          ends_with(name, '-${ENV_NAME}') && \
+          name != '${TF_VAR_backend_resource_group_name}'].name"
+          remaining="$(az group list --query "${rg_query}" -o tsv)"
+          if [ -n "${remaining}" ]; then
+            echo "FAIL: resource groups still exist after the destroy:"
+            echo "${remaining}" | sed 's/^/  /'
+            rc=1
+          else
+            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
+            echo "groups remain."
+          fi
+
+          if az group show -n "${TF_VAR_backend_resource_group_name}" \
+              -o none 2>/dev/null; then
+            echo "OK: state backend resource group"
+            echo "'${TF_VAR_backend_resource_group_name}' preserved."
+          else
+            echo "FAIL: '${TF_VAR_backend_resource_group_name}' is missing"
+            echo "— the Terraform state backend is gone."
+            rc=1
+          fi
+
+          exit $rc

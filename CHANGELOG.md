@@ -26,6 +26,10 @@ premise.
 
 ### Added
 
+- `rg-create-all.yml` and `rg-destroy-all.yml` workflows to create or destroy
+  all resource groups (module 01) for one environment, with `dry_run` and, on
+  destroy, a `DESTROY ALL RG <env>` confirmation phrase.
+
 ### Changed
 
 ### Fixed
