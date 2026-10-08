@@ -1,5 +1,5 @@
 # =============================================================================
-# RG Create
+# RG Create (reusable)
 #
 # Creates ONE module 01 resource group, selected by lifecycle purpose, for
 # one environment. With dry_run checked, plans only and leaves Azure
@@ -11,9 +11,36 @@
 # directory.
 # =============================================================================
 
-name: RG Create
+name: RG Create (reusable)
 
 on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: >
+          Estate environment to provision. Maps to the Makefile ENV variable
+          and selects terraform/envs/<env>.
+        type: string
+        required: true
+
+      purpose:
+        description: >
+          Lifecycle purpose of the resource group to create: platform,
+          network, data, app, observability or ai.
+        type: string
+        required: true
+
+      dry_run:
+        description: >
+          true (default) plans only. false creates the resource group.
+        type: boolean
+        required: false
+        default: true
+
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: true
+
   workflow_dispatch:
     inputs:
       environment_name:
@@ -55,7 +82,8 @@ jobs:
     timeout-minutes: 30
 
     # Shared verbatim with the other rg-* workflows so no two runs against
-    # module 01's state can overlap.
+    # module 01's state can overlap. On workflow_call the group is scoped to
+    # the CALLER's repository; the azurerm blob lease still serialises runs.
     concurrency:
       group: rg-lifecycle-${{ inputs.environment_name }}
       cancel-in-progress: false
@@ -93,8 +121,15 @@ jobs:
       TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
 
     steps:
+      # On workflow_call from another repository, the checkout defaults
+      # (github.repository/github.sha) resolve to the CALLER, which has no
+      # Makefile. job.workflow_repository/job.workflow_sha name this
+      # workflow's own repo and commit on every trigger.
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
 
       # Only the NAME of a missing variable is printed, never the value.
       - name: Verify required Azure configuration is present
@@ -112,8 +147,11 @@ jobs:
             fi
           done
           if [ "$missing" -ne 0 ]; then
-            echo "Define the missing ones under:"
-            echo "  Settings > Secrets and variables > Actions > Variables"
+            echo "Check the calling repository's Actions configuration:"
+            echo "  Variables: AZURE_CLIENT_ID, AZURE_TENANT_ID,"
+            echo "             AZURE_SUBSCRIPTION_ID, TF_VAR_location,"
+            echo "             TF_VAR_backend_resource_group_name,"
+            echo "             TF_VAR_storage_account_id, TF_VAR_container_name"
             echo "  Secret:    AZURE_CLIENT_SECRET"
           fi
           exit $missing
@@ -133,6 +171,12 @@ jobs:
               | grep -qE '^[a-z][a-z0-9]*$'; then
             echo "FAIL: TF_VAR_location must be a lowercase Azure region"
             echo "identifier such as 'centralus'."
+            exit 1
+          fi
+          if ! printf '%s' "${PURPOSE}" \
+              | grep -qxE 'platform|network|data|app|observability|ai'; then
+            echo "FAIL: purpose must be one of platform, network, data, app,"
+            echo "observability or ai. Got: '${PURPOSE}'."
             exit 1
           fi
           echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}'."

@@ -1,5 +1,5 @@
 # =============================================================================
-# RG Destroy
+# RG Destroy (reusable)
 #
 # Destroys ONE module 01 resource group, selected by lifecycle purpose, for
 # one environment. azurerm refuses to delete a resource group that still
@@ -12,9 +12,44 @@
 # directory.
 # =============================================================================
 
-name: RG Destroy
+name: RG Destroy (reusable)
 
 on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: >
+          Estate environment whose resource group is destroyed. Maps to the
+          Makefile ENV variable and selects terraform/envs/<env>.
+        type: string
+        required: true
+
+      purpose:
+        description: >
+          Lifecycle purpose of the resource group to destroy: platform,
+          network, data, app, observability or ai.
+        type: string
+        required: true
+
+      dry_run:
+        description: >
+          true (default) plans the destroy only. false deletes the resource
+          group.
+        type: boolean
+        required: false
+        default: true
+
+      confirm:
+        description: >
+          SAFEGUARD: ignored on a dry run. Otherwise must be exactly "Yes".
+        type: string
+        required: false
+        default: "No"
+
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: false
+
   workflow_dispatch:
     inputs:
       environment_name:
@@ -67,11 +102,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    # Also the hook for a required-reviewer approval gate.
+    # Also the hook for a required-reviewer approval gate. On workflow_call
+    # it resolves in the CALLER's repository, which must define its own
+    # "AZURE" Environment.
     environment: AZURE
 
-    # Shared verbatim with the other rg-* workflows. cancel-in-progress
-    # stays false: cancelling mid-destroy leaves an azurerm blob lease behind.
+    # Shared verbatim with the other rg-* workflows; on workflow_call it is
+    # scoped to the CALLER's repository. cancel-in-progress stays false:
+    # cancelling mid-destroy leaves an azurerm blob lease behind.
     concurrency:
       group: rg-lifecycle-${{ inputs.environment_name }}
       cancel-in-progress: false
@@ -113,8 +151,15 @@ jobs:
       ALLOWED_ACTORS: "rubensgomes rubens-gomes_3CC"
 
     steps:
+      # On workflow_call from another repository, the checkout defaults
+      # (github.repository/github.sha) resolve to the CALLER, which has no
+      # Makefile. job.workflow_repository/job.workflow_sha name this
+      # workflow's own repo and commit on every trigger.
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
 
       # Runs before any credential is touched. confirm is enforced
       # only when dry_run is false; the actor allowlist applies to both.
@@ -143,6 +188,13 @@ jobs:
           if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
             echo "Denied: environment_name must be 2-10 lowercase alphanumeric"
             echo "characters starting with a letter."
+            exit 1
+          fi
+
+          if ! printf '%s' "${PURPOSE}" \
+              | grep -qxE 'platform|network|data|app|observability|ai'; then
+            echo "Denied: purpose must be one of platform, network, data, app,"
+            echo "observability or ai. Got: '${PURPOSE}'."
             exit 1
           fi
 
@@ -176,8 +228,11 @@ jobs:
             fi
           done
           if [ "$missing" -ne 0 ]; then
-            echo "Define the missing ones under:"
-            echo "  Settings > Secrets and variables > Actions > Variables"
+            echo "Check the calling repository's Actions configuration:"
+            echo "  Variables: AZURE_CLIENT_ID, AZURE_TENANT_ID,"
+            echo "             AZURE_SUBSCRIPTION_ID, TF_VAR_location,"
+            echo "             TF_VAR_backend_resource_group_name,"
+            echo "             TF_VAR_storage_account_id, TF_VAR_container_name"
             echo "  Secret:    AZURE_CLIENT_SECRET"
           fi
           exit $missing

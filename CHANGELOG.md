@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+- `rg-create.yml` and `rg-destroy.yml` are now reusable workflows, following
+  `acr-create.yml`'s and `acr-destroy.yml`'s pattern: a `workflow_call`
+  trigger alongside `workflow_dispatch`, with inputs `environment_name`,
+  `purpose`, `dry_run` and, on destroy, `confirm`. `AZURE_CLIENT_SECRET` is
+  required on create; on destroy it may come from the caller's `AZURE`
+  Environment, which the caller must define. A guard rejects any `purpose`
+  outside the six lifecycle purposes.
+
 ### Fixed
 
 ## [0.0.37] - 2026-10-07
