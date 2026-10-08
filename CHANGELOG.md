@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.38] - 2026-10-07
+
+### Added
+
+### Changed
+
 - `rg-create.yml` and `rg-destroy.yml` are now reusable workflows, following
   `acr-create.yml`'s and `acr-destroy.yml`'s pattern: a `workflow_call`
   trigger alongside `workflow_dispatch`, with inputs `environment_name`,
