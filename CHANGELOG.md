@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.39] - 2026-10-10
+
+### Added
+
 - `app-configuration` module and root `05-app-configuration`: one `free`
   App Configuration store (`appcs-<workload>-<env>`) per environment, local
   auth disabled, system-assigned identity, and `App Configuration Data
