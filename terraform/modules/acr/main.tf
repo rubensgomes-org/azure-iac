@@ -2,7 +2,7 @@
 # -----------------------------------------------------------------------------
 # Provisions one Azure Container Registry per env plus the RBAC grant that
 # lets the shared UAMI pull images. Consumers:
-#   - Container Apps (module 11) — pull via `registries { server, identity
+#   - Container Apps (module 12) — pull via `registries { server, identity
 #     = <shared-uami-id> }`. No admin user, no docker credentials.
 #
 # The passwordless model means we NEVER enable `admin_enabled`. That flag

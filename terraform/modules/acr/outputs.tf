@@ -16,7 +16,7 @@ output "acr_name" {
 }
 
 output "acr_login_server" {
-  description = "Registry login server (`<name>.azurecr.io`). Passed to `azurerm_container_app.registries.server` (module 11) so apps can pull images by full reference."
+  description = "Registry login server (`<name>.azurecr.io`). Passed to `azurerm_container_app.registries.server` (module 12) so apps can pull images by full reference."
   value       = azurerm_container_registry.this.login_server
 }
 

@@ -1,8 +1,8 @@
 # modules/log-analytics
 
 Child Terraform module that provisions one Log Analytics Workspace per
-environment. Consumed by the Container App Environment (module 10),
-Application Insights (module 12), and any downstream diagnostic-settings
+environment. Consumed by the Container App Environment (module 11),
+Application Insights (module 13), and any downstream diagnostic-settings
 block that ships logs here.
 
 Called by `terraform/roots/03-log-analytics/`. State is owned by the

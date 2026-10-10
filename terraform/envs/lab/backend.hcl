@@ -29,7 +29,7 @@ resource_group_name = "rg-rgomestfstate-lab"
 storage_account_name = "strgomestfstate02"
 
 # The container is the ONLY per-environment backend coordinate, and it is what
-# keeps lab's twelve state blobs apart from dev's. Both use the same keys
+# keeps lab's thirteen state blobs apart from dev's. Both use the same keys
 # (`<module>/terraform.tfstate`), so sharing a container would mean sharing
 # state.
 #

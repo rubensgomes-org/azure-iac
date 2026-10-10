@@ -16,7 +16,7 @@ output "law_name" {
 }
 
 output "law_workspace_id" {
-  description = "Workspace customer_id GUID. Consumed by Container App Environment (module 10)."
+  description = "Workspace customer_id GUID. Consumed by Container App Environment (module 11)."
   value       = module.log_analytics.law_workspace_id
 }
 

@@ -21,7 +21,7 @@ output "law_name" {
 }
 
 output "law_workspace_id" {
-  description = "Workspace customer_id GUID. Consumed by Container App Environment (module 10) and any tool that talks to the ingestion/query endpoints."
+  description = "Workspace customer_id GUID. Consumed by Container App Environment (module 11) and any tool that talks to the ingestion/query endpoints."
   value       = azurerm_log_analytics_workspace.this.workspace_id
 }
 

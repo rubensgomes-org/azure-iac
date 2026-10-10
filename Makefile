@@ -9,10 +9,10 @@
 #   * Per-module targets (init-/plan-/apply-/destroy-<name>) let you drive
 #     one module at a time without remembering the numeric prefix or the
 #     backend-config incantation. `<name>` is the short suffix — `key-vault`,
-#     not `05-key-vault`.
+#     not `06-key-vault`.
 #
-#   * Whole-estate targets iterate the modules in the correct order (01→12
-#     for apply, 12→01 for destroy). Both are shell blocks lifted in
+#   * Whole-estate targets iterate the modules in the correct order (01→13
+#     for apply, 13→01 for destroy). Both are shell blocks lifted in
 #     verbatim, so the Makefile stays honest to the plan.
 #
 #   * `destroy` also runs the post-destroy Key Vault purge (dev toggle,
@@ -35,7 +35,7 @@
 #
 #   * `terraform init -reconfigure` on every invocation. Cheap (cached
 #     provider plugins), and immune to the "backend key drifted" class of
-#     bug that ate an afternoon during the 05/07 state-corruption incident.
+#     bug that ate an afternoon during the 06/08 state-corruption incident.
 #
 # Assumes ARM_CLIENT_ID / ARM_CLIENT_SECRET / ARM_TENANT_ID /
 # ARM_SUBSCRIPTION_ID are exported in the shell. See docs/INITIAL_SETUP.md.
@@ -45,7 +45,7 @@ ENV     ?= dev
 
 # The two halves of the layout, and the whole point of the split:
 #
-#   ROOTS_DIR  the twelve module roots. ONE copy, shared by every environment.
+#   ROOTS_DIR  the thirteen module roots. ONE copy, shared by every environment.
 #              Nothing in here names an environment -- `var.env` carries it.
 #   ENV_DIR    per-environment configuration ONLY: backend.hcl, tags.json and
 #              the gitignored env.tfvars. Three files, not 4,350 lines.
@@ -76,6 +76,13 @@ ENV_DIR   := terraform/envs/$(ENV)
 # root-relative (terraform's cwd after the cd). Those are two different
 # directories and the mismatch is deliberate, not a bug.
 ENV_VARFILE := $(if $(wildcard $(ENV_DIR)/env.tfvars),-var-file=../../envs/$(ENV)/env.tfvars,)
+
+# State lock wait. Workflows from different app repos share one state blob, so
+# wait for a concurrent run's lock instead of failing at once.
+LOCK_TIMEOUT ?= 10m
+export TF_CLI_ARGS_plan    := -lock-timeout=$(LOCK_TIMEOUT)
+export TF_CLI_ARGS_apply   := -lock-timeout=$(LOCK_TIMEOUT)
+export TF_CLI_ARGS_destroy := -lock-timeout=$(LOCK_TIMEOUT)
 
 # Backend coordinate overrides for `terraform init`.
 #
@@ -137,14 +144,15 @@ DIRS := \
   02-networking \
   03-log-analytics \
   04-managed-identities \
-  05-key-vault \
-  06-acr \
-  07-storage \
-  08-service-bus \
-  09-postgresql \
-  10-container-app-environment \
-  11-container-apps \
-  12-monitoring
+  05-app-configuration \
+  06-key-vault \
+  07-acr \
+  08-storage \
+  09-service-bus \
+  10-postgresql \
+  11-container-app-environment \
+  12-container-apps \
+  13-monitoring
 
 # Destroy order is the strict reverse of DIRS. Reversing is
 # done in Make rather than the shell because `tac` is a GNU coreutils tool and
@@ -209,17 +217,18 @@ $(eval $(call MODULE_TARGETS,01-resource-groups,resource-groups))
 $(eval $(call MODULE_TARGETS,02-networking,networking))
 $(eval $(call MODULE_TARGETS,03-log-analytics,log-analytics))
 $(eval $(call MODULE_TARGETS,04-managed-identities,managed-identities))
-$(eval $(call MODULE_TARGETS,05-key-vault,key-vault))
-$(eval $(call MODULE_TARGETS,06-acr,acr))
-$(eval $(call MODULE_TARGETS,07-storage,storage))
-$(eval $(call MODULE_TARGETS,08-service-bus,service-bus))
-$(eval $(call MODULE_TARGETS,09-postgresql,postgresql))
-$(eval $(call MODULE_TARGETS,10-container-app-environment,container-app-environment))
+$(eval $(call MODULE_TARGETS,05-app-configuration,app-configuration))
+$(eval $(call MODULE_TARGETS,06-key-vault,key-vault))
+$(eval $(call MODULE_TARGETS,07-acr,acr))
+$(eval $(call MODULE_TARGETS,08-storage,storage))
+$(eval $(call MODULE_TARGETS,09-service-bus,service-bus))
+$(eval $(call MODULE_TARGETS,10-postgresql,postgresql))
+$(eval $(call MODULE_TARGETS,11-container-app-environment,container-app-environment))
 
-# 11-container-apps is deliberately NOT generated here. Its plan/apply/
+# 12-container-apps is deliberately NOT generated here. Its plan/apply/
 # destroy targets are hand-written below, scoped to TF_VAR_apps. See the
 # "Container Apps" section.
-$(eval $(call MODULE_TARGETS,12-monitoring,monitoring))
+$(eval $(call MODULE_TARGETS,13-monitoring,monitoring))
 
 # -----------------------------------------------------------------------------
 # Single resource group (module 01) — targets scoped to PURPOSE
@@ -266,9 +275,9 @@ destroy-resource-group: init-resource-groups
 	   $(ENV_VARFILE) "$$target"
 
 # -----------------------------------------------------------------------------
-# Container Apps (module 11) — targets scoped to TF_VAR_apps
+# Container Apps (module 12) — targets scoped to TF_VAR_apps
 # -----------------------------------------------------------------------------
-# Module 11 is the one root whose resources are keyed by a variable:
+# Module 12 is the one root whose resources are keyed by a variable:
 # `azurerm_container_app.app` is `for_each = toset(var.apps)`. Every other
 # module owns a fixed set of resources, so the generic MODULE_TARGETS
 # recipes are right for them and wrong here.
@@ -329,7 +338,7 @@ define ASSERT_APPS_COVER_STATE
 echo "=== GUARD module 11: TF_VAR_apps must cover state ==="; \
 _want=" $$(printf '%s' "$$TF_VAR_apps" | jq -r '.[]' 2>/dev/null \
            | tr '\n' ' ')"; \
-_have=$$( cd $(ROOTS_DIR)/11-container-apps \
+_have=$$( cd $(ROOTS_DIR)/12-container-apps \
           && terraform state list 2>/dev/null \
           | sed -n 's/.*azurerm_container_app\.app\["\(.*\)"\]$$/\1/p' ); \
 _extra=""; \
@@ -337,7 +346,7 @@ for _app in $$_have; do \
   case "$$_want" in *" $$_app "*) ;; *) _extra="$$_extra $$_app";; esac; \
 done; \
 if [ -n "$$_extra" ]; then \
-  echo "ERROR: module 11's state holds app(s) absent from TF_VAR_apps:" >&2; \
+  echo "ERROR: module 12's state holds app(s) absent from TF_VAR_apps:" >&2; \
   echo "ERROR:$$_extra" >&2; \
   echo "  A whole-estate apply reconciles the whole for_each map, so it" >&2; \
   echo "  would DESTROY the app(s) above. TF_VAR_apps must name every" >&2; \
@@ -353,8 +362,8 @@ endef
 .PHONY: apply-container-apps destroy-container-apps
 
 init-container-apps: check-backend
-	@echo "=== INIT 11-container-apps ==="
-	@cd $(ROOTS_DIR)/11-container-apps && terraform init -reconfigure \
+	@echo "=== INIT 12-container-apps ==="
+	@cd $(ROOTS_DIR)/12-container-apps && terraform init -reconfigure \
 	  -backend-config=../../envs/$(ENV)/backend.hcl \
 	  -backend-config="key=container-apps/terraform.tfstate" \
 	  $(BACKEND_OVERRIDES)
@@ -367,39 +376,39 @@ init-container-apps: check-backend
 # recipe. Do NOT "fix" this by quoting `$$targets`: that hands terraform
 # every flag as one argument.
 plan-container-apps: init-container-apps
-	@echo "=== PLAN 11-container-apps ==="
+	@echo "=== PLAN 12-container-apps ==="
 	@set -f; $(CONTAINER_APPS_TARGET_FLAGS); \
-	 cd $(ROOTS_DIR)/11-container-apps && terraform plan \
+	 cd $(ROOTS_DIR)/12-container-apps && terraform plan \
 	   $(ENV_VARFILE) $$targets -out=tfplan
 
 # Speculative TEARDOWN plan; same tfplan-overwrite rationale as the
 # generic plan-destroy-<name> recipe in MODULE_TARGETS.
 plan-destroy-container-apps: init-container-apps
-	@echo "=== PLAN -destroy 11-container-apps ==="
+	@echo "=== PLAN -destroy 12-container-apps ==="
 	@set -f; $(CONTAINER_APPS_TARGET_FLAGS); \
-	 cd $(ROOTS_DIR)/11-container-apps && terraform plan -destroy \
+	 cd $(ROOTS_DIR)/12-container-apps && terraform plan -destroy \
 	   $(ENV_VARFILE) $$targets -out=tfplan
 
 apply-container-apps: init-container-apps
-	@echo "=== APPLY 11-container-apps ==="
+	@echo "=== APPLY 12-container-apps ==="
 	@set -f; $(CONTAINER_APPS_TARGET_FLAGS); \
-	 cd $(ROOTS_DIR)/11-container-apps && terraform apply -auto-approve \
+	 cd $(ROOTS_DIR)/12-container-apps && terraform apply -auto-approve \
 	   $(ENV_VARFILE) $$targets
 
 destroy-container-apps: init-container-apps
-	@echo "=== DESTROY 11-container-apps ==="
+	@echo "=== DESTROY 12-container-apps ==="
 	@set -f; $(CONTAINER_APPS_TARGET_FLAGS); \
-	 cd $(ROOTS_DIR)/11-container-apps && terraform destroy -auto-approve \
+	 cd $(ROOTS_DIR)/12-container-apps && terraform destroy -auto-approve \
 	   $(ENV_VARFILE) $$targets
 
 # -----------------------------------------------------------------------------
-# Whole-estate: apply (01 → 12)
+# Whole-estate: apply (01 → 13)
 # -----------------------------------------------------------------------------
 # Kept in a shell for-loop so ordering is strictly serial regardless of
 # `make -jN`.
 #
 # init and apply are two separate subshells, not one `&&` chain, so the
-# module 11 guard can read that module's state in between. The guard
+# module 12 guard can read that module's state in between. The guard
 # needs an initialised module, and it must run before the apply it is
 # protecting against -- there is no third place to put it.
 .PHONY: apply
@@ -412,7 +421,7 @@ apply: check-backend
 	         -backend-config=../../envs/$(ENV)/backend.hcl \
 	         -backend-config="key=$$key/terraform.tfstate" \
 	         $(BACKEND_OVERRIDES) ); \
-	  if [ "$$d" = "11-container-apps" ]; then \
+	  if [ "$$d" = "12-container-apps" ]; then \
 	    $(ASSERT_APPS_COVER_STATE); \
 	  fi; \
 	  ( cd $(ROOTS_DIR)/$$d \
@@ -425,7 +434,7 @@ apply: check-backend
 # -----------------------------------------------------------------------------
 # Creating an Application Insights component makes Azure ALSO create an action
 # group named "Application Insights Smart Detection" in the same RG. Terraform
-# never manages it, so destroying module 12 leaves it behind — and then module
+# never manages it, so destroying module 13 leaves it behind — and then module
 # 01 cannot delete rg-<env>-observability, because azurerm's
 # `prevent_deletion_if_contains_resources` (default true) refuses to delete an
 # RG with unknown resources in it. This recurs on EVERY teardown.
@@ -463,15 +472,15 @@ purge-orphans:
 	@$(SWEEP_ORPHANS)
 
 # -----------------------------------------------------------------------------
-# Whole-estate: destroy (12 → 01) + post-destroy Key Vault check
+# Whole-estate: destroy (13 → 01) + post-destroy Key Vault check
 # -----------------------------------------------------------------------------
-# KV_NAME is captured BEFORE the loop, because module 05's state gets emptied
+# KV_NAME is captured BEFORE the loop, because module 06's state gets emptied
 # by its own destroy step. The capture re-inits against the REAL backend first:
 # without that, a preceding `make validate` (which inits with `-backend=false`)
 # leaves `.terraform/` pointing at an empty local backend, `terraform output`
 # fails, `|| true` swallows it, and the check below is silently skipped.
 #
-# The Key Vault step VERIFIES rather than blindly purges. Module 05's provider
+# The Key Vault step VERIFIES rather than blindly purges. Module 06's provider
 # uses `features {}`, so `key_vault.purge_soft_delete_on_destroy` takes its
 # default of TRUE — the provider already purges the vault during destroy. An
 # unconditional `az keyvault purge` therefore fails with
@@ -491,14 +500,14 @@ purge-orphans:
 # There is deliberately NO PostgreSQL step. `az postgres flexible-server list
 # --show-deleted` does not exist (no such flag, and no `list-deleted`
 # subcommand) — it errored to stderr, grep got empty stdin, and the `||` branch
-# printed "name is free to reuse" no matter what. Module 09 now names the
+# printed "name is free to reuse" no matter what. Module 10 now names the
 # server `psql-<workload>-<env>` with no random suffix, so unlike before, a
 # fresh apply CAN collide with a dropped server's retained name -- Azure holds
 # it for up to 7 days. There is still no step here because there is still no
 # command to write one with; `az postgres flexible-server revive-dropped` is
 # the recovery counterpart, and docs/TEARDOWN.md carries the procedure.
 #
-# Module 11 is NOT scoped to TF_VAR_apps here, unlike destroy-container-apps,
+# Module 12 is NOT scoped to TF_VAR_apps here, unlike destroy-container-apps,
 # and carries no ASSERT_APPS_COVER_STATE guard the way `apply` does. That
 # asymmetry is deliberate: this target tears the whole estate down, so
 # destroying every container app is the intent, not an accident. The apply
@@ -506,12 +515,12 @@ purge-orphans:
 # asking to create a different one.
 #
 # A module whose state holds no managed resources is skipped: its config may
-# read outputs from an upstream state that is already gone (e.g. module 11
-# needs module 06's `acr_login_server`), and that fails evaluation even when
+# read outputs from an upstream state that is already gone (e.g. module 12
+# needs module 07's `acr_login_server`), and that fails evaluation even when
 # there is nothing to destroy.
 .PHONY: destroy
 destroy: check-backend
-	@KV_NAME=$$( cd $(ROOTS_DIR)/05-key-vault 2>/dev/null \
+	@KV_NAME=$$( cd $(ROOTS_DIR)/06-key-vault 2>/dev/null \
 	   && terraform init -reconfigure -backend-config=../../envs/$(ENV)/backend.hcl \
 	        -backend-config="key=key-vault/terraform.tfstate" >/dev/null 2>&1 \
 	   && terraform output -raw kv_name 2>/dev/null || true ); \
@@ -812,7 +821,7 @@ fmt:
 # Any pair can disagree, and none of the mismatches announces itself:
 #
 #   * ENV=lab with a TF_VAR_container_name left over from a dev session inits
-#     lab against DEV's container -- twelve state blobs, silently shared.
+#     lab against DEV's container -- thirteen state blobs, silently shared.
 #   * ENV=lab with TF_VAR_env=dev writes lab's container but names everything
 #     `dev-*` and stamps dev's tags.
 #
@@ -1030,7 +1039,7 @@ list:
 help:
 	@echo "Usage: make <target>"
 	@echo ""
-	@echo "Per-module (short-name suffix, e.g. 'key-vault' not '05-key-vault'):"
+	@echo "Per-module (short-name suffix, e.g. 'key-vault' not '06-key-vault'):"
 	@echo "  init-<name>       terraform init  (with correct backend key)"
 	@echo "  plan-<name>       terraform plan  -out=tfplan"
 	@echo "  plan-destroy-<name>  terraform plan -destroy -out=tfplan (preview only)"
@@ -1044,8 +1053,8 @@ help:
 	@echo "                    act on ONE resource group (module 01)"
 	@echo ""
 	@echo "Whole-estate:"
-	@echo "  apply             Apply all modules 01 -> 12"
-	@echo "  destroy           Destroy all modules 12 -> 01, sweeping Azure-generated"
+	@echo "  apply             Apply all modules 01 -> 13"
+	@echo "  destroy           Destroy all modules 13 -> 01, sweeping Azure-generated"
 	@echo "                    orphans before 01 and verifying the KV is purged"
 	@echo "  purge-orphans     Delete Azure-generated leftovers (Smart Detection"
 	@echo "                    action group) that block the RG delete in module 01"

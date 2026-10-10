@@ -5,7 +5,7 @@ environment, one blob container per microservice, and the single RBAC role
 assignment (`Storage Blob Data Contributor`) that lets the shared UAMI
 read/write blobs.
 
-Called by `terraform/roots/07-storage/`. State is owned by the caller —
+Called by `terraform/roots/08-storage/`. State is owned by the caller —
 this module has no `backend` block.
 
 ## Resources created
@@ -72,12 +72,12 @@ this module has no `backend` block.
 
 ## Not dependencies
 
-Modules 02 (network) and 05 (Key Vault) read like storage dependencies,
+Modules 02 (network) and 06 (Key Vault) read like storage dependencies,
 but neither has a structural dep in the current design:
 
 - **02 network:** No private endpoint in this iteration. If we add a PE,
   wire remote state to module 02 for `subnet_pe_id` and `dns_zone_blob_id`.
-- **05 Key Vault:** No customer-managed key for encryption-at-rest — the
+- **06 Key Vault:** No customer-managed key for encryption-at-rest — the
   Microsoft-managed key covers dev. No account key to stash (they're
   disabled). If we add CMK later, wire remote state to module 05.
 

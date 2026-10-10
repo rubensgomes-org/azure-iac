@@ -4,7 +4,7 @@
 # keyed by app name (the same key `for_each` uses) so callers can look up
 # individual apps without pattern-matching on the resource name.
 #
-# Downstream consumers: module 12 (monitoring) is expected to attach
+# Downstream consumers: module 13 (monitoring) is expected to attach
 # diagnostic settings using `app_ids`; README / CI publishes URLs from
 # `app_fqdns`.
 # -----------------------------------------------------------------------------

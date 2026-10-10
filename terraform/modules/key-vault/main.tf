@@ -2,7 +2,7 @@
 # -----------------------------------------------------------------------------
 # Provisions one Key Vault per env plus the RBAC grant that lets the shared
 # UAMI read secrets. Consumers:
-#   - Container Apps (module 11) — read shared secrets via DefaultAzureCredential.
+#   - Container Apps (module 12) — read shared secrets via DefaultAzureCredential.
 #   - Future modules that store certificates or connection strings the
 #     estate doesn't have yet (third-party API keys, TLS certs, etc.).
 #
@@ -125,4 +125,16 @@ resource "azurerm_role_assignment" "uami_secrets_user" {
   # Terraform infer the type, which occasionally fails on brand-new
   # identities (Entra hasn't propagated yet).
   principal_type = "ServicePrincipal"
+}
+
+# -----------------------------------------------------------------------------
+# RBAC — Key Vault Secrets User for the App Configuration store identity
+# -----------------------------------------------------------------------------
+# The store's system-assigned identity (module 05) gets the same read-only
+# role, for server-side vault access such as customer-managed keys.
+resource "azurerm_role_assignment" "app_configuration_secrets_user" {
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = var.app_configuration_principal_id
+  principal_type       = "ServicePrincipal"
 }

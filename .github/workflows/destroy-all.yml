@@ -2,7 +2,7 @@
 # Destroy All
 #
 # Tears down every Terraform root for one environment, in reverse dependency
-# order (12 -> 01), by invoking `make destroy`. THE BLAST RADIUS IS THE WHOLE
+# order (13 -> 01), by invoking `make destroy`. THE BLAST RADIUS IS THE WHOLE
 # ESTATE, and most of it is irreversible: registry images and storage blobs
 # not under retention are gone for good. The Terraform state backend survives
 # and is torn down only by docs/TF_BOOTSTRAP_DESTROY.md.
@@ -69,7 +69,7 @@ jobs:
     environment: AZURE
 
     # Deliberately the SAME group string as acr-create.yml and acr-destroy.yml
-    # -- module 06 sits inside this estate, so an ACR create must never run
+    # -- module 07 sits inside this estate, so an ACR create must never run
     # while the estate is being torn down, in either order. Renaming it here
     # alone would silently un-serialize those races.
     #
@@ -100,19 +100,19 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_location }}
       TF_VAR_owner: ${{ vars.TF_VAR_owner }}
 
-      # Required by 06-acr.
+      # Required by 07-acr.
       TF_VAR_acr_name: ${{ vars.TF_VAR_acr_name }}
 
-      # Required by 11-container-apps. JSON, not a bare word.
+      # Required by 12-container-apps. JSON, not a bare word.
       TF_VAR_apps: ${{ vars.TF_VAR_apps }}
 
-      # Required by 09-postgresql. Both describe the same Entra group.
+      # Required by 10-postgresql. Both describe the same Entra group.
       TF_VAR_pg_entra_admin_group_object_id: >-
         ${{ vars.TF_VAR_pg_entra_admin_group_object_id }}
       TF_VAR_pg_entra_admin_group_name: >-
         ${{ vars.TF_VAR_pg_entra_admin_group_name }}
 
-      # Required by 12-monitoring.
+      # Required by 13-monitoring.
       TF_VAR_action_group_email: ${{ vars.TF_VAR_action_group_email }}
 
       # NO `|| default` fallback, unlike TF_VAR_workload: an empty value still
@@ -184,7 +184,7 @@ jobs:
             exit 1
           fi
 
-          echo "Safeguard passed. Target estate: ${ENV_NAME} (all twelve"
+          echo "Safeguard passed. Target estate: ${ENV_NAME} (all thirteen"
           echo "modules)."
           echo "Scope: terraform/roots/ against env ${ENV_NAME} only. The"
           echo "state backend is NOT destroyed."
@@ -340,7 +340,7 @@ jobs:
       # Failures are accumulated rather than fatal on the first one: a module
       # whose upstream is already destroyed fails at plan with "Unsupported
       # attribute", which is expected on a partly torn-down estate.
-      - name: Plan the destroy across all twelve modules
+      - name: Plan the destroy across all thirteen modules
         if: ${{ inputs.dry_run }}
         shell: bash
         run: |
@@ -350,6 +350,7 @@ jobs:
 
           for short in monitoring container-apps container-app-environment \
                        postgresql service-bus storage acr key-vault \
+                       app-configuration \
                        managed-identities log-analytics networking \
                        resource-groups; do
             echo ""
@@ -393,7 +394,7 @@ jobs:
       # If a module fails, `set -e` inside the recipe aborts the remaining
       # modules. Re-dispatching is the documented recovery: destroy on an
       # emptied state is a no-op, so the loop resumes where it stopped.
-      - name: Destroy all modules (12 -> 01)
+      - name: Destroy all modules (13 -> 01)
         if: ${{ !inputs.dry_run }}
         shell: bash
         run: make ENV="$ENV_NAME" destroy

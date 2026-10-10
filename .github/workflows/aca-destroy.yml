@@ -1,10 +1,10 @@
 # =============================================================================
 # ACA Destroy (reusable)
 #
-# Destroys ONE Terraform root, module 11 (container-apps): the estate's
-# Container Apps only. THE BLAST RADIUS IS THE APPS -- modules 01, 04, 05, 06
-# and 10 (resource groups, managed identities, key vault, ACR and the
-# Container App Environment) are left standing.
+# Destroys ONE Terraform root, module 12 (container-apps): the estate's
+# Container Apps only. THE BLAST RADIUS IS THE APPS -- modules 01, 04, 05,
+# 06, 07 and 11 (resource groups, managed identities, app configuration, key
+# vault, ACR and the Container App Environment) are left standing.
 #
 # This project's source code and documentation were generated with the
 # assistance of Artificial Intelligence (AI). For more information, please
@@ -30,7 +30,7 @@ on:
       confirm:
         description: >
           DESTROYS ACA MODULE ONLY — the Container Apps. Modules 01, 04, 05,
-          06 and 10 are NOT touched.
+          06, 07 and 11 are NOT touched.
         type: choice
         required: true
         default: "No"
@@ -52,8 +52,8 @@ on:
 
       confirm:
         description: >
-          SAFEGUARD: must be exactly "Yes". Destroys module 11 only — the
-          Container Apps. Modules 01, 04, 05, 06 and 10 are not touched.
+          SAFEGUARD: must be exactly "Yes". Destroys module 12 only — the
+          Container Apps. Modules 01, 04, 05, 06, 07 and 11 are not touched.
         type: string
         required: true
 
@@ -156,7 +156,7 @@ jobs:
       # Runs BEFORE any credential is used, so a failed confirmation never
       # reaches Azure. Identical on both triggers: a workflow_call caller is
       # checked by the same two comparisons a human at the form is. Also
-      # derives the app resource group here (module 11's naming convention),
+      # derives the app resource group here (module 12's naming convention),
       # since apps are enumerated by TF_VAR_apps, not a single user-supplied
       # name to match against Terraform state.
       - name: SAFEGUARD - Validate actor and confirmation
@@ -206,13 +206,13 @@ jobs:
             exit 1
           fi
 
-          # Mirrors module 11's own naming: apps live in the app RG
+          # Mirrors module 12's own naming: apps live in the app RG
           # `rg-<workload>app-<env>`, same as module 10. Not a workflow input.
           echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}" >> "$GITHUB_ENV"
           echo "CAE_NAME=cae-${TF_VAR_workload}-${ENV_NAME}" >> "$GITHUB_ENV"
           echo "Safeguard passed. Target environment: ${ENV_NAME}"
-          echo "Scope: module 11 (container-apps) only. Modules 01, 04, 05, 06"
-          echo "and 10 are not touched."
+          echo "Scope: module 12 (container-apps) only. Modules 01, 04, 05, 06,"
+          echo "07 and 11 are not touched."
 
       # Shape check, not the authorization check -- the safeguard above has
       # already matched confirm against the phrase the operator typed.
@@ -358,7 +358,7 @@ jobs:
           terraform_version: "1.16.0"
           terraform_wrapper: false
 
-      # Belt-and-braces: module 11 has its own state key, so its plan
+      # Belt-and-braces: module 12 has its own state key, so its plan
       # structurally cannot contain an RG, the UAMI, the vault, the registry
       # or the environment. Kept as a standalone script so a second call site
       # needs no copy-paste.
@@ -428,24 +428,24 @@ jobs:
 
       # `plan-destroy-container-apps` chains `init-<name>` internally (see the
       # Makefile's MODULE_TARGETS factory), so this is also the first
-      # Terraform init against module 11's state.
-      - name: Plan the destroy - module 11 (container-apps)
+      # Terraform init against module 12's state.
+      - name: Plan the destroy - module 12 (container-apps)
         shell: bash
         run: |
           make ENV="$ENV_NAME" plan-destroy-container-apps
 
-      - name: GUARD - Assert module 11's plan destroys only container apps
+      - name: GUARD - Assert module 12's plan destroys only container apps
         shell: bash
         run: |
           "${RUNNER_TEMP}/assert-plan-scope.sh" \
-            "${ROOTS_DIR}/11-container-apps" \
-            "module 11 (container-apps)" \
+            "${ROOTS_DIR}/12-container-apps" \
+            "module 12 (container-apps)" \
             azurerm_container_app
 
       # `make destroy-container-apps` does NOT consume this tfplan -- it
       # re-plans internally under -auto-approve -- so the guard above is a
       # check on intent, not a locked-in execution plan.
-      - name: Destroy module 11 - container apps
+      - name: Destroy module 12 - container apps
         shell: bash
         run: |
           make ENV="$ENV_NAME" destroy-container-apps
@@ -477,13 +477,13 @@ jobs:
             echo "OK: targeted container apps destroyed: ${TF_VAR_apps}."
           fi
 
-          # Its absence is not failed on -- module 10 may legitimately never
+          # Its absence is not failed on -- module 11 may legitimately never
           # have been applied -- but it is called out loudly, because the
           # only other way to reach that state is a scope leak here.
           if az containerapp env show \
               --name "${CAE_NAME}" \
               --resource-group "${APP_RG}" -o none 2>/dev/null; then
-            echo "OK: environment '${CAE_NAME}' still present (module 10"
+            echo "OK: environment '${CAE_NAME}' still present (module 11"
             echo "untouched)."
           else
             echo "WARNING: environment '${CAE_NAME}' does not exist."
@@ -504,7 +504,7 @@ jobs:
             -o tsv)"
           if [ -n "${remaining_rgs}" ]; then
             echo "OK: rg-${TF_VAR_workload}*-${ENV_NAME} resource groups"
-            echo "still present (modules 01/04/05/06/10 untouched):"
+            echo "still present (modules 01/04/05/06/07/11 untouched):"
             echo "${remaining_rgs}" | sed 's/^/  /'
           else
             echo "WARNING: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"

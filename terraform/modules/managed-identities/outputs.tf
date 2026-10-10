@@ -24,7 +24,7 @@ output "uami_app_id" {
 }
 
 output "uami_app_name" {
-  description = "UAMI name (`id-<env>-app`). Also the login name registered in PG when the shared UAMI is created as an AAD principal (module 09)."
+  description = "UAMI name (`id-<env>-app`). Also the login name registered in PG when the shared UAMI is created as an AAD principal (module 10)."
   value       = azurerm_user_assigned_identity.app.name
 }
 

@@ -59,8 +59,8 @@ terraform destroy
 ```
 
 **Blocked while RBAC assignments or attached apps still reference this
-UAMI.** The role assignments in modules 05/06/07/08 name this UAMI as
-their `principal_id`, and every Container App in module 11 attaches it via
+UAMI.** The role assignments in modules 05/06/07/08/09 name this UAMI as
+their `principal_id`, and every Container App in module 12 attaches it via
 `identity_ids`. Destroy those modules first — the reverse of the
 dependency order in [`docs/MODULES_DEPENDENCY.md`](../../../docs/MODULES_DEPENDENCY.md).
 

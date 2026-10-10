@@ -4,7 +4,7 @@ Child Terraform module that provisions one Azure Container Registry per
 environment plus the single RBAC role assignment (`AcrPull`) that lets the
 shared UAMI pull images.
 
-Called by `terraform/roots/06-acr/`. State is owned by the caller —
+Called by `terraform/roots/07-acr/`. State is owned by the caller —
 this module has no `backend` block.
 
 ## Resources created
@@ -65,19 +65,19 @@ this module has no `backend` block.
 
 ## Not dependencies
 
-Modules 02 (network) and 05 (Key Vault) read like ACR dependencies, but
+Modules 02 (network) and 06 (Key Vault) read like ACR dependencies, but
 neither has a structural dep in the current design:
 
 - **02 network:** Basic SKU can't host a private endpoint, so nothing to
   wire. If we upgrade to Premium and add a PE, wire remote state to
   module 02 here.
-- **05 Key Vault:** There's no ACR admin credential to store — the
+- **06 Key Vault:** There's no ACR admin credential to store — the
   passwordless model means the registry has no username/password. If we
   ever add a customer-managed key for encryption-at-rest, wire remote
-  state to module 05 here.
+  state to module 06 here.
 
 ## Downstream consumers
 
-- **Container Apps (module 11):** each `azurerm_container_app` gets a
+- **Container Apps (module 12):** each `azurerm_container_app` gets a
   `registries { server = <acr_login_server>, identity = <shared-uami-id> }`
   block for passwordless image pull.

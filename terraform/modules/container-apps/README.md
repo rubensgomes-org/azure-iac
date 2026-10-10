@@ -2,10 +2,10 @@
 
 Reusable child module that provisions one `azurerm_container_app` per
 entry in `var.apps`, all sharing the same Container App Environment
-(module 10), the same shared UAMI (module 04) for both runtime identity
-and ACR pull, and the same Key Vault (module 05). Injects the env vars
-each app needs to authenticate to those services passwordlessly via
-`DefaultAzureCredential`.
+(module 11), the same shared UAMI (module 04) for both runtime identity
+and ACR pull, the same App Configuration store (module 05), and the same
+Key Vault (module 06). Injects the env vars each app needs to authenticate
+to those services passwordlessly via `DefaultAzureCredential`.
 
 This is the module where the passwordless model finally comes together:
 every RBAC grant handed to the shared UAMI in earlier modules is what
@@ -19,12 +19,13 @@ makes the env vars below usable at runtime.
 |--------------------------------|--------------|--------------------------------------------|------------------------------------------------------------------------------|
 | `env`                          | string       | —                                          | Environment token, baked into app names (`ca-<app>-<env>`).                  |
 | `resource_group_name`          | string       | —                                          | `rg-<workload>app-<env>` (from module 01).                                   |
-| `container_app_environment_id` | string       | —                                          | `cae_id` (from module 10).                                                   |
+| `container_app_environment_id` | string       | —                                          | `cae_id` (from module 11).                                                   |
 | `apps`                         | list(string) | —                                          | Microservice names. Must match `var.apps` in `env.tfvars`.                   |
 | `uami_id`                      | string       | —                                          | Shared UAMI resource ID (from module 04). Used for identity + ACR pull.      |
 | `uami_client_id`               | string       | —                                          | Shared UAMI client ID. Injected as `AZURE_CLIENT_ID`.                        |
-| `acr_login_server`             | string       | —                                          | `<acr>.azurecr.io` (from module 06). Set on `registry.server`.               |
-| `key_vault_uri`                | string       | —                                          | Vault DNS URI (from module 05). Injected as `KEY_VAULT_URI`.                 |
+| `acr_login_server`             | string       | —                                          | `<acr>.azurecr.io` (from module 07). Set on `registry.server`.               |
+| `key_vault_uri`                | string       | —                                          | Vault DNS URI (from module 06). Injected as `KEY_VAULT_URI`.                 |
+| `app_configuration_endpoint`   | string       | —                                          | Store endpoint (from module 05). Injected as `APP_CONFIG_ENDPOINT`.          |
 | `apps_image_map`               | map(string)  | `{}`                                       | Optional per-app image reference. Missing keys fall back to `default_image`. |
 | `default_image`                | string       | `mcr.microsoft.com/k8se/quickstart:latest` | Placeholder image while ACR is empty.                                        |
 | `target_port`                  | number       | `80`                                       | Container listen port. `8080` for typical Spring Boot images.                |
@@ -90,5 +91,5 @@ export TF_VAR_target_port=8080   # Spring Boot default
 
 ## Usage
 
-Called from `roots/11-container-apps/main.tf`. See that root's
+Called from `roots/12-container-apps/main.tf`. See that root's
 `README.md` for the copy-paste apply/verify/destroy sequence.

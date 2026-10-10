@@ -73,7 +73,7 @@ terraform destroy
 
 **Blocked while children exist.** `terraform destroy` refuses if any
 resource lives in these RGs — that means every downstream module
-(`02-networking` through `12-monitoring`) must be destroyed FIRST, in
+(`02-networking` through `13-monitoring`) must be destroyed FIRST, in
 reverse order. [`docs/MODULES_DEPENDENCY.md`](../../../docs/MODULES_DEPENDENCY.md) has the full
 dependency tree; destroy is that order reversed.
 
@@ -99,7 +99,7 @@ are reusable immediately after destroy.
 - **`workload` defaults to `rgomes`**, so the six RGs are
   `rg-rgomesplatform-lab`, `rg-rgomesnetwork-lab`, and so on. Unlike the
   `rg_suffix` it replaced, `workload` lives in `env.tfvars` and is declared by
-  all twelve roots — every resource name is composed from it rather than
+  all thirteen roots — every resource name is composed from it rather than
   inherited through this module's remote state.
 - **Changing it renames the whole estate.** `name` is ForceNew on
   `azurerm_resource_group`. Changing `workload` on a live estate plans a

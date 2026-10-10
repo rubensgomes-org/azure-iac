@@ -12,7 +12,7 @@ Reusable child module that provisions the env's observability stack:
   the same shared LAW. A single Kusto query spans the estate.
 
 Container Apps stdout/stderr already streams into LAW via the environment
-wired in module 10, so no `container-apps` diagnostic setting is needed
+wired in module 11, so no `container-apps` diagnostic setting is needed
 here.
 
 ## Contract
@@ -26,11 +26,11 @@ here.
 | `resource_group_name`       | string      | `rg-<workload>observability-<env>` (from module 01).                         |
 | `log_analytics_workspace_id`| string      | `law_id` (from module 03). Backs App Insights AND is the diag sink. |
 | `action_group_email`        | string      | Email receiver for the `owner` alert channel. Regex-validated.     |
-| `key_vault_id`              | string      | `kv_id` (from module 05).                                          |
-| `acr_id`                    | string      | `acr_id` (from module 06).                                         |
-| `storage_account_id`        | string      | `sa_id` (from module 07). Diag setting attaches at blob subresource.|
-| `service_bus_namespace_id`  | string      | `sb_namespace_id` (from module 08).                                |
-| `postgresql_server_id`      | string      | `pg_server_id` (from module 09).                                   |
+| `key_vault_id`              | string      | `kv_id` (from module 06).                                          |
+| `acr_id`                    | string      | `acr_id` (from module 07).                                         |
+| `storage_account_id`        | string      | `sa_id` (from module 08). Diag setting attaches at blob subresource.|
+| `service_bus_namespace_id`  | string      | `sb_namespace_id` (from module 09).                                |
+| `postgresql_server_id`      | string      | `pg_server_id` (from module 10).                                   |
 | `tags`                      | map(string) | Merged with `component` per resource.                              |
 
 **Outputs:**
@@ -68,7 +68,7 @@ here.
 
 ## Usage
 
-Called from `roots/12-monitoring/main.tf`. See that root's
+Called from `roots/13-monitoring/main.tf`. See that root's
 `README.md` for the copy-paste apply/verify/destroy sequence and the
 Kusto snippets that prove the diag settings are actually landing rows
 in LAW.

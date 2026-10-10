@@ -8,7 +8,7 @@ registers the shared UAMI as an AAD-authenticated PG role and grants it
 per-DB privileges. That last step is gated off by default — see
 `run_bootstrap` below.
 
-Called by `terraform/roots/09-postgresql/`. State is owned by the
+Called by `terraform/roots/10-postgresql/`. State is owned by the
 caller — this module has no `backend` block.
 
 ## Resources created
@@ -51,12 +51,12 @@ caller — this module has no `backend` block.
 
 ## The `run_bootstrap` gate
 
-`var.run_bootstrap` defaults to `false`, and `roots/09-postgresql/main.tf`
+`var.run_bootstrap` defaults to `false`, and `roots/10-postgresql/main.tf`
 pins it to `false`. **As shipped, `null_resource.pg_bootstrap` never runs and
 `terraform apply` never touches the PG data plane.** The registration and
 grants are performed by hand from Azure Cloud Shell instead — that procedure,
 not this module, is the sanctioned path today. See
-[`roots/09-postgresql/README.md`](../../roots/09-postgresql/README.md)
+[`roots/10-postgresql/README.md`](../../roots/10-postgresql/README.md)
 § Data-plane bootstrap (Cloud Shell).
 
 The gate exists because the psql step needs outbound TCP 5432 to Azure, which
@@ -114,13 +114,13 @@ Terraform runner; all three must be installed and on `PATH`. In addition:
 
 ## Not dependencies
 
-Modules 02 (network) and 05 (Key Vault) read like postgresql
+Modules 02 (network) and 06 (Key Vault) read like postgresql
 dependencies, but neither has a structural dep in the current design:
 
 - **02 network:** Public bootstrap posture — `delegated_subnet_id`
   and DNS integration are unused. When we flip to VNet-only, wire
   remote state to module 02 for `subnet_pg_id` and `dns_zone_pg_id`.
-- **05 Key Vault:** No customer-managed key for encryption-at-rest,
+- **06 Key Vault:** No customer-managed key for encryption-at-rest,
   and no SQL admin password to stash (it doesn't exist). If we add
   CMK later, wire remote state to module 05.
 

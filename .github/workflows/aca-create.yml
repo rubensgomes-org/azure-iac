@@ -2,10 +2,10 @@
 # ACA Create (reusable)
 #
 # Brings modules 01 (resource groups), 02 (networking), 03 (log analytics),
-# 04 (managed identities), 05 (key vault), 06 (ACR), 10 (container app
-# environment) and 11 (container apps) to their desired state, in dependency
-# order, so the estate's Container Apps exist end-to-end. Every recipe is a
-# `make` target from the repo-root Makefile.
+# 04 (managed identities), 05 (app configuration), 06 (key vault),
+# 07 (ACR), 11 (container app environment) and 12 (container apps) to their
+# desired state, in dependency order, so the estate's Container Apps exist
+# end-to-end. Every recipe is a `make` target from the repo-root Makefile.
 #
 # This project's source code and documentation were generated with the
 # assistance of Artificial Intelligence (AI). For more information, please
@@ -27,7 +27,7 @@ on:
 
       acr_name:
         description: >
-          Registry to pull images from (module 06). Passed to Terraform as
+          Registry to pull images from (module 07). Passed to Terraform as
           TF_VAR_acr_name.
         type: string
         required: true
@@ -80,7 +80,7 @@ on:
           - lab
 
       acr_name:
-        description: 'Registry to pull images from (module 06)'
+        description: 'Registry to pull images from (module 07)'
         type: choice
         required: true
         options:
@@ -108,7 +108,7 @@ jobs:
     # cae-lifecycle-*/acr-lifecycle-*: those two don't serialise against each
     # other either, since the azurerm backend's blob lease -- not the GitHub
     # concurrency group -- is what actually protects a shared module's state
-    # (here, modules 01/04/05/06/10) from a concurrent apply. Never work
+    # (here, modules 01/04/05/06/07/11) from a concurrent apply. Never work
     # around that with -lock=false.
     concurrency:
       group: aca-lifecycle-${{ inputs.environment_name }}
@@ -155,7 +155,7 @@ jobs:
       TF_VAR_location: ${{ vars.TF_VAR_location }}
       TF_VAR_acr_name: ${{ inputs.acr_name }}
 
-      # `|| 80` matches the quickstart placeholder image (module 11's own
+      # `|| 80` matches the quickstart placeholder image (module 12's own
       # default), so a caller that never sets TF_VAR_target_port still
       # provisions cleanly. Real images typically need 8080 (Spring Boot,
       # .NET 8+, this project's own apps) -- set the TF_VAR_target_port
@@ -174,13 +174,13 @@ jobs:
       TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
       TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
 
-      # Module 11's `apps` variable has no default. No `|| default` here for
+      # Module 12's `apps` variable has no default. No `|| default` here for
       # the same reason as the backend coordinates above: an empty value is
       # still a value, and the GUARD step below rejects it explicitly rather
       # than let Terraform fail deep inside plan with an opaque type error.
       # Placeholder images only -- this workflow does not accept
       # apps_image_map/default_image overrides; swap real images in
-      # locally per terraform/roots/11-container-apps/README.md.
+      # locally per terraform/roots/12-container-apps/README.md.
       # `inputs.apps` is only set on workflow_call; a workflow_dispatch run
       # falls through to the repository variable, same as before.
       TF_VAR_apps: ${{ inputs.apps || vars.TF_VAR_apps }}
@@ -330,7 +330,7 @@ jobs:
 
       # `name` is ForceNew on azurerm_resource_group, so a changed workload is
       # a destroy+recreate of all six RGs, not a rename. Empty state means
-      # first provision, which is the one time the change is safe. Module 11
+      # first provision, which is the one time the change is safe. Module 12
       # consumes the APP resource group, same as module 10.
       - name: GUARD - Assert workload matches module 01's state
         shell: bash
@@ -369,21 +369,21 @@ jobs:
           make ENV="$ENV_NAME" \
             plan-resource-groups apply-resource-groups
 
-      # Module 10 wires its infrastructure subnet to this module's output.
+      # Module 11 wires its infrastructure subnet to this module's output.
       - name: Module 02 - networking
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
             init-networking plan-networking apply-networking
 
-      # Module 10 sends container stdout/stderr to this module's workspace.
+      # Module 11 sends container stdout/stderr to this module's workspace.
       - name: Module 03 - log analytics
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
             init-log-analytics plan-log-analytics apply-log-analytics
 
-      # Module 11 attaches this identity to every app for both runtime auth
+      # Module 12 attaches this identity to every app for both runtime auth
       # and ACR pull.
       - name: Module 04 - managed identities
         shell: bash
@@ -392,22 +392,31 @@ jobs:
             init-managed-identities plan-managed-identities \
             apply-managed-identities
 
-      # Module 11 injects this vault's URI into every app as KEY_VAULT_URI.
-      - name: Module 05 - key vault
+      # Module 12 injects this store's endpoint into every app as
+      # APP_CONFIG_ENDPOINT; module 06 grants the store's identity vault access.
+      - name: Module 05 - app configuration
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-app-configuration plan-app-configuration \
+            apply-app-configuration
+
+      # Module 12 injects this vault's URI into every app as KEY_VAULT_URI.
+      - name: Module 06 - key vault
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
             init-key-vault plan-key-vault apply-key-vault
 
-      # Module 11 pulls images from this registry, passwordless via the
+      # Module 12 pulls images from this registry, passwordless via the
       # shared UAMI's AcrPull role granted here.
-      - name: Module 06 - container registry
+      - name: Module 07 - container registry
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
             init-acr plan-acr apply-acr
 
-      - name: Module 10 - container app environment
+      - name: Module 11 - container app environment
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
@@ -415,7 +424,7 @@ jobs:
             plan-container-app-environment \
             apply-container-app-environment
 
-      - name: Module 11 - container apps
+      - name: Module 12 - container apps
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
@@ -429,7 +438,7 @@ jobs:
       - name: Publish ACA outputs
         id: aca_outputs
         shell: bash
-        working-directory: ${{ env.ROOTS_DIR }}/11-container-apps
+        working-directory: ${{ env.ROOTS_DIR }}/12-container-apps
         run: |
           set -euo pipefail
           app_ids="$(terraform output -json app_ids | jq -c .)"

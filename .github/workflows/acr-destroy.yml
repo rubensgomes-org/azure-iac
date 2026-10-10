@@ -1,12 +1,12 @@
 # =============================================================================
 # ACR Destroy (reusable)
 #
-# Destroys ONE Terraform root, module 06 (acr): the container registry and its
+# Destroys ONE Terraform root, module 07 (acr): the container registry and its
 # AcrPull role assignment. THE BLAST RADIUS IS THE REGISTRY AND ITS IMAGES --
 # the shared managed identity (04) and the resource groups (01) are left
 # standing. Basic SKU has no soft-delete, so images are unrecoverable. Unlike
 # a Container App Environment, Azure does not refuse this while Container
-# Apps still pull from the registry, so a GUARD step checks module 11's apps
+# Apps still pull from the registry, so a GUARD step checks module 12's apps
 # itself before any change is made.
 #
 # This project's source code and documentation were generated with the
@@ -32,7 +32,7 @@ on:
 
       acr_name:
         description: >
-          Registry to destroy. Must match the acr_name recorded in module 06
+          Registry to destroy. Must match the acr_name recorded in module 07
           state.
         type: choice
         required: true
@@ -67,14 +67,14 @@ on:
 
       acr_name:
         description: >
-          Registry to destroy. Must match the acr_name recorded in module 06
+          Registry to destroy. Must match the acr_name recorded in module 07
           state.
         type: string
         required: true
 
       confirm:
         description: >
-          SAFEGUARD: must be exactly "Yes". Destroys module 06 only — the
+          SAFEGUARD: must be exactly "Yes". Destroys module 07 only — the
           registry and all its images. The shared UAMI and the resource
           groups are not touched.
         type: string
@@ -239,14 +239,14 @@ jobs:
             exit 1
           fi
 
-          # Mirrors module 11's naming: apps live in the app RG
+          # Mirrors module 12's naming: apps live in the app RG
           # `rg-<workload>app-<env>`. Needed by the registry-dependents guard
           # below; not a workflow input.
           echo "ACR_NAME=${TYPED_ACR}" >> "$GITHUB_ENV"
           echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}" >> "$GITHUB_ENV"
           echo "Safeguard passed."
           echo "Target registry: ${TYPED_ACR} (env ${ENV_NAME})"
-          echo "Scope: module 06 (acr) only. Modules 04 and 01 are not touched."
+          echo "Scope: module 07 (acr) only. Modules 04 and 01 are not touched."
 
       # Shape check, not the authorization check -- the safeguard above has
       # already matched acr_name against the phrase the operator typed.
@@ -456,13 +456,13 @@ jobs:
           set -euo pipefail
 
           make ENV="$ENV_NAME" init-acr
-          outputs="$(cd "${ROOTS_DIR}/06-acr" && terraform output -json)"
+          outputs="$(cd "${ROOTS_DIR}/07-acr" && terraform output -json)"
           state_acr="$(jq -r '.acr_name.value // empty' <<< "${outputs}")"
           if [ -z "${state_acr}" ]; then
-            echo "Module 06 state has no acr_name output; treating this as an"
+            echo "Module 07 state has no acr_name output; treating this as an"
             echo "already-destroyed run."
           elif [ "${state_acr}" != "${REQUESTED_ACR_NAME}" ]; then
-            echo "DENIED: module 06 state contains registry '${state_acr}',"
+            echo "DENIED: module 07 state contains registry '${state_acr}',"
             echo "but this run requested '${REQUESTED_ACR_NAME}'."
             exit 1
           else
@@ -470,7 +470,7 @@ jobs:
             echo "(${state_acr})."
           fi
 
-      # Belt-and-braces: module 06 has its own state key, so its plan
+      # Belt-and-braces: module 07 has its own state key, so its plan
       # structurally cannot contain an RG or the shared identity. Kept as a
       # standalone script so a second call site needs no copy-paste.
       - name: Install the plan-scope guard
@@ -539,22 +539,22 @@ jobs:
       # `make destroy-acr` does NOT consume this tfplan -- it re-plans
       # internally under -auto-approve -- so the guard below is a check on
       # intent, not a locked-in execution plan.
-      - name: Plan the destroy - module 06 (acr)
+      - name: Plan the destroy - module 07 (acr)
         shell: bash
         run: |
           make ENV="$ENV_NAME" plan-destroy-acr
 
-      - name: GUARD - Assert module 06's plan destroys only the registry
+      - name: GUARD - Assert module 07's plan destroys only the registry
         shell: bash
         run: |
           "${RUNNER_TEMP}/assert-plan-scope.sh" \
-            "${ROOTS_DIR}/06-acr" \
-            "module 06 (acr)" \
+            "${ROOTS_DIR}/07-acr" \
+            "module 07 (acr)" \
             azurerm_container_registry azurerm_role_assignment
 
       # Deleting the registry deletes its repositories, tags and manifests
       # with it: no separate purge, and no soft-deleted remnant on Basic SKU.
-      - name: Destroy module 06 - container registry
+      - name: Destroy module 07 - container registry
         shell: bash
         run: |
           make ENV="$ENV_NAME" destroy-acr

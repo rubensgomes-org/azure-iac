@@ -1,6 +1,6 @@
 # modules/container-app-environment/outputs.tf
 # -----------------------------------------------------------------------------
-# Publishes IDs, names, and endpoints for downstream callers. Module 11
+# Publishes IDs, names, and endpoints for downstream callers. Module 12
 # (container-apps) consumes `cae_id`; DNS wiring and VNet-facing docs
 # consume `cae_default_domain` and `cae_static_ip_address`.
 #
@@ -8,7 +8,7 @@
 # -----------------------------------------------------------------------------
 
 output "cae_id" {
-  description = "Full Azure Resource ID of the Container App Environment. Every `azurerm_container_app` in module 11 sets `container_app_environment_id = <this>`."
+  description = "Full Azure Resource ID of the Container App Environment. Every `azurerm_container_app` in module 12 sets `container_app_environment_id = <this>`."
   value       = azurerm_container_app_environment.this.id
 }
 
@@ -18,7 +18,7 @@ output "cae_name" {
 }
 
 output "cae_default_domain" {
-  description = "Default DNS suffix Azure assigns to apps in this environment (e.g. `<random>.centralus.azurecontainerapps.io`). App FQDNs land at `<app-name>.<cae_default_domain>`. Used by module 11 outputs and any doc that publishes URLs."
+  description = "Default DNS suffix Azure assigns to apps in this environment (e.g. `<random>.centralus.azurecontainerapps.io`). App FQDNs land at `<app-name>.<cae_default_domain>`. Used by module 12 outputs and any doc that publishes URLs."
   value       = azurerm_container_app_environment.this.default_domain
 }
 

@@ -172,7 +172,7 @@ variable "run_bootstrap" {
     reach the PG public endpoint on TCP 5432. Many corporate / home
     ISPs block outbound 5432 unconditionally, which turns Terraform
     apply into an unrecoverable failure. See
-    `roots/09-postgresql/README.md` → Troubleshooting for two
+    `roots/10-postgresql/README.md` → Troubleshooting for two
     workarounds:
 
       1. Run the bootstrap manually ONCE from Azure Cloud Shell (Cloud
@@ -181,7 +181,7 @@ variable "run_bootstrap" {
          `false`; Terraform stays out of the data plane.
 
       2. Move the bootstrap to a Container Apps Job triggered by GitHub
-         Actions after apply (see 09-postgresql/README.md for
+         Actions after apply (see 10-postgresql/README.md for
          the follow-on design). Once that lands, this variable and the
          `null_resource` disappear entirely.
 

@@ -1,7 +1,7 @@
 # modules/container-app-environment/main.tf
 # -----------------------------------------------------------------------------
 # Provisions the Azure Container Apps Environment (ACAE / CAE) that hosts
-# every microservice Container App (module 11). Wired to:
+# every microservice Container App (module 12). Wired to:
 #   - The shared Log Analytics Workspace (module 03) for container logs.
 #   - `snet-<env>-app` (module 02) for compute-plane VNet integration.
 #
@@ -30,7 +30,7 @@
 #   destroy+recreate, not a rename.
 #
 # See docs/MODULES_DEPENDENCY.md for the full dependency map, and the
-# module README for how Container Apps (module 11) consume `cae_id`.
+# module README for how Container Apps (module 12) consume `cae_id`.
 # -----------------------------------------------------------------------------
 
 resource "azurerm_container_app_environment" "this" {

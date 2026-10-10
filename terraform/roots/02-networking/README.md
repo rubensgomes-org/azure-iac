@@ -88,9 +88,9 @@ terraform destroy
 **Blocked while delegated subnets are in use.** Delegated subnets refuse to
 destroy while their delegated resource still exists:
 
-- `snet-dev-app` blocks while the Container App Environment (module 10)
+- `snet-dev-app` blocks while the Container App Environment (module 11)
   exists.
-- `snet-dev-pg` blocks while the PostgreSQL Flexible Server (module 09)
+- `snet-dev-pg` blocks while the PostgreSQL Flexible Server (module 10)
   exists.
 
 Destroy those modules FIRST — the reverse of the dependency order in

@@ -1,8 +1,8 @@
 # modules/log-analytics/main.tf
 # -----------------------------------------------------------------------------
 # Provisions the shared Log Analytics Workspace for the env. Downstream
-# consumers: Container App Environment (module 10, streams container stdout/
-# stderr here), Application Insights (module 12, workspace-based), and every
+# consumers: Container App Environment (module 11, streams container stdout/
+# stderr here), Application Insights (module 13, workspace-based), and every
 # diagnostic-settings block on every azurerm resource that emits logs.
 #
 # One workspace per env is deliberate — cross-service correlation via KQL is

@@ -3,7 +3,7 @@
 # Observability stack for the env. Three concerns, one module:
 #
 #   1. Application Insights — workspace-based, backed by the shared LAW
-#      (module 03). Apps in module 11 consume
+#      (module 03). Apps in module 12 consume
 #      `APPLICATIONINSIGHTS_CONNECTION_STRING` (see `outputs.tf`) via the
 #      Azure Monitor OpenTelemetry SDK. No per-app instrumentation key —
 #      the connection string carries auth transparently.
@@ -132,7 +132,7 @@ resource "azurerm_monitor_diagnostic_setting" "key_vault" {
 # -----------------------------------------------------------------------------
 # Captures `ContainerRegistryRepositoryEvents` (pull / push) and
 # `ContainerRegistryLoginEvents` under `allLogs`. Supply-chain audit for
-# the images module 11 pulls via the shared UAMI.
+# the images module 12 pulls via the shared UAMI.
 resource "azurerm_monitor_diagnostic_setting" "acr" {
   name                       = "diag-to-law"
   target_resource_id         = var.acr_id

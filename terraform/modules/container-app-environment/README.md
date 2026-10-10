@@ -1,11 +1,11 @@
 # modules/container-app-environment
 
 Child Terraform module that provisions one Azure Container Apps
-Environment (ACAE / CAE) per environment. Consumed by module 11
+Environment (ACAE / CAE) per environment. Consumed by module 12
 (`container-apps`) — every `azurerm_container_app` attaches to this
 environment via `container_app_environment_id = cae_id`.
 
-Called by `terraform/roots/10-container-app-environment/`. State is
+Called by `terraform/roots/11-container-app-environment/`. State is
 owned by the caller — this module has no `backend` block.
 
 ## Resources created
@@ -60,9 +60,9 @@ owned by the caller — this module has no `backend` block.
 
 ## Destroy notes
 
-Container Apps (module 11) attach to this environment. Azure refuses to
+Container Apps (module 12) attach to this environment. Azure refuses to
 delete a CAE while any Container App inside it still exists — always
-`terraform destroy` module 11 first, then this one. If a stuck app
+`terraform destroy` module 12 first, then this one. If a stuck app
 survives (e.g. a manually-created one outside Terraform), delete it via
 `az containerapp delete -g rg-<workload>app-<env> -n <app-name> --yes` before
 retrying destroy on this module.

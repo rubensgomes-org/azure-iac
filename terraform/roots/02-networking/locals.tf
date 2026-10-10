@@ -15,7 +15,7 @@
 #
 # Consequence worth knowing before you plan: bumping VERSION immediately makes
 # `terraform plan` show a pending `~ tags` update on every resource in all
-# twelve modules. That diff is the intended signal — the code is at the new
+# thirteen modules. That diff is the intended signal — the code is at the new
 # release, Azure is still labelled with the old one — and it clears on the next
 # apply. Tag changes are in-place updates in azurerm; nothing is recreated.
 # -----------------------------------------------------------------------------

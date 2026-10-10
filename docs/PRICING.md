@@ -1,8 +1,8 @@
 # Pricing Reference
 
 Cost model for the resources modules 01 (resource groups), 02 (networking),
-04 (managed identities), 05 (key vault), 06 (acr), 10 (container app
-environment), and 11 (container apps) provision, assuming no container app
+04 (managed identities), 06 (key vault), 07 (acr), 11 (container app
+environment), and 12 (container apps) provision, assuming no container app
 is receiving traffic and `min_replicas = 0` (the module default). Prices are
 Azure retail list prices, USD, `centralus`, as of September 2026 — verify
 current rates against the links below before budgeting.

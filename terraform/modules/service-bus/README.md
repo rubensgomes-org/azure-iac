@@ -5,7 +5,7 @@ namespace per environment, optional queues, and the two RBAC role
 assignments (`Azure Service Bus Data Sender` and `Data Receiver`) that
 let the shared UAMI send and receive messages passwordlessly.
 
-Called by `terraform/roots/08-service-bus/`. State is owned by the
+Called by `terraform/roots/09-service-bus/`. State is owned by the
 caller — this module has no `backend` block.
 
 ## Resources created
@@ -71,10 +71,10 @@ caller — this module has no `backend` block.
 
 ## Not dependencies
 
-Module 05 (Key Vault) reads like a service-bus dependency, but there is
+Module 06 (Key Vault) reads like a service-bus dependency, but there is
 no structural dep in the current design:
 
-- **05 Key Vault:** No customer-managed key for encryption-at-rest —
+- **06 Key Vault:** No customer-managed key for encryption-at-rest —
   the Microsoft-managed key covers dev. No SAS key to stash in KV
   (apps auth via AAD). If we add CMK later, wire remote state to
   module 05.

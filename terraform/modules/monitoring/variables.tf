@@ -116,7 +116,7 @@ variable "action_group_email" {
 
 variable "key_vault_id" {
   description = <<-EOT
-    Full Azure Resource ID of the Key Vault (module 05). Target for the
+    Full Azure Resource ID of the Key Vault (module 06). Target for the
     KV diagnostic setting — captures `AuditEvent` and any future log
     categories under the `allLogs` category group, plus `AllMetrics`.
     Populates who-touched-which-secret audit trail in LAW.
@@ -126,7 +126,7 @@ variable "key_vault_id" {
 
 variable "acr_id" {
   description = <<-EOT
-    Full Azure Resource ID of the container registry (module 06). Target
+    Full Azure Resource ID of the container registry (module 07). Target
     for the ACR diagnostic setting — captures repository events (pull /
     push) and login events under `allLogs`, plus `AllMetrics`. Supply-
     chain audit trail for images consumed by module 11.
@@ -136,7 +136,7 @@ variable "acr_id" {
 
 variable "storage_account_id" {
   description = <<-EOT
-    Full Azure Resource ID of the storage account (module 07). The diag
+    Full Azure Resource ID of the storage account (module 08). The diag
     setting attaches to `<sa_id>/blobServices/default` — NOT the account
     itself — because the interesting logs (StorageRead / StorageWrite /
     StorageDelete) only surface at the blob-services subresource. Account-
@@ -148,7 +148,7 @@ variable "storage_account_id" {
 
 variable "service_bus_namespace_id" {
   description = <<-EOT
-    Full Azure Resource ID of the Service Bus namespace (module 08).
+    Full Azure Resource ID of the Service Bus namespace (module 09).
     Target for the SB diagnostic setting — captures `OperationalLogs`,
     `RuntimeAuditLogs`, and any other category rolled into `allLogs`,
     plus `AllMetrics`. Message-plane visibility for the passwordless
@@ -159,7 +159,7 @@ variable "service_bus_namespace_id" {
 
 variable "postgresql_server_id" {
   description = <<-EOT
-    Full Azure Resource ID of the PG Flexible Server (module 09). Target
+    Full Azure Resource ID of the PG Flexible Server (module 10). Target
     for the PG diagnostic setting — captures `PostgreSQLLogs`,
     `PostgreSQLFlexSessions`, and the query-store category group under
     `allLogs`, plus `AllMetrics`. Slow-query / connection audit trail.

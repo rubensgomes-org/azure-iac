@@ -21,13 +21,13 @@ variable "env" {
 # namespace — see docs/NAMING.md.
 #
 # `name` is ForceNew on every resource composed from it. Changing this on a
-# LIVE estate is a destroy+recreate spread across twelve state files that know
+# LIVE estate is a destroy+recreate spread across thirteen state files that know
 # nothing about each other, which is a broken estate rather than a rename. Set
 # it at first provision, or after a full teardown.
 #
 # `null` rather than a literal default so an unset value falls through to the
 # child module's own default (`rgomes`) instead of duplicating the literal in
-# twelve roots. The fall-through only works because the child declares
+# thirteen roots. The fall-through only works because the child declares
 # `nullable = false`: a null passed to a nullable variable is a VALUE, not an
 # absence, and would fail the child's validation rather than be replaced.
 variable "workload" {
@@ -63,19 +63,19 @@ variable "owner" {
 # ---- Declared for env.tfvars parity, unused by this module -----------------
 
 variable "apps" {
-  description = "Microservice names. Not used here; consumed by 09-postgresql and 11-container-apps."
+  description = "Microservice names. Not used here; consumed by 10-postgresql and 12-container-apps."
   type        = list(string)
   default     = []
 }
 
 variable "pg_entra_admin_group_object_id" {
-  description = "Entra group object ID for PG admin. Not used here; consumed by 09-postgresql."
+  description = "Entra group object ID for PG admin. Not used here; consumed by 10-postgresql."
   type        = string
   default     = null
 }
 
 variable "pg_entra_admin_group_name" {
-  description = "Entra group display name for PG admin. Not used here; consumed by 09-postgresql."
+  description = "Entra group display name for PG admin. Not used here; consumed by 10-postgresql."
   type        = string
   default     = null
 }

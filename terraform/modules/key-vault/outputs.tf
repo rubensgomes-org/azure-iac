@@ -28,3 +28,8 @@ output "kv_role_assignment_id" {
   description = "ID of the `Key Vault Secrets User` role assignment granted to the shared UAMI. Exposed so downstream modules or scripts can reference it (rare)."
   value       = azurerm_role_assignment.uami_secrets_user.id
 }
+
+output "kv_app_configuration_role_assignment_id" {
+  description = "ID of the `Key Vault Secrets User` role assignment granted to the App Configuration store identity."
+  value       = azurerm_role_assignment.app_configuration_secrets_user.id
+}

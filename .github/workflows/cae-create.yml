@@ -2,7 +2,7 @@
 # CAE Create (reusable)
 #
 # Brings modules 01 (resource groups), 02 (networking), 03 (log analytics)
-# and 10 (container app environment) to their desired state, in dependency
+# and 11 (container app environment) to their desired state, in dependency
 # order, so a Container App Environment exists before an application
 # pipeline deploys a container app into it. Every recipe is a `make` target
 # from the repo-root Makefile.
@@ -250,7 +250,7 @@ jobs:
 
       # `name` is ForceNew on azurerm_resource_group, so a changed workload is
       # a destroy+recreate of all six RGs, not a rename. Empty state means
-      # first provision, which is the one time the change is safe. Module 10
+      # first provision, which is the one time the change is safe. Module 11
       # consumes the APP resource group, unlike ACR which consumes the
       # platform one -- checked here, not rg_platform_name.
       - name: GUARD - Assert workload matches module 01's state
@@ -291,21 +291,21 @@ jobs:
           make ENV="$ENV_NAME" \
             plan-resource-groups apply-resource-groups
 
-      # Module 10 wires its infrastructure subnet to this module's output.
+      # Module 11 wires its infrastructure subnet to this module's output.
       - name: Module 02 - networking
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
             init-networking plan-networking apply-networking
 
-      # Module 10 sends container stdout/stderr to this module's workspace.
+      # Module 11 sends container stdout/stderr to this module's workspace.
       - name: Module 03 - log analytics
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
             init-log-analytics plan-log-analytics apply-log-analytics
 
-      - name: Module 10 - container app environment
+      - name: Module 11 - container app environment
         shell: bash
         run: |
           make ENV="$ENV_NAME" \
@@ -318,7 +318,7 @@ jobs:
       - name: Publish CAE outputs
         id: cae_outputs
         shell: bash
-        working-directory: ${{ env.ROOTS_DIR }}/10-container-app-environment
+        working-directory: ${{ env.ROOTS_DIR }}/11-container-app-environment
         run: |
           set -euo pipefail
           cae_name="$(terraform output -raw cae_name)"

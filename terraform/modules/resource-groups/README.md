@@ -29,7 +29,7 @@ at three tokens — see [NAMING.md](../../../docs/NAMING.md).
 
 `workload` is safe to set at first provision or after a full teardown only:
 `name` is ForceNew on `azurerm_resource_group`, and the resources inside those
-RGs are owned by eleven other state files that would not follow a rename.
+RGs are owned by twelve other state files that would not follow a rename.
 
 ## Outputs
 

@@ -46,15 +46,16 @@ provisioned in this project.
 
 | Azure Service      |      Provider Namespace       | Provisioned by |
 |:-------------------|:-----------------------------:|:---------------|
-| ACR                |  Microsoft.ContainerRegistry  | 06             |
-| Container Apps     |         Microsoft.App         | 10, 11         |
-| Key Vault          |      Microsoft.KeyVault       | 05             |
+| ACR                |  Microsoft.ContainerRegistry  | 07             |
+| App Configuration  |  Microsoft.AppConfiguration   | 05             |
+| Container Apps     |         Microsoft.App         | 11, 12         |
+| Key Vault          |      Microsoft.KeyVault       | 06             |
 | Log Analytics      | Microsoft.OperationalInsights | 03             |
 | Managed Identities |   Microsoft.ManagedIdentity   | 04             |
-| Monitor            |      Microsoft.Insights       | 12             |
-| PostgreSQL         |   Microsoft.DBforPostgreSQL   | 09             |
-| Service Bus        |     Microsoft.ServiceBus      | 08             |
-| Storage Accounts   |       Microsoft.Storage       | 07             |
+| Monitor            |      Microsoft.Insights       | 13             |
+| PostgreSQL         |   Microsoft.DBforPostgreSQL   | 10             |
+| Service Bus        |     Microsoft.ServiceBus      | 09             |
+| Storage Accounts   |       Microsoft.Storage       | 08             |
 | Virtual Networks   |       Microsoft.Network       | 02             |
 
 The above "Resource Providers" must be registered with the Subscription to be
@@ -71,6 +72,8 @@ able to provision their corresponding resources in Azure cloud.
     az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
     # ACR:
     az provider register --verbose --namespace Microsoft.ContainerRegistry
+    # App Configuration:
+    az provider register --verbose --namespace Microsoft.AppConfiguration
     # Container Apps + Container App Environment:
     az provider register --verbose --namespace Microsoft.App
     # Key Vault:
@@ -281,7 +284,7 @@ section for what has to change to target it.
 
 ### Selecting an environment
 
-`terraform/roots/` holds one copy of the twelve module roots, shared by every
+`terraform/roots/` holds one copy of the thirteen module roots, shared by every
 environment. What makes a run `dev` or `lab` is `terraform/envs/<env>/` plus
 the exports — no HCL names an environment.
 

@@ -49,9 +49,10 @@ Every module below reads `uami_app_*` outputs via
 
 | Module | What it does with the UAMI |
 |--------|----------------------------|
-| 05 key-vault | `Key Vault Secrets User` role assignment at vault scope |
-| 06 acr | `AcrPull` role assignment at ACR scope |
-| 07 storage | `Storage Blob Data Contributor` role assignment at SA scope |
-| 08 service-bus | `Data Sender` + `Data Receiver` role assignments at namespace scope |
-| 09 postgresql | Registers UAMI as an in-DB AAD principal; grants `CONNECT` on every app DB |
+| 05 app-configuration | `App Configuration Data Reader` role assignment at store scope |
+| 06 key-vault | `Key Vault Secrets User` role assignment at vault scope |
+| 07 acr | `AcrPull` role assignment at ACR scope |
+| 08 storage | `Storage Blob Data Contributor` role assignment at SA scope |
+| 09 service-bus | `Data Sender` + `Data Receiver` role assignments at namespace scope |
+| 10 postgresql | Registers UAMI as an in-DB AAD principal; grants `CONNECT` on every app DB |
 | 11 container-apps | Attaches to every Container App via `identity_ids`; sets `AZURE_CLIENT_ID` env var |

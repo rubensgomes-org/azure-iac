@@ -9,8 +9,9 @@
 An IaC (Infrastructure as Code) project to demonstrate the use of CI/CD GitHub
 Actions workflows and Terraform to init/plan/create/destroy several
 infrastructure resources (resource groups, networking, log analytics, managed
-identities, key vault, container registry, storage, service bus, PostgreSQL, a
-container app environment, container apps, and monitoring) in Azure.
+identities, app configuration, key vault, container registry, storage, service
+bus, PostgreSQL, a container app environment, container apps, and monitoring)
+in Azure.
 
 ---
 
@@ -80,17 +81,17 @@ resources provisioned by this project.
 
 | Workflow             | Purpose                                                                                                 |
 |----------------------|---------------------------------------------------------------------------------------------------------|
-| `acr-create.yml`     | apply modules 01 → 04 → 06 so a registry exists and is writable                                         |
-| `acr-destroy.yml`    | **destructive** — destroy module 06 only, the registry and every image in it                            |
-| `cae-create.yml`     | apply modules 01 → 02 → 03 → 10 so a Container App Environment exists                                   |
-| `cae-destroy.yml`    | **destructive** — destroy module 10 only, the Container App Environment                                 |
-| `aca-create.yml`     | apply modules 01 → 02 → 03 → 04 → 05 → 06 → 10 → 11 so the Container Apps exist                         |
-| `aca-destroy.yml`    | **destructive** — destroy module 11 only, the Container Apps                                            |
+| `acr-create.yml`     | apply modules 01 → 04 → 07 so a registry exists and is writable                                         |
+| `acr-destroy.yml`    | **destructive** — destroy module 07 only, the registry and every image in it                            |
+| `cae-create.yml`     | apply modules 01 → 02 → 03 → 11 so a Container App Environment exists                                   |
+| `cae-destroy.yml`    | **destructive** — destroy module 11 only, the Container App Environment                                 |
+| `aca-create.yml`     | apply modules 01 → 02 → 03 → 04 → 05 → 06 → 07 → 11 → 12 so the Container Apps exist                    |
+| `aca-destroy.yml`    | **destructive** — destroy module 12 only, the Container Apps                                            |
 | `rg-create-all.yml`  | apply module 01, all six resource groups; plans only unless `dry_run` is cleared                        |
-| `rg-destroy-all.yml` | **destructive** — destroy module 01 only, after modules 02–12; plans only unless `dry_run` is cleared   |
+| `rg-destroy-all.yml` | **destructive** — destroy module 01 only, after modules 02–13; plans only unless `dry_run` is cleared   |
 | `rg-create.yml`      | apply ONE module 01 resource group, chosen by `purpose`; plans only unless `dry_run` is cleared         |
 | `rg-destroy.yml`     | **destructive** — destroy ONE module 01 resource group; plans only unless `dry_run` is cleared          |
-| `destroy-all.yml`    | **destructive** — destroy the whole estate, modules 12 → 01; plans only unless `dry_run` is cleared     |
+| `destroy-all.yml`    | **destructive** — destroy the whole estate, modules 13 → 01; plans only unless `dry_run` is cleared     |
 | `main-verify.yml`    | manual checks on `main` — `terraform` and `workflows` always, `sonar` when `run_sonar` is true          |
 | `release.yml`        | fires on a `v*.*.*` tag push — validate the tag against `VERSION` + `CHANGELOG.md`, publish the release |
 

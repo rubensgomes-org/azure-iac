@@ -4,7 +4,7 @@
 # settings are not exported — they're implementation detail with no
 # downstream consumer.
 #
-# `ai_connection_string` is what module 11 (or a future revision of it)
+# `ai_connection_string` is what module 12 (or a future revision of it)
 # passes to apps as `APPLICATIONINSIGHTS_CONNECTION_STRING` — the Azure
 # Monitor OpenTelemetry SDK reads that env var directly.
 # -----------------------------------------------------------------------------

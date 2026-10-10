@@ -140,7 +140,7 @@ resource "azurerm_role_assignment" "uami_blob_contributor" {
 #
 # `publicAccess = None`: blobs are never anonymously reachable; AAD auth is
 # the only path in. Container name is the app name (matches env-var wiring
-# in module 11).
+# in module 12).
 resource "azapi_resource" "container" {
   for_each = toset(var.apps)
 

@@ -4,12 +4,13 @@
 # microservice in the ACA environment.
 #
 # One identity, one blast-radius, minimal RBAC ceremony:
-#   - Attached to every azurerm_container_app in module 11
-#   - Granted `Key Vault Secrets User` on the vault (module 05)
-#   - Granted `AcrPull` on ACR (module 06)
-#   - Granted `Storage Blob Data Contributor` on the storage account (module 07)
-#   - Granted Service Bus `Data Sender` / `Data Receiver` (module 08)
-#   - Registered as an in-DB AAD principal on every PG database (module 09)
+#   - Attached to every azurerm_container_app in module 12
+#   - Granted `App Configuration Data Reader` on the store (module 05)
+#   - Granted `Key Vault Secrets User` on the vault (module 06)
+#   - Granted `AcrPull` on ACR (module 07)
+#   - Granted `Storage Blob Data Contributor` on the storage account (module 08)
+#   - Granted Service Bus `Data Sender` / `Data Receiver` (module 09)
+#   - Registered as an in-DB AAD principal on every PG database (module 10)
 #
 # Per-app identities are explicitly OUT OF SCOPE for this playground. See
 # the module README for the trade-off (uniform blast-radius vs. per-app

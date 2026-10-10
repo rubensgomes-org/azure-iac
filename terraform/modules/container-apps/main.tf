@@ -1,13 +1,14 @@
 # modules/container-apps/main.tf
 # -----------------------------------------------------------------------------
 # Provisions one `azurerm_container_app` per entry in `var.apps`, all sharing:
-#   - the same Container App Environment (module 10),
+#   - the same Container App Environment (module 11),
 #   - the same UAMI (module 04) for BOTH runtime identity and ACR pull,
-#   - the same Key Vault (module 05) for secrets.
+#   - the same App Configuration store (module 05) for settings,
+#   - the same Key Vault (module 06) for secrets.
 #
 # This is the module where the passwordless model finally comes
 # together: every downstream service the apps consume was RBAC'd to the shared
-# UAMI in its own module (05, 06), and here we attach that identity and inject
+# UAMI in its own module (05, 06, 07), and here we attach that identity and inject
 # the env vars app code needs to reach each service via
 # `DefaultAzureCredential`. No passwords, no keys, no connection strings.
 #
@@ -66,7 +67,7 @@ resource "azurerm_container_app" "app" {
   }
 
   # Passwordless ACR pull. The UAMI already holds `AcrPull` on this
-  # registry (granted in module 06). See file header for why this block is
+  # registry (granted in module 07). See file header for why this block is
   # declared even when the placeholder image comes from `mcr.microsoft.com`.
   registry {
     server   = var.acr_login_server
@@ -109,6 +110,12 @@ resource "azurerm_container_app" "app" {
       env {
         name  = "KEY_VAULT_URI"
         value = var.key_vault_uri
+      }
+
+      # App Configuration: apps read settings via `DefaultAzureCredential`.
+      env {
+        name  = "APP_CONFIG_ENDPOINT"
+        value = var.app_configuration_endpoint
       }
 
       # HTTP probes only for apps listed in `var.health_probe_paths`; the

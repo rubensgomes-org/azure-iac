@@ -85,7 +85,7 @@ the apply fails on it.
 manual, and neither is reported by the teardown:
 
 ```bash
-# Key Vault — 7-day retention here (soft_delete_retention_days in module 05).
+# Key Vault — 7-day retention here (soft_delete_retention_days in module 06).
 # make destroy handles this; run it only if that step was skipped or failed.
 az keyvault list-deleted \
   --query "[?name=='kv-${TF_VAR_workload}-${TF_VAR_env}'].name" -o tsv

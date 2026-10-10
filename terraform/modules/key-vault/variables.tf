@@ -83,6 +83,14 @@ variable "uami_principal_id" {
   type        = string
 }
 
+variable "app_configuration_principal_id" {
+  description = <<-EOT
+    principal_id of the App Configuration store's system-assigned identity
+    (module 05). Granted `Key Vault Secrets User` at vault scope.
+  EOT
+  type        = string
+}
+
 variable "tags" {
   description = <<-EOT
     Tags applied to the Key Vault. Merged with a module-local `component`

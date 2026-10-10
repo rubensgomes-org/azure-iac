@@ -1,11 +1,11 @@
 # =============================================================================
 # CAE Destroy (reusable)
 #
-# Destroys ONE Terraform root, module 10 (container-app-environment): the
+# Destroys ONE Terraform root, module 11 (container-app-environment): the
 # Container App Environment only. THE BLAST RADIUS IS THE ENVIRONMENT --
 # modules 01 (resource groups), 02 (networking) and 03 (log analytics) are
 # left standing. Azure refuses to delete an environment while container apps
-# still reference it, so if module 11 has apps deployed into this CAE,
+# still reference it, so if module 12 has apps deployed into this CAE,
 # destroy them first (or this destroy will fail during apply).
 #
 # This project's source code and documentation were generated with the
@@ -34,7 +34,7 @@ on:
           DESTROYS CAE MODULE ONLY — the Container App Environment. Modules
           01, 02 and 03 are NOT touched. Azure refuses to delete an
           environment that still has container apps in it — remove module
-          11's apps first, or this destroy will fail during apply.
+          12's apps first, or this destroy will fail during apply.
         type: choice
         required: true
         default: "No"
@@ -56,7 +56,7 @@ on:
 
       confirm:
         description: >
-          SAFEGUARD: must be exactly "Yes". Destroys module 10 only — the
+          SAFEGUARD: must be exactly "Yes". Destroys module 11 only — the
           Container App Environment. Modules 01, 02 and 03 are not touched.
         type: string
         required: true
@@ -163,7 +163,7 @@ jobs:
       # Runs BEFORE any credential is used, so a failed confirmation never
       # reaches Azure. Identical on both triggers: a workflow_call caller is
       # checked by the same two comparisons a human at the form is. Derives
-      # only APP_RG here (module 10's naming convention) -- CAE_NAME is
+      # only APP_RG here (module 11's naming convention) -- CAE_NAME is
       # resolved from Terraform state later, by "GUARD - Resolve and verify
       # cae_name".
       - name: SAFEGUARD - Validate actor and confirmation
@@ -213,12 +213,12 @@ jobs:
             exit 1
           fi
 
-          # Mirrors module 11's app RG naming: `rg-<workload>app-<env>`. Not
+          # Mirrors module 12's app RG naming: `rg-<workload>app-<env>`. Not
           # a workflow input.
           echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}" >> "$GITHUB_ENV"
           echo "Safeguard passed. Target env: ${ENV_NAME}"
           echo "(app RG rg-${TF_VAR_workload}app-${ENV_NAME})"
-          echo "Scope: module 10 (container-app-environment) only. Modules"
+          echo "Scope: module 11 (container-app-environment) only. Modules"
           echo "01, 02 and 03 are not touched."
 
       # Shape check, not the authorization check -- the safeguard above has
@@ -335,9 +335,9 @@ jobs:
           terraform_version: "1.16.0"
           terraform_wrapper: false
 
-      # Split out from plan/destroy so the guard below can read module 10's
+      # Split out from plan/destroy so the guard below can read module 11's
       # current state before anything else runs against it.
-      - name: Module 10 - init
+      - name: Module 11 - init
         shell: bash
         run: |
           make ENV="$ENV_NAME" init-container-app-environment
@@ -353,13 +353,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          state_name="$(cd "${ROOTS_DIR}/10-container-app-environment" \
+          state_name="$(cd "${ROOTS_DIR}/11-container-app-environment" \
             && terraform output -raw cae_name 2>/dev/null || true)"
           fallback="cae-${TF_VAR_workload}-${ENV_NAME}"
 
           if [ -z "${state_name}" ]; then
             resolved="${fallback}"
-            echo "Module 10 state has no cae_name output; treating this as"
+            echo "Module 11 state has no cae_name output; treating this as"
             echo "an already-destroyed run."
           else
             resolved="${state_name}"
@@ -400,11 +400,11 @@ jobs:
           echo "environment:"
           echo "${apps}" | sed 's/^/  /'
           echo ""
-          echo "Destroy module 11 first (aca-destroy.yml, confirm: Yes) for"
+          echo "Destroy module 12 first (aca-destroy.yml, confirm: Yes) for"
           echo "'${ENV_NAME}', then re-run this workflow."
           exit 1
 
-      # Belt-and-braces: module 10 has its own state key, so its plan
+      # Belt-and-braces: module 11 has its own state key, so its plan
       # structurally cannot contain an RG, a subnet or the Log Analytics
       # workspace. Kept as a standalone script so a second call site needs no
       # copy-paste.
@@ -474,18 +474,18 @@ jobs:
 
       # `plan-destroy-container-app-environment` chains `init-<name>`
       # internally (see the Makefile's MODULE_TARGETS factory), so this is
-      # also the first Terraform init against module 10's state.
-      - name: Plan the destroy - module 10 (container-app-environment)
+      # also the first Terraform init against module 11's state.
+      - name: Plan the destroy - module 11 (container-app-environment)
         shell: bash
         run: |
           make ENV="$ENV_NAME" plan-destroy-container-app-environment
 
-      - name: GUARD - Assert module 10's plan destroys only the environment
+      - name: GUARD - Assert module 11's plan destroys only the environment
         shell: bash
         run: |
           "${RUNNER_TEMP}/assert-plan-scope.sh" \
-            "${ROOTS_DIR}/10-container-app-environment" \
-            "module 10 (container-app-environment)" \
+            "${ROOTS_DIR}/11-container-app-environment" \
+            "module 11 (container-app-environment)" \
             azurerm_container_app_environment
 
       # `make destroy-container-app-environment` does NOT consume this
@@ -493,7 +493,7 @@ jobs:
       # above is a check on intent, not a locked-in execution plan. Fails
       # here (rather than earlier) if a container app still references the
       # environment, since Azure -- not Terraform -- is what refuses.
-      - name: Destroy module 10 - container app environment
+      - name: Destroy module 11 - container app environment
         shell: bash
         run: |
           # deleting a VNet-integrated Container App Environment 

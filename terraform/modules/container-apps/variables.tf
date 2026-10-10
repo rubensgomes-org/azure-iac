@@ -6,7 +6,8 @@
 # `ca-<app>-<env>`, all sharing:
 #   - the same Container App Environment (`var.container_app_environment_id`),
 #   - the same UAMI (`var.uami_id`) for runtime identity AND ACR pull,
-#   - the same Key Vault (`var.key_vault_uri`) for secrets.
+#   - the same Key Vault (`var.key_vault_uri`) for secrets,
+#   - the same App Configuration store (`var.app_configuration_endpoint`).
 #
 # Fixed design decisions (Consumption workload profile, single-revision mode,
 # internal ingress by default, scale-to-zero) live in main.tf as locals or
@@ -44,7 +45,7 @@ variable "resource_group_name" {
 variable "container_app_environment_id" {
   description = <<-EOT
     Full Azure Resource ID of the ACAE that hosts these apps. Caller
-    supplies `cae_id` from module 10's remote state. Container Apps refuse
+    supplies `cae_id` from module 11's remote state. Container Apps refuse
     to create if the environment is in a Failed/Deleting state — check
     `az containerapp env show` first if apply errors on this field.
   EOT
@@ -94,7 +95,7 @@ variable "uami_client_id" {
 
 variable "acr_login_server" {
   description = <<-EOT
-    Registry login server (`<acr>.azurecr.io`, from module 06). Passed to
+    Registry login server (`<acr>.azurecr.io`, from module 07). Passed to
     the `registry.server` block on every app so pulls from that ACR use
     the shared UAMI (via `registry.identity`). Images referenced from
     other registries (e.g. `mcr.microsoft.com/...`, the default
@@ -106,11 +107,21 @@ variable "acr_login_server" {
 
 variable "key_vault_uri" {
   description = <<-EOT
-    Vault DNS URI (`https://<name>.vault.azure.net/`, from module 05).
+    Vault DNS URI (`https://<name>.vault.azure.net/`, from module 06).
     Injected as `KEY_VAULT_URI` on every app so app code can build a
     `SecretClient` and fetch secrets via `DefaultAzureCredential`. RBAC
     (`Key Vault Secrets User`) on the shared UAMI was already granted in
-    module 05.
+    module 06.
+  EOT
+  type        = string
+}
+
+variable "app_configuration_endpoint" {
+  description = <<-EOT
+    App Configuration endpoint (`https://<name>.azconfig.io`, from module
+    05). Injected as `APP_CONFIG_ENDPOINT` on every app. RBAC
+    (`App Configuration Data Reader`) on the shared UAMI was already granted
+    in module 05.
   EOT
   type        = string
 }

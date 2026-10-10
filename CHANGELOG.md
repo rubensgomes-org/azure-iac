@@ -26,9 +26,27 @@ premise.
 
 ### Added
 
+- `app-configuration` module and root `05-app-configuration`: one `free`
+  App Configuration store (`appcs-<workload>-<env>`) per environment, local
+  auth disabled, system-assigned identity, and `App Configuration Data
+  Reader` for the shared UAMI. Targets: `make *-app-configuration`.
+- `06-key-vault` reads `05-app-configuration` and grants the store identity
+  `Key Vault Secrets User`.
+- `12-container-apps` reads `05-app-configuration` and injects
+  `APP_CONFIG_ENDPOINT` into every app.
+- `aca-create.yml` applies module 05; `destroy-all.yml` plans its destroy.
+
 ### Changed
 
+- Roots renumbered: `05-key-vault` … `12-monitoring` are now `06-key-vault`
+  … `13-monitoring`. State keys are name-based, so no state migration. Apply
+  `05-app-configuration` before re-applying 06 and 12.
+
 ### Fixed
+
+- `plan`, `apply` and `destroy` wait up to `LOCK_TIMEOUT` (default `10m`)
+  for a state lock instead of failing when concurrent app-repo workflows
+  share a state blob.
 
 ## [0.0.38] - 2026-10-07
 

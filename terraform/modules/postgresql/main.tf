@@ -156,7 +156,7 @@ resource "azurerm_postgresql_flexible_server_firewall_rule" "azure_services" {
 # Per-app databases
 # -----------------------------------------------------------------------------
 # One database per entry in `var.apps`. Database name = app name; downstream
-# module 11 injects `POSTGRES_DB = <app>` per Container App.
+# module 12 injects `POSTGRES_DB = <app>` per Container App.
 #
 # `collation = "en_US.utf8"` + `charset = "UTF8"` are the Azure PG defaults;
 # spelling them out makes drift explicit if a future Azure change flips
@@ -181,7 +181,7 @@ resource "azurerm_postgresql_flexible_server_database" "app" {
 # and many corporate / home networks block that port unconditionally —
 # every terraform apply becomes an unrecoverable failure. When gated off
 # the SAME work is done manually ONCE from Azure Cloud Shell (see
-# `roots/09-postgresql/README.md`), and later replaced by a Container
+# `roots/10-postgresql/README.md`), and later replaced by a Container
 # Apps Job.
 #
 # `depends_on` is exhaustive so the psql call cannot race any prerequisite:
