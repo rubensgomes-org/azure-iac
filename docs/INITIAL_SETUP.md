@@ -45,7 +45,7 @@ The Azure Services and corresponding Provider Namespaces below are being
 provisioned in this project.
 
 | Azure Service      |      Provider Namespace       | Provisioned by |
-|:-------------------|:-----------------------------:|:---------------|
+| :----------------- | :---------------------------: | :------------- |
 | ACR                |  Microsoft.ContainerRegistry  | 07             |
 | App Configuration  |  Microsoft.AppConfiguration   | 05             |
 | Container Apps     |         Microsoft.App         | 11, 12         |
@@ -109,18 +109,39 @@ able to provision their corresponding resources in Azure cloud.
     # SUB_NAME="<value of output>"
     ```
 
+## Grant User Data-Plane Role
+
+Reading or writing App Configuration key-values requires an Azure RBAC
+data-plane role. `Owner` and `Contributor` cover only the control plane.
+
+- Grant your user `App Configuration Data Owner` on the subscription:
+
+    ```bash
+    az login --tenant "${AZURE_TENANT_ID}"
+    az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
+    USER_ID=$(az ad signed-in-user show --query id -o tsv)
+    az role assignment create \
+      --assignee-object-id "${USER_ID}" \
+      --assignee-principal-type User \
+      --role "App Configuration Data Owner" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
 ## `Terraform` Azure Service Principal and Secrets
 
 We are using a `Service Principal + Service Principal Secret` to allow Terraform
-to authenticate against Azure. The Service Principal needs TWO roles at
-subscription scope, and neither is sufficient on its own:
+to authenticate against Azure. The Service Principal needs THREE roles at
+subscription scope:
 
 - `Contributor` — creates, updates and deletes the resources themselves.
 - `User Access Administrator` — creates the RBAC role assignments this project
   hands to the shared managed identity (`AcrPull`, `Key Vault Secrets User`,
   `Storage Blob Data Contributor`, the two Service Bus data roles).
+- `App Configuration Data Owner` — writes key-values to the App Configuration
+  store from GitHub Actions.
 
-`Owner` covers both and is a valid alternative on a personal subscription.
+`Owner` covers the first two and is a valid alternative on a personal
+subscription.
 
 ### Create Azure Service Principal
 
@@ -173,7 +194,18 @@ subscription scope, and neither is sufficient on its own:
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-8. Test signing in using the Service Principal credentials:
+8. Add the third role, `App Configuration Data Owner`, so GitHub Actions can
+   import key-values into the App Configuration store:
+
+    ```bash
+    az role assignment create \
+      --assignee-object-id "${SP_OBJ_ID}" \
+      --assignee-principal-type ServicePrincipal \
+      --role "App Configuration Data Owner" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
+9. Test signing in using the Service Principal credentials:
 
     ```bash
     # Ensure you are not currently signed in already.
@@ -192,8 +224,9 @@ subscription scope, and neither is sufficient on its own:
 
 ### Verify Azure Service Principal Roles
 
-- Verify the Service Principal holds BOTH roles for its Subscription ID
-  (`Contributor` and `User Access Administrator`):
+- Verify the Service Principal holds all THREE roles for its Subscription ID
+  (`Contributor`, `User Access Administrator` and
+  `App Configuration Data Owner`):
 
     ```bash
     SCOPE="/subscriptions/${AZURE_SUBSCRIPTION_ID}"
