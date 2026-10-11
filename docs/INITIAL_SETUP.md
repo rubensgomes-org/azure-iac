@@ -112,7 +112,8 @@ able to provision their corresponding resources in Azure cloud.
 ## Grant User Data-Plane Role
 
 Reading or writing App Configuration key-values requires an Azure RBAC
-data-plane role. `Owner` and `Contributor` cover only the control plane.
+data-plane role `App Configuration Data Owner`. The previous roles `Owner`
+and `Contributor` cover only the control plane.
 
 - Grant your user `App Configuration Data Owner` on the subscription:
 
@@ -124,6 +125,38 @@ data-plane role. `Owner` and `Contributor` cover only the control plane.
       --assignee-object-id "${USER_ID}" \
       --assignee-principal-type User \
       --role "App Configuration Data Owner" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
+Reading the keys in the Key Vault requires an Azure RBAC
+data-plane role `Key Vault Reader`.
+
+- Grant your user `Key Vault Reader` on the subscription:
+
+    ```bash
+    az login --tenant "${AZURE_TENANT_ID}"
+    az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
+    USER_ID=$(az ad signed-in-user show --query id -o tsv)
+    az role assignment create \
+      --assignee-object-id "${USER_ID}" \
+      --assignee-principal-type User \
+      --role "Key Vault Reader" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
+Reading or writing Key Vault key-values requires an Azure RBAC
+data-plane role `Key Vault Secrets Officer`.
+
+- Grant your user `Key Vault Secrets Officer` on the subscription:
+
+    ```bash
+    az login --tenant "${AZURE_TENANT_ID}"
+    az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
+    USER_ID=$(az ad signed-in-user show --query id -o tsv)
+    az role assignment create \
+      --assignee-object-id "${USER_ID}" \
+      --assignee-principal-type User \
+      --role "Key Vault Secrets Officer" \
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 

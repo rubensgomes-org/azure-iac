@@ -28,6 +28,9 @@ premise.
 
 ### Changed
 
+- `docs/INITIAL_SETUP.md`: grant your user `Key Vault Reader` and
+  `Key Vault Secrets Officer` at subscription scope.
+
 ### Fixed
 
 ## [0.0.41] - 2026-10-11
