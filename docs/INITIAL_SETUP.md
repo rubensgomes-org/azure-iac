@@ -130,7 +130,7 @@ data-plane role. `Owner` and `Contributor` cover only the control plane.
 ## `Terraform` Azure Service Principal and Secrets
 
 We are using a `Service Principal + Service Principal Secret` to allow Terraform
-to authenticate against Azure. The Service Principal needs THREE roles at
+to authenticate against Azure. The Service Principal needs FOUR roles at
 subscription scope:
 
 - `Contributor` — creates, updates and deletes the resources themselves.
@@ -139,6 +139,7 @@ subscription scope:
   `Storage Blob Data Contributor`, the two Service Bus data roles).
 - `App Configuration Data Owner` — writes key-values to the App Configuration
   store from GitHub Actions.
+- `Key Vault Secrets Officer` — manages Key Vault secrets from GitHub Actions.
 
 `Owner` covers the first two and is a valid alternative on a personal
 subscription.
@@ -205,7 +206,18 @@ subscription.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-9. Test signing in using the Service Principal credentials:
+9. Add the fourth role, `Key Vault Secrets Officer`, so GitHub Actions can
+   manage secrets in Key Vault:
+
+    ```bash
+    az role assignment create \
+      --assignee-object-id "${SP_OBJ_ID}" \
+      --assignee-principal-type ServicePrincipal \
+      --role "Key Vault Secrets Officer" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
+10. Test signing in using the Service Principal credentials:
 
     ```bash
     # Ensure you are not currently signed in already.
@@ -224,9 +236,9 @@ subscription.
 
 ### Verify Azure Service Principal Roles
 
-- Verify the Service Principal holds all THREE roles for its Subscription ID
-  (`Contributor`, `User Access Administrator` and
-  `App Configuration Data Owner`):
+- Verify the Service Principal holds all FOUR roles for its Subscription ID
+  (`Contributor`, `User Access Administrator`,
+  `App Configuration Data Owner` and `Key Vault Secrets Officer`):
 
     ```bash
     SCOPE="/subscriptions/${AZURE_SUBSCRIPTION_ID}"

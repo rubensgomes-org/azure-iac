@@ -28,6 +28,9 @@ premise.
 
 ### Changed
 
+- `docs/INITIAL_SETUP.md`: grant `Key Vault Secrets Officer` at subscription
+  scope to the Terraform Service Principal.
+
 ### Fixed
 
 ## [0.0.40] - 2026-10-10
