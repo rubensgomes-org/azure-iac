@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.40] - 2026-10-10
+
+### Added
+
+### Changed
+
 - `docs/INITIAL_SETUP.md`: grant `App Configuration Data Owner` at
   subscription scope to the signed-in user and to the Terraform Service
   Principal, so both can read and write App Configuration key-values.
