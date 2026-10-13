@@ -45,7 +45,7 @@ ENV     ?= dev
 
 # The two halves of the layout, and the whole point of the split:
 #
-#   ROOTS_DIR  the fourteen module roots. ONE copy, shared by every environment.
+#   ROOTS_DIR  the fifteen module roots. ONE copy, shared by every environment.
 #              Nothing in here names an environment -- `var.env` carries it.
 #   ENV_DIR    per-environment configuration ONLY: backend.hcl, tags.json and
 #              the gitignored env.tfvars. Three files, not 4,350 lines.
@@ -153,7 +153,8 @@ DIRS := \
   11-container-app-environment \
   12-container-apps \
   13-monitoring \
-  14-app-gateway
+  14-app-gateway \
+  15-foundry
 
 # Destroy order is the strict reverse of DIRS. Reversing is
 # done in Make rather than the shell because `tac` is a GNU coreutils tool and
@@ -231,6 +232,7 @@ $(eval $(call MODULE_TARGETS,11-container-app-environment,container-app-environm
 # "Container Apps" section.
 $(eval $(call MODULE_TARGETS,13-monitoring,monitoring))
 $(eval $(call MODULE_TARGETS,14-app-gateway,app-gateway))
+$(eval $(call MODULE_TARGETS,15-foundry,foundry))
 
 # -----------------------------------------------------------------------------
 # Single resource group (module 01) — targets scoped to PURPOSE
@@ -404,7 +406,7 @@ destroy-container-apps: init-container-apps
 	   $(ENV_VARFILE) $$targets
 
 # -----------------------------------------------------------------------------
-# Whole-estate: apply (01 → 14)
+# Whole-estate: apply (01 → 15)
 # -----------------------------------------------------------------------------
 # Kept in a shell for-loop so ordering is strictly serial regardless of
 # `make -jN`.
@@ -474,7 +476,7 @@ purge-orphans:
 	@$(SWEEP_ORPHANS)
 
 # -----------------------------------------------------------------------------
-# Whole-estate: destroy (14 → 01) + post-destroy Key Vault check
+# Whole-estate: destroy (15 → 01) + post-destroy Key Vault check
 # -----------------------------------------------------------------------------
 # KV_NAME is captured BEFORE the loop, because module 06's state gets emptied
 # by its own destroy step. The capture re-inits against the REAL backend first:
@@ -823,7 +825,7 @@ fmt:
 # Any pair can disagree, and none of the mismatches announces itself:
 #
 #   * ENV=lab with a TF_VAR_container_name left over from a dev session inits
-#     lab against DEV's container -- fourteen state blobs, silently shared.
+#     lab against DEV's container -- fifteen state blobs, silently shared.
 #   * ENV=lab with TF_VAR_env=dev writes lab's container but names everything
 #     `dev-*` and stamps dev's tags.
 #
@@ -1055,8 +1057,8 @@ help:
 	@echo "                    act on ONE resource group (module 01)"
 	@echo ""
 	@echo "Whole-estate:"
-	@echo "  apply             Apply all modules 01 -> 14"
-	@echo "  destroy           Destroy all modules 14 -> 01, sweeping Azure-generated"
+	@echo "  apply             Apply all modules 01 -> 15"
+	@echo "  destroy           Destroy all modules 15 -> 01, sweeping Azure-generated"
 	@echo "                    orphans before 01 and verifying the KV is purged"
 	@echo "  purge-orphans     Delete Azure-generated leftovers (Smart Detection"
 	@echo "                    action group) that block the RG delete in module 01"

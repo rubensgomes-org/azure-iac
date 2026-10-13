@@ -1,0 +1,41 @@
+# modules/foundry
+
+Child Terraform module that provisions an Azure AI Foundry resource and one
+project under it.
+
+Called by `terraform/roots/15-foundry/`.
+
+## Resources created
+
+| Type                                | Name                    | Notes                                      |
+|-------------------------------------|-------------------------|--------------------------------------------|
+| `azurerm_cognitive_account`         | `aif-<workload>-<env>`  | `AIServices`, S0, custom subdomain = name  |
+| `azurerm_cognitive_account_project` | `proj-<workload>-<env>` | System-assigned identity                   |
+| `azurerm_role_assignment`           | —                       | "Foundry User"; only when a user ID is set |
+
+## Inputs
+
+| Name                     | Type          | Required | Notes                                      |
+|--------------------------|---------------|----------|--------------------------------------------|
+| `workload`, `env`        | `string`      | `env`    | CAF name tokens.                           |
+| `location`               | `string`      | yes      | Azure region.                              |
+| `resource_group_name`    | `string`      | yes      | ai RG (module 01).                         |
+| `foundry_user_object_id` | `string`      | no       | User granted "Foundry User". Null skips.   |
+| `tags`                   | `map(string)` | no       | Merged with `component = "foundry"`.       |
+
+## Outputs
+
+- `foundry_id`, `foundry_name`
+- `foundry_project_id`, `foundry_project_name`
+
+## Caveats
+
+- **Soft delete:** a deleted resource keeps its subdomain until purged. The
+  root purges on destroy.
+- **Model deployments** are managed outside this module and are deleted
+  with the resource.
+
+This project's source code and documentation were generated with the
+assistance of Artificial Intelligence (AI). For more information, please
+refer to the `AI_DISCLAIMER.md` document located in the project's root
+directory.

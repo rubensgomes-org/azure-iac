@@ -26,6 +26,12 @@ premise.
 
 ### Added
 
+- Module 15 `foundry` (`modules/foundry`, `roots/15-foundry`): an Azure AI
+  Foundry resource `aif-<workload>-<env>` and project `proj-<workload>-<env>`
+  in the ai RG, with an optional "Foundry User" grant for
+  `TF_VAR_foundry_user_object_id`. Destroy purges the soft-deleted resource.
+- `aif-create.yml` and `aif-destroy.yml` workflows for module 15.
+
 ### Changed
 
 ### Fixed

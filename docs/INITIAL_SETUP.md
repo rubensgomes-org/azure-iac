@@ -48,6 +48,7 @@ provisioned in this project.
 | :----------------- | :---------------------------: | :------------- |
 | ACR                |  Microsoft.ContainerRegistry  | 07             |
 | App Configuration  |  Microsoft.AppConfiguration   | 05             |
+| Cognitive Services |  Microsoft.CognitiveServices  | ?              |
 | Container Apps     |         Microsoft.App         | 11, 12         |
 | Key Vault          |      Microsoft.KeyVault       | 06             |
 | Log Analytics      | Microsoft.OperationalInsights | 03             |
@@ -74,6 +75,8 @@ able to provision their corresponding resources in Azure cloud.
     az provider register --verbose --namespace Microsoft.ContainerRegistry
     # App Configuration:
     az provider register --verbose --namespace Microsoft.AppConfiguration
+    # Cognitive Services:
+    az provider register --verbose --namespace Microsoft.CognitiveServices
     # Container Apps + Container App Environment:
     az provider register --verbose --namespace Microsoft.App
     # Key Vault:

@@ -97,7 +97,7 @@ immediately reusable. Image *contents* are not recoverable; only the name is.
 
 - `acr_name` travels as `TF_VAR_acr_name`, not in any file. It is not in
   `../../envs/<env>/env.tfvars` because the registry name is one module's
-  concern rather than a value shared by all fourteen roots, and it cannot sit in
+  concern rather than a value shared by all fifteen roots, and it cannot sit in
   a `terraform.tfvars` here because this root is shared by every environment —
   `make check-tfvars` rejects one. Changing the value renames the registry,
   which azurerm implements as destroy-and-recreate — every image is lost.

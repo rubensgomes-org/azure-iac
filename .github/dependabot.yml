@@ -27,8 +27,8 @@
 #   being watched.
 #
 # Not covered here:
-#   Terraform. Dependabot can watch provider constraints too, but the fourteen
-#   module roots plus the fourteen child modules and bootstrap-backend all
+#   Terraform. Dependabot can watch provider constraints too, but the fifteen
+#   module roots plus the fifteen child modules and bootstrap-backend all
 #   declare the same versions, so one provider release means 29 files in one
 #   PR, and a major bump needs the code changes and the plan review that the
 #   4.x -> 5.x upgrade needed. That stays a deliberate, human-run job.

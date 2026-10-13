@@ -1,0 +1,170 @@
+# =============================================================================
+# AIF Create (reusable)
+#
+# Brings modules 01 (resource groups, for the ai RG) and 15 (foundry) to
+# their desired state: an Azure AI Foundry resource and one project in it.
+# Every recipe is a `make` target from the repo-root Makefile. Endpoints and
+# keys are never printed.
+#
+# This project's source code and documentation were generated with the
+# assistance of Artificial Intelligence (AI). For more information, please
+# refer to the `AI_DISCLAIMER.md` document located in the project's root
+# directory.
+# =============================================================================
+
+name: AIF Create (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: >-
+          Estate environment to provision. Maps to the Makefile ENV
+          variable and selects terraform/envs/<env>.
+        type: string
+        required: true
+
+    outputs:
+      foundry_name:
+        description: 'Name of the Foundry resource.'
+        value: ${{ jobs.provision.outputs.foundry_name }}
+      foundry_project_name:
+        description: 'Name of the Foundry project.'
+        value: ${{ jobs.provision.outputs.foundry_project_name }}
+
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: true
+
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: 'Estate environment to provision'
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    name: provision
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Must share this group string verbatim with aif-destroy.yml.
+    concurrency:
+      group: aif-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    outputs:
+      foundry_name: ${{ steps.aif_outputs.outputs.foundry_name }}
+      foundry_project_name: >-
+        ${{ steps.aif_outputs.outputs.foundry_project_name }}
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      TF_IN_AUTOMATION: "true"
+
+      ROOTS_DIR: terraform/roots
+
+      # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
+      ENV_NAME: ${{ inputs.environment_name }}
+
+      # Same fallback as every other workflow; see aca-create.yml.
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      # Optional. Unset skips the "Foundry User" grant.
+      TF_VAR_foundry_user_object_id: ${{ vars.TF_VAR_foundry_user_object_id }}
+
+      TF_VAR_backend_resource_group_name: ${{
+        vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
+    steps:
+      # See aca-create.yml for why job.workflow_* is used here.
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+
+      - name: Verify required Azure configuration is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_env TF_VAR_location \
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: GUARD - Validate Terraform inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "FAIL: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_workload}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "FAIL: TF_VAR_workload must be 2-16 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          echo "Validated: env='${ENV_NAME}' workload='${TF_VAR_workload}'."
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      # Creates the ai RG on first run; a no-op afterwards.
+      - name: Module 01 - resource groups
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-resource-groups plan-resource-groups apply-resource-groups
+
+      - name: Module 15 - foundry
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-foundry plan-foundry apply-foundry
+
+      - name: Publish AIF outputs
+        id: aif_outputs
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/15-foundry
+        run: |
+          set -euo pipefail
+          name="$(terraform output -raw foundry_name)"
+          project="$(terraform output -raw foundry_project_name)"
+          {
+            echo "foundry_name=${name}"
+            echo "foundry_project_name=${project}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Foundry resource: ${name}"
+          echo "Foundry project:  ${project}"

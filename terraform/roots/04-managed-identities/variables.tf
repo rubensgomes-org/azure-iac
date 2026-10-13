@@ -21,13 +21,13 @@ variable "env" {
 # namespace — see docs/NAMING.md.
 #
 # `name` is ForceNew on every resource composed from it. Changing this on a
-# LIVE estate is a destroy+recreate spread across fourteen state files that know
+# LIVE estate is a destroy+recreate spread across fifteen state files that know
 # nothing about each other, which is a broken estate rather than a rename. Set
 # it at first provision, or after a full teardown.
 #
 # `null` rather than a literal default so an unset value falls through to the
 # child module's own default (`rgomes`) instead of duplicating the literal in
-# fourteen roots. The fall-through only works because the child declares
+# fifteen roots. The fall-through only works because the child declares
 # `nullable = false`: a null passed to a nullable variable is a VALUE, not an
 # absence, and would fail the child's validation rather than be replaced.
 variable "workload" {

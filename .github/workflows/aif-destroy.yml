@@ -1,0 +1,187 @@
+# =============================================================================
+# AIF Destroy (reusable)
+#
+# Destroys module 15 only: the Azure AI Foundry project and resource, with
+# every model deployment on it, then purges the soft-deleted resource. The
+# ai RG (module 01) stays in place, so aif-create.yml can bring them back.
+#
+# This project's source code and documentation were generated with the
+# assistance of Artificial Intelligence (AI). For more information, please
+# refer to the `AI_DISCLAIMER.md` document located in the project's root
+# directory.
+# =============================================================================
+
+name: AIF Destroy (reusable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: 'Estate environment holding the Foundry resource'
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
+
+      confirm:
+        description: >
+          DESTROYS MODULE 15 ONLY — the Foundry project and resource, with
+          every model deployment on it. The resource is purged.
+        type: choice
+        required: true
+        default: "No"
+        options:
+          - "No"
+          - "Yes"
+
+  workflow_call:
+    inputs:
+      environment_name:
+        description: 'Estate environment holding the Foundry resource.'
+        type: string
+        required: true
+
+      confirm:
+        description: 'SAFEGUARD: must be exactly "Yes". Destroys module 15.'
+        type: string
+        required: true
+
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  destroy:
+    name: destroy
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    environment: AZURE
+
+    # Must share this group string verbatim with aif-create.yml.
+    concurrency:
+      group: aif-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      TF_VAR_backend_resource_group_name:
+        ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
+      TF_IN_AUTOMATION: "true"
+
+      ROOTS_DIR: terraform/roots
+
+      ENV_NAME: ${{ inputs.environment_name }}
+
+      ALLOWED_ACTORS: "rubensgomes rubens-gomes_3CC"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+
+      - name: SAFEGUARD - Validate actor, confirmation and inputs
+        shell: bash
+        env:
+          ACTOR: ${{ github.actor }}
+          TYPED_CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+
+          allowed=false
+          for allowed_actor in ${ALLOWED_ACTORS}; do
+            if [ "${ACTOR}" = "${allowed_actor}" ]; then
+              allowed=true
+              break
+            fi
+          done
+          if [ "${allowed}" != "true" ]; then
+            echo "Denied: actor '${ACTOR}' is not allowed."
+            exit 1
+          fi
+
+          if [ "$(printf '%s' "${TYPED_CONFIRM}" | tr -d '[:space:]')" \
+              != "Yes" ]; then
+            echo "Denied: confirm must be exactly 'Yes' to proceed."
+            exit 1
+          fi
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "Denied: environment_name must be 2-10 lowercase"
+            echo "alphanumeric characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_workload}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "Denied: TF_VAR_workload must be 2-16 lowercase"
+            echo "alphanumeric characters starting with a letter."
+            exit 1
+          fi
+
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_location \
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      - name: Plan the destroy - module 15 (foundry)
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" plan-destroy-foundry
+
+      # Aborts if the plan would delete any type module 15 does not own.
+      - name: GUARD - Assert the plan destroys only module 15 resources
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/15-foundry
+        run: |
+          set -euo pipefail
+          forbidden="$(terraform show -json tfplan | jq -r '
+            .resource_changes[]?
+            | select(.change.actions | index("delete"))
+            | select(.type | IN("azurerm_cognitive_account",
+                                "azurerm_cognitive_account_project",
+                                "azurerm_role_assignment") | not)
+            | .address')"
+          if [ -n "${forbidden}" ]; then
+            echo "DENIED: destroy plan reaches beyond module 15:"
+            while IFS= read -r address; do
+              echo "  ${address}"
+            done <<< "${forbidden}"
+            exit 1
+          fi
+          echo "OK: plan touches only module 15 resources."
+
+      - name: Destroy module 15 - foundry
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" destroy-foundry
