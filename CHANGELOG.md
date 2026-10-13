@@ -28,6 +28,9 @@ premise.
 
 ### Changed
 
+- `README.md`: SonarQube Cloud eligibility note rendered as an
+  `[!IMPORTANT]` alert.
+
 ### Fixed
 
 ## [0.0.43] - 2026-10-12
