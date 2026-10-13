@@ -94,6 +94,9 @@ source "${HOME}/lib/sh-lib/sh_lib.sh" || exit
 ## ACTION_VARIABLE_ORDER fixes it to INITIAL_SETUP.md's order. Keep
 ## the two in step.
 ##
+## Variables in OPTIONAL_ACTION_VARIABLES may be empty; an empty
+## optional variable is not created.
+##
 ## TF_VAR_ENV is resolved but deliberately left out of
 ## ACTION_VARIABLE_ORDER: acr-create.yml, acr-destroy.yml and
 ## destroy-all.yml each bind it from their own dispatch input, so a
@@ -128,6 +131,8 @@ declare -A ACTION_VARIABLES=(
 "${TF_VAR_pg_entra_admin_group_object_id:-}"
   [TF_VAR_PG_ENTRA_ADMIN_GROUP_NAME]=\
 "${TF_VAR_pg_entra_admin_group_name:-az-lab-pg-admins}"
+  [TF_VAR_FOUNDRY_USER_OBJECT_ID]=\
+"${TF_VAR_foundry_user_object_id:-}"
 )
 
 # Presentation order. Mirrors docs/INITIAL_SETUP.md so a reader can
@@ -148,10 +153,17 @@ declare -a ACTION_VARIABLE_ORDER=(
   TF_VAR_ACTION_GROUP_EMAIL
   TF_VAR_PG_ENTRA_ADMIN_GROUP_OBJECT_ID
   TF_VAR_PG_ENTRA_ADMIN_GROUP_NAME
+  TF_VAR_FOUNDRY_USER_OBJECT_ID
 )
 
 readonly ACTION_VARIABLES
 readonly ACTION_VARIABLE_ORDER
+
+# Variables a workflow treats as unset when absent. Unset
+# TF_VAR_FOUNDRY_USER_OBJECT_ID skips the "Foundry User" grant.
+declare -ar OPTIONAL_ACTION_VARIABLES=(
+  TF_VAR_FOUNDRY_USER_OBJECT_ID
+)
 
 # Variables this script used to manage and no longer does. The
 # delete phase sweeps these too; the create phase ignores them, so a
@@ -467,8 +479,28 @@ resolve_repository() {
 }
 
 #####################################################################
-## Fails if any managed Actions variable resolved to an empty
-## value.
+## Tells whether an Actions variable may be left empty.
+## Globals:
+##  OPTIONAL_ACTION_VARIABLES
+## Arguments:
+##  1: Actions variable name.
+## Returns:
+##   0 when the variable is optional; 1 otherwise.
+#####################################################################
+is_optional_variable() {
+  local -r name="${1:?name is required}"
+  local optional
+
+  for optional in "${OPTIONAL_ACTION_VARIABLES[@]}"; do
+    [[ "${optional}" == "${name}" ]] && return 0
+  done
+
+  return 1
+}
+
+#####################################################################
+## Fails if any required managed Actions variable resolved to an
+## empty value.
 ## Globals:
 ##  ACTION_VARIABLES
 ##  ACTION_VARIABLE_ORDER
@@ -483,6 +515,7 @@ validate_variable_values() {
   local name
 
   for name in "${ACTION_VARIABLE_ORDER[@]}"; do
+    is_optional_variable "${name}" && continue
     [[ -z "${ACTION_VARIABLES[${name}]}" ]] && missing+=("${name}")
   done
 
@@ -788,9 +821,9 @@ delete_action_secrets() {
 }
 
 #####################################################################
-## Creates every managed variable from ACTION_VARIABLES. gh's "set"
-## is an upsert, so this also repairs a run interrupted between the
-## delete and create phases.
+## Creates every managed variable from ACTION_VARIABLES, skipping
+## empty optional ones. gh's "set" is an upsert, so this also
+## repairs a run interrupted between the delete and create phases.
 ## Globals:
 ##  ACTION_VARIABLES
 ##  ACTION_VARIABLE_ORDER
@@ -810,6 +843,12 @@ create_action_variables() {
 
   for name in "${ACTION_VARIABLE_ORDER[@]}"; do
     value="${ACTION_VARIABLES[${name}]}"
+
+    if [[ -z "${value}" ]] && is_optional_variable "${name}"; then
+      msg::debug "  skip   %s (optional, empty)\n" "${name}"
+      continue
+    fi
+
     msg::debug "  create %s=%s\n" "${name}" "${value}"
     gh_create_one "variable" "${name}" "${value}" "${repo}" \
       || return 1

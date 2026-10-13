@@ -39,7 +39,7 @@ AZURE_SUBSCRIPTION_ID.
     az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
     ```
 
-## Register Azure Resource Providers
+## Register Resource Providers with the Subscription
 
 The Azure Services and corresponding Provider Namespaces below are being
 provisioned in this project.
@@ -48,7 +48,7 @@ provisioned in this project.
 | :----------------- | :---------------------------: | :------------- |
 | ACR                |  Microsoft.ContainerRegistry  | 07             |
 | App Configuration  |  Microsoft.AppConfiguration   | 05             |
-| Cognitive Services |  Microsoft.CognitiveServices  | ?              |
+| Cognitive Services |  Microsoft.CognitiveServices  | 15             |
 | Container Apps     |         Microsoft.App         | 11, 12         |
 | Key Vault          |      Microsoft.KeyVault       | 06             |
 | Log Analytics      | Microsoft.OperationalInsights | 03             |
@@ -97,11 +97,12 @@ able to provision their corresponding resources in Azure cloud.
     az provider register --verbose --namespace Microsoft.Network
     ```
 
-- To check your current subscription registration status with a given provider:
+- To check the subscription's registration status for a provider:
 
     ```bash
     # for example with the Azure Container Apps provider:
-    az provider show --namespace Microsoft.App --query "registrationState" -o tsv
+    az provider show --namespace Microsoft.App \
+      --query "registrationState" -o tsv
     ```
 
 - Take note of your current Subscription Name (SUB_NAME)
@@ -112,7 +113,19 @@ able to provision their corresponding resources in Azure cloud.
     # SUB_NAME="<value of output>"
     ```
 
-## Grant User Data-Plane Role
+## Grant RBAC Role to `User`
+
+- To see whether a role is control-plane, data-plane or both, run
+  `scripts/roles.sh` from the repository root:
+
+    ```bash
+    scripts/roles.sh "App Configuration Data Owner" "Foundry User" \
+      "Key Vault Reader" "Key Vault Secrets Officer"
+    ```
+
+### Data-Plane Role
+
+#### `App Configuration Data Owner`
 
 Reading or writing App Configuration key-values requires an Azure RBAC
 data-plane role `App Configuration Data Owner`. The previous roles `Owner`
@@ -131,8 +144,30 @@ and `Contributor` cover only the control plane.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-Reading the keys in the Key Vault requires an Azure RBAC
-data-plane role `Key Vault Reader`.
+### Control-Plane and Data-Plane Role
+
+#### `Foundry User`
+
+Using Foundry models and agents, and reading Foundry resources and projects,
+requires an Azure RBAC control-plane + data-plane role `Foundry User`.
+
+- Grant your user `Foundry User` on the subscription:
+
+    ```bash
+    az login --tenant "${AZURE_TENANT_ID}"
+    az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
+    USER_ID=$(az ad signed-in-user show --query id -o tsv)
+    az role assignment create \
+      --assignee-object-id "${USER_ID}" \
+      --assignee-principal-type User \
+      --role "Foundry User" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
+#### `Key Vault Reader`
+
+Reading and listing the keys in the Key Vault requires an Azure RBAC
+control-plane + data-plane role `Key Vault Reader`.
 
 - Grant your user `Key Vault Reader` on the subscription:
 
@@ -147,7 +182,9 @@ data-plane role `Key Vault Reader`.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-Reading or writing Key Vault key-values requires an Azure RBAC
+#### `Key Vault Secrets Officer`
+
+Reading or writing Key Vault secrets requires an Azure RBAC control-plane +
 data-plane role `Key Vault Secrets Officer`.
 
 - Grant your user `Key Vault Secrets Officer` on the subscription:
@@ -166,8 +203,8 @@ data-plane role `Key Vault Secrets Officer`.
 ## `Terraform` Azure Service Principal and Secrets
 
 We are using a `Service Principal + Service Principal Secret` to allow Terraform
-to authenticate against Azure. The Service Principal needs FOUR roles at
-subscription scope:
+to authenticate against Azure and provision resources. The Service Principal
+holds SIX roles at subscription scope:
 
 - `Contributor` — creates, updates and deletes the resources themselves.
 - `User Access Administrator` — creates the RBAC role assignments this project
@@ -176,9 +213,13 @@ subscription scope:
 - `App Configuration Data Owner` — writes key-values to the App Configuration
   store from GitHub Actions.
 - `Key Vault Secrets Officer` — manages Key Vault secrets from GitHub Actions.
+- `Storage Blob Data Contributor` — lets the provider check a new storage
+  account is ready when shared keys are disabled.
+- `Foundry Owner` — not needed; `Contributor` already manages the Foundry
+  resource and project.
 
-`Owner` covers the first two and is a valid alternative on a personal
-subscription.
+`Owner` covers `Contributor` and `User Access Administrator` and is a valid
+alternative on a personal subscription.
 
 ### Create Azure Service Principal
 
@@ -199,7 +240,7 @@ subscription.
     # "appId" --> SP (Service Principal) username = AZURE_CLIENT_ID
     # "password" --> SP (Service Principal) password = AZURE_CLIENT_SECRET
     # This creates the SP with Contributor. User Access Administrator is added
-    # in step 7 -- Contributor alone cannot create role assignments, and
+    # below -- Contributor alone cannot create role assignments, and
     # User Access Administrator alone cannot create resources.
     az ad sp create-for-rbac \
       --name "${SP_NAME}" \
@@ -220,19 +261,12 @@ subscription.
     # SP_OBJ_ID="<value of output>"
     ```
 
-7. Add the second role. Step 5 granted `Contributor`; this adds
-   `User Access Administrator` so Terraform can create role assignments:
+## Grant RBAC Role to `Service Principal`
 
-    ```bash
-    az role assignment create \
-      --assignee-object-id "${SP_OBJ_ID}" \
-      --assignee-principal-type ServicePrincipal \
-      --role "User Access Administrator" \
-      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
-    ```
+### `App Configuration Data Owner`
 
-8. Add the third role, `App Configuration Data Owner`, so GitHub Actions can
-   import key-values into the App Configuration store:
+- Add `App Configuration Data Owner` so that GitHub Actions can import
+  key-values into the App Configuration store:
 
     ```bash
     az role assignment create \
@@ -242,8 +276,23 @@ subscription.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-9. Add the fourth role, `Key Vault Secrets Officer`, so GitHub Actions can
-   manage secrets in Key Vault:
+### `Foundry Owner`
+
+- Add `Foundry Owner` for full Foundry management. Not needed by Terraform:
+  `Contributor` already creates and deletes the Foundry resource and project.
+
+    ```bash
+    az role assignment create \
+      --assignee-object-id "${SP_OBJ_ID}" \
+      --assignee-principal-type ServicePrincipal \
+      --role "Foundry Owner" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
+### `Key Vault Secrets Officer`
+
+- Add `Key Vault Secrets Officer` so that GitHub Actions can create, delete
+  and manage secrets in Key Vault:
 
     ```bash
     az role assignment create \
@@ -253,7 +302,34 @@ subscription.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-10. Test signing in using the Service Principal credentials:
+### `Storage Blob Data Contributor`
+
+- Add `Storage Blob Data Contributor` so that Terraform can check a new
+  storage account is ready when shared keys are disabled. Module 08 also
+  grants it on the data resource group:
+
+    ```bash
+    az role assignment create \
+      --assignee-object-id "${SP_OBJ_ID}" \
+      --assignee-principal-type ServicePrincipal \
+      --role "Storage Blob Data Contributor" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
+### `User Access Administrator`
+
+- Add `User Access Administrator` so that Terraform can create role
+  assignments:
+
+    ```bash
+    az role assignment create \
+      --assignee-object-id "${SP_OBJ_ID}" \
+      --assignee-principal-type ServicePrincipal \
+      --role "User Access Administrator" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
+- Test signing in using the Service Principal credentials:
 
     ```bash
     # Ensure you are not currently signed in already.
@@ -272,9 +348,8 @@ subscription.
 
 ### Verify Azure Service Principal Roles
 
-- Verify the Service Principal holds all FOUR roles for its Subscription ID
-  (`Contributor`, `User Access Administrator`,
-  `App Configuration Data Owner` and `Key Vault Secrets Officer`):
+- Verify the Service Principal holds all SIX roles listed above for its
+  Subscription ID:
 
     ```bash
     SCOPE="/subscriptions/${AZURE_SUBSCRIPTION_ID}"
@@ -336,7 +411,7 @@ section for what has to change to target it.
     # export TF_VAR_action_group_email='rubens.s.gomes@gmail.com'
     export TF_VAR_action_group_email='rubens.gomes@3cloudsolutions.com'
     export TF_VAR_pg_entra_admin_group_name="az-${ENV}-pg-admins"
-    export TF_VAR_pg_entra_admin_group_object_id='<object ID of the Entra group>'
+    export TF_VAR_pg_entra_admin_group_object_id='<Entra group object ID>'
 
     # A JSON array containing the names of ACA (Azure Container Apps) being
     # provisioned by this project.
@@ -346,7 +421,8 @@ section for what has to change to target it.
     export TF_VAR_target_port='80'
 
     # ATTENTION: this MUST be a globally unique ACR name in Azure. Follow the
-    # CAF convention spelled without dashes: cr<workload><env>. See docs/NAMING.md.
+    # CAF convention spelled without dashes: cr<workload><env>.
+    # See docs/NAMING.md.
     #export TF_VAR_acr_name="crrgomes${ENV}01"
     export TF_VAR_acr_name="crrgomes${ENV}02"
     #export TF_VAR_owner='rubens.s.gomes@gmail.com'
@@ -365,7 +441,7 @@ section for what has to change to target it.
 
 ### Selecting an environment
 
-`terraform/roots/` holds one copy of the fourteen module roots, shared by every
+`terraform/roots/` holds one copy of the fifteen module roots, shared by every
 environment. What makes a run `dev` or `lab` is `terraform/envs/<env>/` plus
 the exports — no HCL names an environment.
 
@@ -375,10 +451,10 @@ exports that must move with it:
 
 ```bash
 # picks envs/dev/backend.hcl
-make ENV=lab ...
+make ENV=dev ...
 # names resources, picks envs/dev/tags.json
 export TF_VAR_env="${ENV}"
-# lab's own state container
+# dev's own state container
 export TF_VAR_container_name="rgomes-${ENV}-tfstate"
 # registry names are globally unique
 export TF_VAR_acr_name='<globally unique>'
@@ -431,6 +507,7 @@ Follow [TF_BOOTSTRAP_CREATE](TF_BOOTSTRAP_CREATE.md).
     TF_VAR_ACTION_GROUP_EMAIL
     TF_VAR_PG_ENTRA_ADMIN_GROUP_OBJECT_ID
     TF_VAR_PG_ENTRA_ADMIN_GROUP_NAME
+    TF_VAR_FOUNDRY_USER_OBJECT_ID
     ```
 
 - Project Repository Action Secrets:
@@ -444,5 +521,6 @@ Follow [TF_BOOTSTRAP_CREATE](TF_BOOTSTRAP_CREATE.md).
 NOTE: The bash 4+ [initvars.sh](../scripts/initvars.sh) may be used to automate
 deleting and re-creating both the Action variables and secrets above. Pass
 `-o, --delete-only` to delete them without recreating them.
+
 ---
 Author:  [Rubens Gomes](https://rubensgomes.com/)

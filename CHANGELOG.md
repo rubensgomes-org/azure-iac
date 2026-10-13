@@ -26,7 +26,17 @@ premise.
 
 ### Added
 
+- `scripts/roles.sh`: prints whether each given RBAC role has control-plane
+  and data-plane permissions.
+
 ### Changed
+
+- `docs/INITIAL_SETUP.md`: role grants are organized by role and plane, with
+  commands to inspect a role. Adds `Foundry User` for the user, and
+  `Foundry Owner` and `Storage Blob Data Contributor` for the service
+  principal.
+- `scripts/initvars.sh` manages the optional
+  `TF_VAR_FOUNDRY_USER_OBJECT_ID` Actions variable and skips it when empty.
 
 ### Fixed
 
