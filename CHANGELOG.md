@@ -26,7 +26,16 @@ premise.
 
 ### Added
 
+- Module `14-app-gateway`: Application Gateway v2 and public IP publishing
+  one Container App (default `mathagent`) over HTTP.
+- `02-networking`: `agw` subnet and NSG.
+- Workflows `agw-create.yml` and `agw-destroy.yml`.
+
 ### Changed
+
+- `12-container-apps`: `ingress_external_enabled` (all apps) replaced by
+  `ingress_external_apps` (per app); `aca-create.yml` input of the same name.
+- `env.tfvars.example`: `apps` holds bare app names.
 
 ### Fixed
 

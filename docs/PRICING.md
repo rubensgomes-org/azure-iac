@@ -17,6 +17,15 @@ These bill a flat fee regardless of usage.
 | 5 private DNS zones       | `02-networking` always creates all five, at $0.50/zone/month | $0.082 | $0.58  | $2.50   |
 | **Total**                 |                                                                | **$0.25** | **$1.74** | **$7.58** |
 
+## Module 14 (only while deployed)
+
+Approximate; verify before budgeting. Destroy module 14 to stop both.
+
+| Resource                        | Why                                   | Daily  | Monthly |
+|---------------------------------|---------------------------------------|--------|---------|
+| Application Gateway Standard_v2 | Fixed hourly fee, plus capacity units | ~$5.90 | ~$180   |
+| Standard static public IP       | Hourly while allocated                | ~$0.12 | ~$3.65  |
+
 ## Usage-based resources (near-$0 while idle)
 
 | Resource                        | Billing model                                                    |
@@ -38,6 +47,7 @@ These bill a flat fee regardless of usage.
 ## Sources
 
 - [Container Registry pricing](https://azure.microsoft.com/en-us/pricing/details/container-registry/)
+- [Application Gateway pricing](https://azure.microsoft.com/en-us/pricing/details/application-gateway/)
 - [Container Apps pricing](https://azure.microsoft.com/en-us/pricing/details/container-apps/)
 - [Azure DNS pricing](https://azure.microsoft.com/en-us/pricing/details/dns/)
 - [Azure Monitor pricing](https://azure.microsoft.com/en-us/pricing/details/monitor/)

@@ -48,6 +48,15 @@ on:
         required: false
         default: '{}'
 
+      ingress_external_apps:
+        description: >
+          JSON array of apps reachable on the environment's static IP from
+          the VNet, e.g. ["mathagent"] for the Application Gateway (module
+          14). Others stay internal to the environment.
+        type: string
+        required: false
+        default: '[]'
+
     outputs:
       app_ids:
         description: 'JSON map from app name to full Azure Resource ID.'
@@ -92,6 +101,12 @@ on:
         type: string
         required: false
         default: '{}'
+
+      ingress_external_apps:
+        description: 'JSON array of apps reachable from the VNet'
+        type: string
+        required: false
+        default: '[]'
 
 permissions:
   contents: read
@@ -187,6 +202,9 @@ jobs:
 
       # `|| '{}'`: an emptied dispatch field is not a valid map.
       TF_VAR_health_probe_paths: ${{ inputs.health_probe_paths || '{}' }}
+
+      # `|| '[]'`: an emptied dispatch field is not a valid set.
+      TF_VAR_ingress_external_apps: ${{ inputs.ingress_external_apps || '[]' }}
 
     steps:
       # actions/checkout defaults to github.repository at github.sha, but on

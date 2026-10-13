@@ -34,7 +34,7 @@ makes the env vars below usable at runtime.
 | `memory`                       | string       | `"0.5Gi"`                                  | Memory per replica.                                                          |
 | `min_replicas`                 | number       | `0`                                        | `0` = scale-to-zero when idle.                                               |
 | `max_replicas`                 | number       | `1`                                        | Horizontal cap per app.                                                      |
-| `ingress_external_enabled`     | bool         | `false`                                    | `true` = expose the app on the environment's static IP.                      |
+| `ingress_external_apps`        | set(string)  | `[]`                                       | Apps exposed on the environment's static IP; others stay internal.           |
 | `tags`                         | map(string)  | `{}`                                       | Merged with `component` + `app` tags.                                        |
 
 **Outputs:**

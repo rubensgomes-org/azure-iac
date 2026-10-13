@@ -114,10 +114,10 @@ variable "max_replicas" {
   default     = 1
 }
 
-variable "ingress_external_enabled" {
-  description = "true = each app gets an FQDN on the environment's static IP; false = ingress internal to the environment. Default false matches this environment's `internal_load_balancer_enabled = true`."
-  type        = bool
-  default     = false
+variable "ingress_external_apps" {
+  description = "App names exposed on the environment's static IP (VNet-reachable under this internal environment), e.g. `[\"mathagent\"]`. Unlisted apps stay internal to the environment. Export as TF_VAR_ingress_external_apps."
+  type        = set(string)
+  default     = []
 }
 
 # ---- Declared for env.tfvars parity, unused by this module -----------------

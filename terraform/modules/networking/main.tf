@@ -1,6 +1,6 @@
 # modules/networking/main.tf
 # -----------------------------------------------------------------------------
-# Provisions the network plane for the env: one VNet, three subnets, three
+# Provisions the network plane for the env: one VNet, four subnets, four
 # NSGs (one per subnet), and five private DNS zones linked to the VNet.
 #
 # The subnet set and the DNS zone set are BOTH fixed on purpose — every
@@ -24,6 +24,8 @@
 #       fails at CAE creation time with a cryptic API error.
 #   - snet-<workload>pg-<env>:  /24 — PostgreSQL Flexible Server (delegated).
 #   - snet-<workload>pe-<env>:  /24 — Private endpoints for KV, Blob, ACR, Service Bus.
+#   - snet-<workload>agw-<env>: /24 — Application Gateway v2 (module 14).
+#       Must hold only gateways; its NSG rules live in module 14.
 #
 # CIDRs are non-overlapping and leave ~3000 addresses of headroom in the /20
 # for future subnets (jumpbox, APIM, additional PE subnet, etc.).
@@ -54,6 +56,10 @@ locals {
     }
     pe = {
       cidr       = "10.0.5.0/24"
+      delegation = []
+    }
+    agw = {
+      cidr       = "10.0.6.0/24"
       delegation = []
     }
   }
@@ -131,7 +137,8 @@ resource "azurerm_subnet" "this" {
 #   - allow outbound Internet
 #   - deny inbound Internet
 # That's the playground posture we want. Add specific rules later when a
-# service needs one (e.g. bastion inbound on TCP 22).
+# service needs one (e.g. bastion inbound on TCP 22). The `agw` NSG's rules
+# are owned by module 14, so destroying the gateway also closes them.
 resource "azurerm_network_security_group" "this" {
   for_each = local.subnets
 

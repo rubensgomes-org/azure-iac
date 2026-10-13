@@ -9,7 +9,7 @@ Adoption Framework (CAF) form:
 
 Two inputs decide the whole namespace: `workload` (default `rgomes`) and `env`
 (`lab`, `dev`). Both live in `terraform/envs/<env>/env.tfvars`, and every one of
-the thirteen modules under `terraform/modules/` takes both.
+the fourteen modules under `terraform/modules/` takes both.
 
 ## The two rules that are not obvious
 
@@ -107,7 +107,7 @@ token.
 
 `name` is ForceNew on every resource here. Changing either value against a live
 estate is a **destroy and recreate**, not a rename — and because the estate
-spans thirteen state files that only know each other through remote-state reads,
+spans fourteen state files that only know each other through remote-state reads,
 the result is a broken estate rather than a renamed one. Change it at first
 provision, or after a full teardown.
 
@@ -173,7 +173,7 @@ Three further things about these names, unlike the rest of the estate:
   literals, because a `terraform { backend }` block cannot interpolate — the
   values live in `bootstrap-backend/backend.tf`, `bootstrap-backend/variables.tf`
   and both `envs/<env>/backend.hcl`, and all four must agree by hand.
-- `bootstrap/backend.tfstate` shares the container with the thirteen estate state
+- `bootstrap/backend.tfstate` shares the container with the fourteen estate state
   blobs, and stays there. The backend's own state spans environments.
 - **Renaming them is a state migration, not an edit.** An Azure resource group
   and storage account cannot be renamed in place, and Terraform will not follow

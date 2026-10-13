@@ -240,19 +240,16 @@ variable "max_replicas" {
   }
 }
 
-variable "ingress_external_enabled" {
+variable "ingress_external_apps" {
   description = <<-EOT
-    `true` exposes each app on the environment's static IP with an
-    auto-assigned FQDN (`<app>.<cae_default_domain>`) — reachable from
-    the VNet, or the internet if the environment also has
-    `internal_load_balancer_enabled = false`. `false` keeps ingress
-    internal to the environment (reachable only from other apps on the
-    delegated subnet). Default `false`: this environment provisions with
-    `internal_load_balancer_enabled = true`, so apps stay internal-only
-    unless a workload needs cross-app-boundary reachability.
+    App names exposed on the environment's static IP with an FQDN
+    `<app>.<cae_default_domain>` — reachable from the VNet, or the
+    internet if the environment has `internal_load_balancer_enabled =
+    false`. Unlisted apps keep ingress internal to the environment.
+    Default `[]`: every app stays internal-only.
   EOT
-  type        = bool
-  default     = false
+  type        = set(string)
+  default     = []
 }
 
 variable "tags" {

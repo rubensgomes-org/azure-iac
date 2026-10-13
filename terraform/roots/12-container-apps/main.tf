@@ -140,15 +140,15 @@ module "container_apps" {
   # Per-app image + resource shape (all defaulted in the child module;
   # overrides arrive as TF_VAR_ exports -- this root is shared by every
   # environment and so holds no terraform.tfvars of its own).
-  apps_image_map           = var.apps_image_map
-  default_image            = var.default_image
-  target_port              = var.target_port
-  health_probe_paths       = var.health_probe_paths
-  cpu                      = var.cpu
-  memory                   = var.memory
-  min_replicas             = var.min_replicas
-  max_replicas             = var.max_replicas
-  ingress_external_enabled = var.ingress_external_enabled
+  apps_image_map        = var.apps_image_map
+  default_image         = var.default_image
+  target_port           = var.target_port
+  health_probe_paths    = var.health_probe_paths
+  cpu                   = var.cpu
+  memory                = var.memory
+  min_replicas          = var.min_replicas
+  max_replicas          = var.max_replicas
+  ingress_external_apps = var.ingress_external_apps
 
   tags = local.tags
 }

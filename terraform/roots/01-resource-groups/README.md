@@ -99,7 +99,7 @@ are reusable immediately after destroy.
 - **`workload` defaults to `rgomes`**, so the six RGs are
   `rg-rgomesplatform-lab`, `rg-rgomesnetwork-lab`, and so on. Unlike the
   `rg_suffix` it replaced, `workload` lives in `env.tfvars` and is declared by
-  all thirteen roots — every resource name is composed from it rather than
+  all fourteen roots — every resource name is composed from it rather than
   inherited through this module's remote state.
 - **Changing it renames the whole estate.** `name` is ForceNew on
   `azurerm_resource_group`. Changing `workload` on a live estate plans a

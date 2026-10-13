@@ -75,9 +75,11 @@ resource "azurerm_container_app" "app" {
   }
 
   # Ingress. Internal by default — reachable only from other apps on the
-  # environment's delegated subnet. Toggle via `var.ingress_external_enabled`.
+  # environment's delegated subnet. Apps in `var.ingress_external_apps` are
+  # reachable on the environment's static IP (VNet-wide under an internal
+  # environment).
   ingress {
-    external_enabled = var.ingress_external_enabled
+    external_enabled = contains(var.ingress_external_apps, each.key)
     target_port      = var.target_port
     transport        = "auto"
 

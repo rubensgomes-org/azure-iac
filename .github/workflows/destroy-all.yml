@@ -2,7 +2,7 @@
 # Destroy All
 #
 # Tears down every Terraform root for one environment, in reverse dependency
-# order (13 -> 01), by invoking `make destroy`. THE BLAST RADIUS IS THE WHOLE
+# order (14 -> 01), by invoking `make destroy`. THE BLAST RADIUS IS THE WHOLE
 # ESTATE, and most of it is irreversible: registry images and storage blobs
 # not under retention are gone for good. The Terraform state backend survives
 # and is torn down only by docs/TF_BOOTSTRAP_DESTROY.md.
@@ -184,7 +184,7 @@ jobs:
             exit 1
           fi
 
-          echo "Safeguard passed. Target estate: ${ENV_NAME} (all thirteen"
+          echo "Safeguard passed. Target estate: ${ENV_NAME} (all fourteen"
           echo "modules)."
           echo "Scope: terraform/roots/ against env ${ENV_NAME} only. The"
           echo "state backend is NOT destroyed."
@@ -340,7 +340,7 @@ jobs:
       # Failures are accumulated rather than fatal on the first one: a module
       # whose upstream is already destroyed fails at plan with "Unsupported
       # attribute", which is expected on a partly torn-down estate.
-      - name: Plan the destroy across all thirteen modules
+      - name: Plan the destroy across all fourteen modules
         if: ${{ inputs.dry_run }}
         shell: bash
         run: |
@@ -348,7 +348,7 @@ jobs:
           rc=0
           failed=""
 
-          for short in monitoring container-apps container-app-environment \
+          for short in app-gateway monitoring container-apps container-app-environment \
                        postgresql service-bus storage acr key-vault \
                        app-configuration \
                        managed-identities log-analytics networking \
@@ -394,7 +394,7 @@ jobs:
       # If a module fails, `set -e` inside the recipe aborts the remaining
       # modules. Re-dispatching is the documented recovery: destroy on an
       # emptied state is a no-op, so the loop resumes where it stopped.
-      - name: Destroy all modules (13 -> 01)
+      - name: Destroy all modules (14 -> 01)
         if: ${{ !inputs.dry_run }}
         shell: bash
         run: make ENV="$ENV_NAME" destroy

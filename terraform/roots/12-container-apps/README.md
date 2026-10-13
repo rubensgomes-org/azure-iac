@@ -179,11 +179,11 @@ immediately.
 - **Scale-to-zero by default.** `min_replicas = 0` means apps sleep
   after 5 minutes of idle. First request after idle pays a cold-start
   latency. Export `TF_VAR_min_replicas=1` for latency-sensitive apps.
-- **Internal-only ingress by default.** `ingress_external_enabled =
-  false`, matching the environment's `internal_load_balancer_enabled =
-  true` (module 11). Apps are reachable only from the VNet, not the
-  internet. Export `TF_VAR_ingress_external_enabled=true` to expose
-  apps on the environment's static IP instead.
+- **Internal-only ingress by default.** `ingress_external_apps = []`,
+  matching the environment's `internal_load_balancer_enabled = true`
+  (module 11). Export `TF_VAR_ingress_external_apps='["<app>"]'` to put
+  an app on the environment's static IP, reachable from the VNet (e.g.
+  by the Application Gateway in module 14), not the internet.
 - **Every app gets an `ingress` block.** Azure auto-injects a default
   StartUp probe against `target_port` whenever ingress is present, so
   every app's image must actually listen on that port or it

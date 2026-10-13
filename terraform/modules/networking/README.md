@@ -1,7 +1,7 @@
 # modules/networking
 
 Child Terraform module that provisions the network plane for one environment:
-one VNet, three subnets (with NSGs), and five private DNS zones linked to
+one VNet, four subnets (with NSGs), and five private DNS zones linked to
 the VNet.
 
 Called by `terraform/roots/02-networking/`. State is owned by the caller —
@@ -15,7 +15,8 @@ this module has no `backend` block.
 | `azurerm_subnet`                                | `snet-<workload>app-<env>`        | `10.0.0.0/23`, delegated to `Microsoft.App/environments`                |
 | `azurerm_subnet`                                | `snet-<workload>pg-<env>`         | `10.0.4.0/24`, delegated to `Microsoft.DBforPostgreSQL/flexibleServers` |
 | `azurerm_subnet`                                | `snet-<workload>pe-<env>`         | `10.0.5.0/24`, `private_endpoint_network_policies = Disabled`           |
-| `azurerm_network_security_group`                | `nsg-<workload>{app,pg,pe}-<env>` | One per subnet, default rules only, associated                          |
+| `azurerm_subnet`                                | `snet-<workload>agw-<env>`        | `10.0.6.0/24`, Application Gateway v2 (module 14)                       |
+| `azurerm_network_security_group`                | `nsg-<workload><key>-<env>`       | One per subnet, associated; `agw` rules owned by module 14              |
 | `azurerm_private_dns_zone`                      | 5 zones (see below)               | One per downstream PE-integrated service                                |
 | `azurerm_private_dns_zone_virtual_network_link` | `vnet-link-<workload><key>-<env>` | One per zone; `registration_enabled = false`                            |
 
@@ -41,15 +42,15 @@ Private DNS zones:
 ## Outputs
 
 - `vnet_id`, `vnet_name`, `vnet_address_space`
-- `subnet_app_id`, `subnet_pg_id`, `subnet_pe_id`
-- `nsg_app_id`, `nsg_pg_id`, `nsg_pe_id`
+- `subnet_{app,pg,pe,agw}_id`
+- `nsg_{app,pg,pe,agw}_id`
 - `dns_zone_{kv,blob,acr,sb,pg}_id`
 - `subnets` — map `key => {id, name, cidr}` for every subnet
 - `private_dns_zones` — map `key => {name, id}` for every zone
 
 ## Design decisions
 
-- **Fixed subnet set (`app`, `pg`, `pe`).** Every downstream module reads
+- **Fixed subnet set (`app`, `pg`, `pe`, `agw`).** Every downstream module reads
   these by key. Adding a subnet here is a breaking change that must be
   coordinated across the estate — same reasoning as
   `modules/resource-groups`.

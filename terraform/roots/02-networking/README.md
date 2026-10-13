@@ -1,6 +1,6 @@
 # 02-networking (terraform/roots)
 
-Root Terraform config that provisions the VNet, three subnets, three NSGs,
+Root Terraform config that provisions the VNet, four subnets, four NSGs,
 and five private DNS zones for the target environment. State lives at key
 `networking/terraform.tfstate` in the backend blob container.
 
@@ -41,11 +41,11 @@ terraform apply tfplan
 # VNet and subnets
 az network vnet list -g "rg-${TF_VAR_workload:-rgomes}network-${TF_VAR_env:-lab}" -o table
 az network vnet subnet list -g "rg-${TF_VAR_workload:-rgomes}network-${TF_VAR_env:-lab}" --vnet-name vnet-${TF_VAR_workload:-rgomes}-${TF_VAR_env:-lab} -o table
-# Expect: vnet-dev present; snet-dev-{app,pg,pe} listed with correct CIDRs.
+# Expect: vnet-dev present; snet-dev-{app,pg,pe,agw} listed with correct CIDRs.
 
 # NSGs
 az network nsg list -g "rg-${TF_VAR_workload:-rgomes}network-${TF_VAR_env:-lab}" -o table
-# Expect: nsg-dev-{app,pg,pe} present.
+# Expect: nsg-dev-{app,pg,pe,agw} present.
 
 # Private DNS zones
 az network private-dns zone list -g "rg-${TF_VAR_workload:-rgomes}network-${TF_VAR_env:-lab}" -o table

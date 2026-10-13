@@ -23,7 +23,7 @@ output "cae_default_domain" {
 }
 
 output "cae_static_ip_address" {
-  description = "Public static IP that serves ingress for every external app in this environment."
+  description = "Private static IP of the internal load balancer that serves ingress for every app in this environment."
   value       = module.container_app_environment.cae_static_ip_address
 }
 

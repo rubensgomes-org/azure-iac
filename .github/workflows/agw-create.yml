@@ -1,0 +1,200 @@
+# =============================================================================
+# AGW Create (reusable)
+#
+# Brings modules 02 (networking, for the gateway subnet) and 14 (app
+# gateway) to their desired state, publishing one Container App to the
+# internet. Modules 01, 11 and 12 must already be applied, with the app in
+# module 12's `ingress_external_apps`. Every recipe is a `make` target from
+# the repo-root Makefile.
+#
+# This project's source code and documentation were generated with the
+# assistance of Artificial Intelligence (AI). For more information, please
+# refer to the `AI_DISCLAIMER.md` document located in the project's root
+# directory.
+# =============================================================================
+
+name: AGW Create (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: >-
+          Estate environment to provision. Maps to the Makefile ENV
+          variable and selects terraform/envs/<env>.
+        type: string
+        required: true
+
+      public_app:
+        description: 'App published through the gateway.'
+        type: string
+        required: false
+        default: 'mathagent'
+
+      public_source_cidrs:
+        description: >-
+          JSON array of client CIDRs allowed on the HTTP listener, e.g.
+          ["203.0.113.7/32"].
+        type: string
+        required: false
+        default: '["0.0.0.0/0"]'
+
+    outputs:
+      agw_public_url:
+        description: 'Public URL of the exposed app.'
+        value: ${{ jobs.provision.outputs.agw_public_url }}
+
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: true
+
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: 'Estate environment to provision'
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
+
+      public_app:
+        description: 'App published through the gateway'
+        type: string
+        required: false
+        default: 'mathagent'
+
+      public_source_cidrs:
+        description: 'JSON array of client CIDRs allowed on HTTP'
+        type: string
+        required: false
+        default: '["0.0.0.0/0"]'
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    name: provision
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    # Must share this group string verbatim with agw-destroy.yml.
+    concurrency:
+      group: agw-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    outputs:
+      agw_public_url: ${{ steps.agw_outputs.outputs.agw_public_url }}
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      TF_IN_AUTOMATION: "true"
+
+      ROOTS_DIR: terraform/roots
+
+      # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
+      ENV_NAME: ${{ inputs.environment_name }}
+
+      # Same fallback as every other workflow; see aca-create.yml.
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+      TF_VAR_public_app: ${{ inputs.public_app || 'mathagent' }}
+      TF_VAR_public_source_cidrs: >-
+        ${{ inputs.public_source_cidrs || '["0.0.0.0/0"]' }}
+
+      TF_VAR_backend_resource_group_name: ${{
+        vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
+    steps:
+      # See aca-create.yml for why job.workflow_* is used here.
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+
+      - name: Verify required Azure configuration is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_env TF_VAR_location \
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: GUARD - Validate Terraform inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "FAIL: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_workload}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "FAIL: TF_VAR_workload must be 2-16 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_public_app}" \
+              | grep -qE '^[a-z][a-z0-9-]*$'; then
+            echo "FAIL: public_app must be a lowercase app name."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_public_source_cidrs}" \
+              | jq -e 'type == "array" and length > 0
+                       and all(.[]; type == "string")' >/dev/null 2>&1; then
+            echo "FAIL: public_source_cidrs must be a non-empty JSON array"
+            echo "of CIDR strings."
+            exit 1
+          fi
+          echo "Validated: env='${ENV_NAME}' app='${TF_VAR_public_app}'"
+          echo "sources='${TF_VAR_public_source_cidrs}'."
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      # Creates the gateway subnet on first run; a no-op afterwards.
+      - name: Module 02 - networking
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-networking plan-networking apply-networking
+
+      - name: Module 14 - app gateway
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-app-gateway plan-app-gateway apply-app-gateway
+
+      - name: Publish AGW outputs
+        id: agw_outputs
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/14-app-gateway
+        run: |
+          set -euo pipefail
+          url="$(terraform output -raw agw_public_url)"
+          echo "agw_public_url=${url}" >> "$GITHUB_OUTPUT"
+          echo "Public URL: ${url}"

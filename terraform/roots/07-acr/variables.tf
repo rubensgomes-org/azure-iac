@@ -13,7 +13,7 @@
 
 # Registry name. Supplied as TF_VAR_acr_name, not from
 # ../../envs/<env>/env.tfvars -- it is a per-module, per-environment value and
-# env.tfvars is shared by all thirteen roots. Not a `terraform.tfvars` here
+# env.tfvars is shared by all fourteen roots. Not a `terraform.tfvars` here
 # either: this root is shared by every environment, so an auto-loaded file
 # would pin one name for all of them. `make check-tfvars` rejects one.
 variable "acr_name" {
@@ -31,13 +31,13 @@ variable "env" {
 # namespace — see docs/NAMING.md.
 #
 # `name` is ForceNew on every resource composed from it. Changing this on a
-# LIVE estate is a destroy+recreate spread across thirteen state files that know
+# LIVE estate is a destroy+recreate spread across fourteen state files that know
 # nothing about each other, which is a broken estate rather than a rename. Set
 # it at first provision, or after a full teardown.
 #
 # `null` rather than a literal default so an unset value falls through to the
 # child module's own default (`rgomes`) instead of duplicating the literal in
-# thirteen roots. The fall-through only works because the child declares
+# fourteen roots. The fall-through only works because the child declares
 # `nullable = false`: a null passed to a nullable variable is a VALUE, not an
 # absence, and would fail the child's validation rather than be replaced.
 variable "workload" {

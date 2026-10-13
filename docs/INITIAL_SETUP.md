@@ -362,7 +362,7 @@ section for what has to change to target it.
 
 ### Selecting an environment
 
-`terraform/roots/` holds one copy of the thirteen module roots, shared by every
+`terraform/roots/` holds one copy of the fourteen module roots, shared by every
 environment. What makes a run `dev` or `lab` is `terraform/envs/<env>/` plus
 the exports — no HCL names an environment.
 

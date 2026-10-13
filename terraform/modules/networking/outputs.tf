@@ -43,6 +43,11 @@ output "subnet_pe_id" {
   value       = azurerm_subnet.this["pe"].id
 }
 
+output "subnet_agw_id" {
+  description = "Resource ID of snet-<workload>agw-<env> (Application Gateway v2)."
+  value       = azurerm_subnet.this["agw"].id
+}
+
 # ---- NSGs ------------------------------------------------------------------
 
 output "nsg_app_id" {
@@ -58,6 +63,11 @@ output "nsg_pg_id" {
 output "nsg_pe_id" {
   description = "Resource ID of nsg-<env>-pe."
   value       = azurerm_network_security_group.this["pe"].id
+}
+
+output "nsg_agw_id" {
+  description = "Resource ID of nsg-<workload>agw-<env>."
+  value       = azurerm_network_security_group.this["agw"].id
 }
 
 # ---- Private DNS zones -----------------------------------------------------

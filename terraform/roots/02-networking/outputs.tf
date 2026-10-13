@@ -39,6 +39,11 @@ output "subnet_pe_id" {
   value       = module.networking.subnet_pe_id
 }
 
+output "subnet_agw_id" {
+  description = "Resource ID of snet-<workload>agw-<env> (Application Gateway v2)."
+  value       = module.networking.subnet_agw_id
+}
+
 # ---- NSGs ------------------------------------------------------------------
 
 output "nsg_app_id" {
@@ -54,6 +59,11 @@ output "nsg_pg_id" {
 output "nsg_pe_id" {
   description = "Resource ID of nsg-<env>-pe."
   value       = module.networking.nsg_pe_id
+}
+
+output "nsg_agw_id" {
+  description = "Resource ID of nsg-<workload>agw-<env>."
+  value       = module.networking.nsg_agw_id
 }
 
 # ---- Private DNS zones -----------------------------------------------------
