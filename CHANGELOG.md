@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.45] - 2026-10-13
+
+### Added
+
 - Module 15 `foundry` (`modules/foundry`, `roots/15-foundry`): an Azure AI
   Foundry resource `aif-<workload>-<env>` and project `proj-<workload>-<env>`
   in the ai RG, with an optional "Foundry User" grant for
