@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.46] - 2026-10-13
+
+### Added
+
 - `scripts/roles.sh`: prints whether each given RBAC role has control-plane
   and data-plane permissions.
 
