@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.43] - 2026-10-12
+
+### Added
+
 - Module `14-app-gateway`: Application Gateway v2 and public IP publishing
   one Container App (default `mathagent`) over HTTP.
 - `02-networking`: `agw` subnet and NSG.
