@@ -107,6 +107,10 @@ credentials.json
 # ever present if awk or mv died mid-rewrite; it must never be committed.
 CHANGELOG.md.tmp
 
+# draw.io backups
+.*.drawio.bkp
+*.drawio.bkp
+
 ###############################################################################
 # Sonar (static analysis built files)
 ###############################################################################

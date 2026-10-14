@@ -1,0 +1,104 @@
+<mxfile host="Electron" pages="2">
+  <diagram id="SkDZ0MZK2lf0U1aR2JwI" name="RBAC">
+    <mxGraphModel dx="694" dy="397" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="j6iGMNGI6Ckr1BoLyiXF-1" parent="1" style="verticalLabelPosition=bottom;html=1;verticalAlign=top;align=center;strokeColor=none;fillColor=#00BEF2;shape=mxgraph.azure.user;rounded=1;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);" value="Service Principal" vertex="1">
+          <mxGeometry height="50" width="47.5" x="424" y="231.44" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-3" parent="1" style="image;aspect=fixed;perimeter=ellipsePerimeter;html=1;align=center;shadow=0;dashed=0;spacingTop=3;image=img/lib/active_directory/user_accounts.svg;rounded=1;strokeColor=light-dark(#000000,#FFFFFF);verticalAlign=top;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;fillColor=none;" value="User" vertex="1">
+          <mxGeometry height="48.5" width="50" x="250" y="232.94" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-9" parent="1" style="image;aspect=fixed;html=1;align=center;fontSize=18;image=img/lib/azure2/identity/Entra_Managed_Identities.svg;points=[[0.5,0,0],[0.5,0.995,0],[0.064,0.5,0],[0.998,0.614,0],[0.765,1,0],[0.03,0.682,0]];rounded=1;strokeColor=light-dark(#000000,#FFFFFF);verticalAlign=top;fontFamily=Arial;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;fillColor=none;" value="System&lt;div&gt;Managed Identity&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60.44" width="68" x="586" y="221" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-19" edge="1" parent="1" source="ekjisRKMyMiOYp_nE4Bi-12" style="shape=connector;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);align=center;verticalAlign=middle;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;endArrow=classic;fillColor=#f5f5f5;" target="ekjisRKMyMiOYp_nE4Bi-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-12" parent="1" style="image;aspect=fixed;html=1;align=center;fontSize=18;image=img/lib/azure2/identity/Custom_Azure_AD_Roles.svg;points=[[0.439,0,0],[0.5,0.963,0],[0.186,0.5,0],[1,0.751,0],[0.605,0.063,0],[1,0.877,0],[0.025,0.942,0],[0.25,0.085,0]];rounded=1;strokeColor=light-dark(#000000,#FFFFFF);verticalAlign=top;fontFamily=Arial;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;fillColor=none;" value="Owner" vertex="1">
+          <mxGeometry height="68" width="68" x="424" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-21" edge="1" parent="1" source="ekjisRKMyMiOYp_nE4Bi-14" style="shape=connector;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);align=center;verticalAlign=middle;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;endArrow=classic;fillColor=#f5f5f5;" target="ekjisRKMyMiOYp_nE4Bi-17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-25" edge="1" parent="1" source="ekjisRKMyMiOYp_nE4Bi-14" style="shape=connector;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);align=center;verticalAlign=middle;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;endArrow=classic;fillColor=#f5f5f5;" target="ekjisRKMyMiOYp_nE4Bi-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-14" parent="1" style="image;aspect=fixed;html=1;align=center;fontSize=18;image=img/lib/azure2/identity/Custom_Azure_AD_Roles.svg;points=[[0.439,0,0],[0.5,0.963,0],[0.186,0.5,0],[1,0.751,0],[0.605,0.063,0],[1,0.877,0],[0.025,0.942,0],[0.25,0.085,0]];rounded=1;strokeColor=light-dark(#000000,#FFFFFF);verticalAlign=top;fontFamily=Arial;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;fillColor=none;" value="Key Vault&lt;div&gt;Secrets User&lt;/div&gt;" vertex="1">
+          <mxGeometry height="68" width="68" x="634" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-20" edge="1" parent="1" source="ekjisRKMyMiOYp_nE4Bi-15" style="shape=connector;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);align=center;verticalAlign=middle;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;endArrow=classic;fillColor=#f5f5f5;" target="j6iGMNGI6Ckr1BoLyiXF-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-15" parent="1" style="image;aspect=fixed;html=1;align=center;fontSize=18;image=img/lib/azure2/identity/Custom_Azure_AD_Roles.svg;points=[[0.439,0,0],[0.5,0.963,0],[0.186,0.5,0],[1,0.751,0],[0.605,0.063,0],[1,0.877,0],[0.025,0.942,0],[0.25,0.085,0]];rounded=1;strokeColor=light-dark(#000000,#FFFFFF);verticalAlign=top;fontFamily=Arial;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;fillColor=none;" value="Contributor" vertex="1">
+          <mxGeometry height="68" width="68" x="530" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-17" parent="1" style="image;aspect=fixed;html=1;align=center;fontSize=18;image=img/lib/azure2/general/Subscriptions.svg;points=[[0.498,0.003,0],[0.502,0.998,0],[0.22,0.5,0],[0.78,0.5,0],[0.979,0.258,0],[0.657,0.91,0],[0.343,0.91,0],[0.025,0.253,0]];rounded=1;strokeColor=light-dark(#000000,#FFFFFF);verticalAlign=top;fontFamily=Arial;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;fillColor=none;" value="User-Assigned&lt;div&gt;Managed Identity&lt;/div&gt;" vertex="1">
+          <mxGeometry height="71" width="44" x="770" y="210.44" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-22" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;" value="Security Principa;l" vertex="1">
+          <mxGeometry height="30" width="60" x="60" y="242.19" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-23" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;" value="RBAC&lt;div&gt;Roles&lt;/div&gt;" vertex="1">
+          <mxGeometry height="30" width="60" x="60" y="419" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-26" parent="1" style="image;aspect=fixed;html=1;align=center;fontSize=18;image=img/lib/azure2/identity/Groups.svg;points=[[0.375,0.003,0],[0.5,0.994,0],[0.186,0.5,0],[0.874,0.5,0],[0.845,0.207,0],[0.982,0.823,0],[0.025,0.978,0],[0.243,0.058,0]];rounded=1;strokeColor=light-dark(#000000,#FFFFFF);verticalAlign=top;fontFamily=Arial;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;fillColor=none;" value="Management Group" vertex="1">
+          <mxGeometry height="56.00000000000001" width="68" x="310" y="602" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-28" parent="1" style="image;aspect=fixed;html=1;align=center;fontSize=18;image=img/lib/azure2/azure_stack/User_Subscriptions.svg;points=[[0.436,0,0],[0.5,0.985,0],[0.204,0.5,0],[0.998,0.599,0],[0.602,0.065,0],[0.827,0.997,0],[0.028,0.966,0],[0.265,0.07,0]];rounded=1;strokeColor=light-dark(#000000,#FFFFFF);verticalAlign=top;fontFamily=Arial;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;fillColor=none;" value="Subscription" vertex="1">
+          <mxGeometry height="66" width="68" x="472" y="592" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-30" parent="1" style="image;aspect=fixed;html=1;align=center;fontSize=18;image=img/lib/azure2/general/Resource_Groups.svg;points=[[0.5,0,0],[0.5,1,0],[0,0.5,0],[1,0.5,0],[0.995,0.109,0],[0.997,0.888,0],[0.003,0.888,0],[0.003,0.112,0]];rounded=1;strokeColor=light-dark(#000000,#FFFFFF);verticalAlign=top;fontFamily=Arial;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;fillColor=none;" value="Resource&lt;div&gt;Groups&lt;/div&gt;" vertex="1">
+          <mxGeometry height="64" width="68" x="634" y="594" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-31" parent="1" style="image;aspect=fixed;html=1;align=center;fontSize=18;image=img/lib/azure2/management_governance/Resources_Provider.svg;points=[[0.5,0,0],[0.5,1,0],[0,0.5,0],[1,0.501,0],[0.971,0.233,0],[0.977,0.762,0],[0.023,0.762,0],[0.023,0.238,0]];rounded=1;strokeColor=light-dark(#000000,#FFFFFF);verticalAlign=top;fontFamily=Arial;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;fillColor=none;" value="Resource" vertex="1">
+          <mxGeometry height="68" width="60.440000000000005" x="800" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="ekjisRKMyMiOYp_nE4Bi-32" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);labelBackgroundColor=default;" value="Scope" vertex="1">
+          <mxGeometry height="30" width="60" x="60" y="610" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="NCQE0sTYZg2B0_KIgkHF" name="Foundry">
+    <mxGraphModel dx="836" dy="478" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="WyD4JyqtGnhA2B_N1cpU-1" parent="1" style="rounded=1;whiteSpace=wrap;fontFamily=Arial;fontSize=18;strokeColor=light-dark(#000000,#FFFFFF);fillColor=none;fontColor=light-dark(#333333,#FFFFFF);" value="" vertex="1">
+          <mxGeometry height="440" width="160" x="380" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="WyD4JyqtGnhA2B_N1cpU-2" parent="1" style="image;aspect=fixed;points=[];align=center;fontSize=18;image=img/lib/azure2/ai_machine_learning/AI_Foundry.svg;fontFamily=Arial;labelBackgroundColor=none;fontColor=light-dark(#333333,#FFFFFF);strokeColor=light-dark(#000000,#FFFFFF);" value="AI Foundry" vertex="1">
+          <mxGeometry height="68" width="63.75999999999999" x="150" y="456" as="geometry" />
+        </mxCell>
+        <mxCell id="WyD4JyqtGnhA2B_N1cpU-3" edge="1" parent="1" source="WyD4JyqtGnhA2B_N1cpU-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);strokeColor=light-dark(#000000,#FFFFFF);fillColor=#f5f5f5;" target="WyD4JyqtGnhA2B_N1cpU-5" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="WyD4JyqtGnhA2B_N1cpU-4" parent="1" style="image;aspect=fixed;points=[];align=center;fontSize=18;image=img/lib/azure2/ai_machine_learning/Foundry_Project.svg;fontFamily=Arial;fontColor=light-dark(#333333,#FFFFFF);strokeColor=light-dark(#000000,#FFFFFF);" value="proj-rgomes-dev" vertex="1">
+          <mxGeometry height="55.60000000000001" width="68" x="433" y="501" as="geometry" />
+        </mxCell>
+        <mxCell id="WyD4JyqtGnhA2B_N1cpU-5" parent="1" style="image;aspect=fixed;points=[];align=center;fontSize=18;image=img/lib/azure2/ai_machine_learning/Foundry_Models.svg;fontFamily=Arial;fontColor=light-dark(#333333,#FFFFFF);strokeColor=light-dark(#000000,#FFFFFF);" value="gpt-5-nao" vertex="1">
+          <mxGeometry height="68" width="67.84" x="433" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="WyD4JyqtGnhA2B_N1cpU-6" edge="1" parent="1" source="WyD4JyqtGnhA2B_N1cpU-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);strokeColor=light-dark(#000000,#FFFFFF);fillColor=#f5f5f5;" target="WyD4JyqtGnhA2B_N1cpU-9" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="WyD4JyqtGnhA2B_N1cpU-7" parent="1" style="image;sketch=0;aspect=fixed;points=[];align=center;fontSize=18;image=img/lib/mscae/ResourceGroup.svg;fontFamily=Arial;labelBackgroundColor=none;fontColor=light-dark(#333333,#FFFFFF);strokeColor=light-dark(#000000,#FFFFFF);" value="rg-rgomesai-dev" vertex="1">
+          <mxGeometry height="40" width="50" x="442" y="284" as="geometry" />
+        </mxCell>
+        <mxCell id="WyD4JyqtGnhA2B_N1cpU-8" edge="1" parent="1" source="WyD4JyqtGnhA2B_N1cpU-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);strokeColor=light-dark(#000000,#FFFFFF);fillColor=#f5f5f5;" target="WyD4JyqtGnhA2B_N1cpU-4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="WyD4JyqtGnhA2B_N1cpU-9" parent="1" style="image;aspect=fixed;points=[];align=center;fontSize=18;image=img/lib/azure2/ai_machine_learning/Foundry_Control_Plane.svg;fontFamily=Arial;fontColor=light-dark(#333333,#FFFFFF);strokeColor=light-dark(#000000,#FFFFFF);" value="aif-rgomes-dev" vertex="1">
+          <mxGeometry height="67.92" width="68" x="433" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="WyD4JyqtGnhA2B_N1cpU-10" edge="1" parent="1" source="WyD4JyqtGnhA2B_N1cpU-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontFamily=Arial;fontSize=18;fontColor=light-dark(#333333,#FFFFFF);strokeColor=light-dark(#000000,#FFFFFF);fillColor=#f5f5f5;" target="WyD4JyqtGnhA2B_N1cpU-1" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="340" y="475" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
