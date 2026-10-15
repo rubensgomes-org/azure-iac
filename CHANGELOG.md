@@ -30,6 +30,14 @@ premise.
 
 ### Fixed
 
+## [0.0.47] - 2026-10-14
+
+### Added
+
+### Changed
+
+### Fixed
+
 - `container-app-environment`: declare the implicit `Consumption` workload
   profile so applies no longer try to remove it and fail with
   `ManagedEnvironmentInvalidNetworkConfiguration`.
