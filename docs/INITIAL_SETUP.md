@@ -146,12 +146,14 @@ and `Contributor` cover only the control plane.
 
 ### Control-Plane and Data-Plane Role
 
-#### `Foundry User`
+#### `Foundry User` and `Foundry Owner`
 
 Using Foundry models and agents, and reading Foundry resources and projects,
 requires an Azure RBAC control-plane + data-plane role `Foundry User`.
 
-- Grant your user `Foundry User` on the subscription:
+Creating, reading, and deleting Foundry resources, projects, models and agents, requires an Azure RBAC control-plane + data-plane role `Foundry Owner`.
+
+- Grant your user `Foundry Owner` on the subscription:
 
     ```bash
     az login --tenant "${AZURE_TENANT_ID}"
@@ -160,7 +162,7 @@ requires an Azure RBAC control-plane + data-plane role `Foundry User`.
     az role assignment create \
       --assignee-object-id "${USER_ID}" \
       --assignee-principal-type User \
-      --role "Foundry User" \
+      --role "Foundry Owner" \
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 

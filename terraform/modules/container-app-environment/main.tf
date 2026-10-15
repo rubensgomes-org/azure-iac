@@ -7,11 +7,12 @@
 #
 # Design decisions (all fixed here, not variables):
 #
-# * **Consumption-only workload profile.** No `workload_profile` block is
-#   declared — in azurerm 5.x that produces a Consumption-only environment,
-#   which bills per-request and needs no reserved capacity. Suits a
-#   playground. Add explicit `workload_profile { workload_profile_type =
-#   "D4" ... }` blocks later if a workload needs dedicated compute.
+# * **Consumption-only workload profile.** Azure always adds a
+#   `Consumption` profile to the environment, so it is declared
+#   explicitly; omitting it makes Terraform try to remove it, which Azure
+#   rejects with a misleading `ManagedEnvironmentInvalidNetworkConfiguration`
+#   error. Add `workload_profile { workload_profile_type = "D4" ... }`
+#   blocks later if a workload needs dedicated compute.
 #
 # * **Internal-only ingress** (`internal_load_balancer_enabled = true`).
 #   The environment gets a private static IP; no public ingress. Reaching
@@ -56,6 +57,12 @@ resource "azurerm_container_app_environment" "this" {
 
   # Zone redundancy off — subnet is not zone-redundant. See file header.
   zone_redundancy_enabled = false
+
+  # Matches the profile Azure creates implicitly. See file header.
+  workload_profile {
+    name                  = "Consumption"
+    workload_profile_type = "Consumption"
+  }
 
   tags = merge(
     var.tags,

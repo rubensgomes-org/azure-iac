@@ -35,9 +35,9 @@ owned by the caller — this module has no `backend` block.
 
 ## Design decisions
 
-- **Consumption-only workload profile.** No `workload_profile` block is
-  declared; azurerm 5.x treats that as Consumption-only, which bills
-  per-request and needs no reserved capacity. Add explicit blocks (e.g.
+- **Consumption-only workload profile.** The `Consumption` profile Azure
+  creates implicitly is declared explicitly; omitting it makes applies
+  fail trying to remove it. Add further blocks (e.g.
   `D4`, `E4`) later if a workload needs dedicated compute.
 - **Internal-only ingress** (`internal_load_balancer_enabled = true`).
   Private static IP; no public ingress. Reaching apps requires a
