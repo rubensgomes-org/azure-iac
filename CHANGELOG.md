@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.50] - 2026-10-15
+
+### Added
+
 - `foundry-create-all.yml` and `foundry-destroy-all.yml`: reusable workflows
   that create or destroy modules 01-07, 11, 12 and 15. The destroy refuses
   to start while modules 08, 09, 10, 13 or 14 hold resources.
