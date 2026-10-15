@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.49] - 2026-10-15
+
+### Added
+
 - `modules/foundry/README.md`: RBAC section listing the roles granted on the
   Foundry resource.
 
