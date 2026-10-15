@@ -1,7 +1,8 @@
 # modules/foundry/main.tf
 # -----------------------------------------------------------------------------
 # Provisions an Azure AI Foundry resource (`kind = AIServices`), one project
-# under it, and an optional "Foundry User" grant for a human user.
+# under it, a "Cognitive Services OpenAI User" grant for the shared UAMI, and
+# an optional "Foundry User" grant for a human user.
 #
 # Design decisions (fixed here, not variables):
 #
@@ -13,6 +14,10 @@
 #
 # * **Role by ID, not name.** "Foundry User" was renamed from "Azure AI User";
 #   the role definition ID survives renames.
+#
+# * **UAMI gets "Cognitive Services OpenAI User", not "Foundry User".** It
+#   covers model inference (including the Responses API) without granting
+#   every `Microsoft.CognitiveServices/*` data action.
 #
 # This project's source code and documentation were generated with the
 # assistance of Artificial Intelligence (AI). For more information, please
@@ -28,6 +33,7 @@ locals {
   sku_name = "S0"
 
   foundry_user_role_id = "53ca6127-db72-4b80-b1b0-d745d6d5456d"
+  openai_user_role_id  = "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd"
 }
 
 data "azurerm_client_config" "current" {}
@@ -73,4 +79,11 @@ resource "azurerm_role_assignment" "foundry_user" {
   role_definition_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/${local.foundry_user_role_id}"
   principal_id       = var.foundry_user_object_id
   principal_type     = "User"
+}
+
+resource "azurerm_role_assignment" "uami_openai_user" {
+  scope              = azurerm_cognitive_account.this.id
+  role_definition_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/${local.openai_user_role_id}"
+  principal_id       = var.uami_principal_id
+  principal_type     = "ServicePrincipal"
 }

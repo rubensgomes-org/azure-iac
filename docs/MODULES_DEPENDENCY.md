@@ -22,12 +22,12 @@ since most modules have more than one parent.
 │   ├── 07-acr                          ← 01, 04
 │   ├── 08-storage                      ← 01, 04
 │   ├── 09-service-bus                  ← 01, 04
-│   └── 10-postgresql                   ← 01, 04
+│   ├── 10-postgresql                   ← 01, 04
+│   └── 15-foundry                      ← 01, 04
 ├── 11-container-app-environment        ← 01, 02, 03
 ├── 12-container-apps                   ← 01, 04, 05, 06, 07, 11
 │   └── 14-app-gateway                  ← 01, 02, 11, 12
-├── 13-monitoring                       ← 01, 03, 06, 07, 08, 09, 10
-└── 15-foundry                          ← 01
+└── 13-monitoring                       ← 01, 03, 06, 07, 08, 09, 10
 ```
 
 ## Table
@@ -48,7 +48,7 @@ since most modules have more than one parent.
 | `12-container-apps`            | 01, 04, 05, 06, 07, 11     | Environment, registry, UAMI, and the store endpoint and vault URI as app config.     |
 | `13-monitoring`                | 01, 03, 06, 07, 08, 09, 10 | Workspace, plus the resource ID of each service it attaches a diagnostic setting to. |
 | `14-app-gateway`               | 01, 02, 11, 12             | RG placement; the `agw` subnet and NSG; environment static IP; public app's FQDN.    |
-| `15-foundry`                   | 01                         | RG placement.                                                                        |
+| `15-foundry`                   | 01, 04                     | RG placement; UAMI "Cognitive Services OpenAI User".                                 |
 
 ## Notes
 
@@ -56,7 +56,7 @@ since most modules have more than one parent.
   not name the real cause. The dependency is on the upstream's *state*, not its
   Azure resources.
 - **01 and 04 are the two hubs.** 01 feeds all fourteen; 04 feeds every module
-  granting the shared UAMI a data-plane role (05–10, 12).
+  granting the shared UAMI a data-plane role (05–10, 12, 15).
 - **10 does not depend on 02.** The `pg` subnet exists but is unused — PG runs
   in public-access mode. The delegated-subnet destroy hazard is 11/12 vs 02.
 - **13 is a leaf**, and reads neither 11 nor 12.

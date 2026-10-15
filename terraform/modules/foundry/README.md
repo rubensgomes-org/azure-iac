@@ -11,6 +11,7 @@ Called by `terraform/roots/15-foundry/`.
 |-------------------------------------|-------------------------|--------------------------------------------|
 | `azurerm_cognitive_account`         | `aif-<workload>-<env>`  | `AIServices`, S0, custom subdomain = name  |
 | `azurerm_cognitive_account_project` | `proj-<workload>-<env>` | System-assigned identity                   |
+| `azurerm_role_assignment`           | —                       | UAMI "Cognitive Services OpenAI User"      |
 | `azurerm_role_assignment`           | —                       | "Foundry User"; only when a user ID is set |
 
 ## Inputs
@@ -20,6 +21,7 @@ Called by `terraform/roots/15-foundry/`.
 | `workload`, `env`        | `string`      | `env`    | CAF name tokens.                           |
 | `location`               | `string`      | yes      | Azure region.                              |
 | `resource_group_name`    | `string`      | yes      | ai RG (module 01).                         |
+| `uami_principal_id`      | `string`      | yes      | Shared UAMI (module 04).                   |
 | `foundry_user_object_id` | `string`      | no       | User granted "Foundry User". Null skips.   |
 | `tags`                   | `map(string)` | no       | Merged with `component = "foundry"`.       |
 

@@ -26,6 +26,10 @@ premise.
 
 ### Added
 
+- `15-foundry` grants the shared UAMI "Cognitive Services OpenAI User" on
+  the Foundry resource, so container apps can call the model APIs. The root
+  now depends on `04-managed-identities`.
+
 ### Changed
 
 ### Fixed

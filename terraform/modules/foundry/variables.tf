@@ -47,6 +47,11 @@ variable "resource_group_name" {
   type        = string
 }
 
+variable "uami_principal_id" {
+  description = "Entra object ID of the shared UAMI (module 04), granted \"Cognitive Services OpenAI User\" on the resource."
+  type        = string
+}
+
 variable "foundry_user_object_id" {
   description = "Entra object ID of a user granted \"Foundry User\" on the resource. Null skips the grant."
   type        = string
