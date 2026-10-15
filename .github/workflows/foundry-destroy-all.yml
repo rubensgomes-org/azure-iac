@@ -1,0 +1,366 @@
+# =============================================================================
+# Foundry Destroy All (reusable)
+#
+# Destroys everything foundry-create-all.yml creates, in reverse dependency
+# order: 15, 12, 11, 07, 06, 05, 04, 03, 02, 01. Refuses to start while
+# modules 08, 09, 10, 13 or 14 hold resources. Registry images are NOT
+# recoverable. The Terraform state backend is never in scope.
+# =============================================================================
+
+name: Foundry Destroy All (reusable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: >
+          Estate environment to destroy. Maps to the Makefile ENV variable
+          and selects terraform/envs/<env>.
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
+
+      acr_name:
+        description: 'Registry to destroy (module 07)'
+        type: choice
+        required: true
+        options:
+          - crrgomesdev01
+          - crrgomeslab02
+
+      confirm:
+        description: >
+          DESTROYS MODULES 15, 12, 11, 07, 06, 05, 04, 03, 02 AND 01 —
+          Foundry, the Container Apps and environment, the registry and its
+          images, Key Vault, App Configuration, the UAMI, Log Analytics, the
+          VNet and all six resource groups.
+        type: choice
+        required: true
+        default: "No"
+        options:
+          - "No"
+          - "Yes"
+
+  # `confirm` is deliberately undefaulted: a caller must write it out.
+  workflow_call:
+    inputs:
+      environment_name:
+        description: 'Estate environment to destroy.'
+        type: string
+        required: true
+
+      acr_name:
+        description: 'Registry to destroy. Must match module 07 state.'
+        type: string
+        required: true
+
+      confirm:
+        description: >
+          SAFEGUARD: must be exactly "Yes". Destroys modules 15, 12, 11, 07,
+          06, 05, 04, 03, 02 and 01.
+        type: string
+        required: true
+
+      apps:
+        description: >
+          JSON array of app names to destroy, e.g. ["api","worker"].
+          Defaults to the TF_VAR_apps repository variable when omitted.
+        type: string
+        required: false
+
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: false
+
+permissions:
+  contents: read
+
+# Must share this group string verbatim with foundry-create-all.yml.
+concurrency:
+  group: foundry-lifecycle-${{ inputs.environment_name }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: AZURE
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_backend_resource_group_name:
+        ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+      TF_IN_AUTOMATION: "true"
+      ROOTS_DIR: terraform/roots
+      ENV_NAME: ${{ inputs.environment_name }}
+      ALLOWED_ACTORS: "rubensgomes rubens-gomes_3CC"
+
+    steps:
+      # See aca-create.yml for why job.workflow_* is used here.
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+
+      # Runs before any credential is used. The reused destroy workflows
+      # repeat this check; failing here stops the run before any of them.
+      - name: SAFEGUARD - Validate actor, confirmation and inputs
+        shell: bash
+        env:
+          ACTOR: ${{ github.actor }}
+          TYPED_CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+
+          allowed=false
+          for allowed_actor in ${ALLOWED_ACTORS}; do
+            if [ "${ACTOR}" = "${allowed_actor}" ]; then
+              allowed=true
+              break
+            fi
+          done
+          if [ "${allowed}" != "true" ]; then
+            echo "Denied: actor '${ACTOR}' is not allowed."
+            exit 1
+          fi
+
+          if [ "$(printf '%s' "${TYPED_CONFIRM}" | tr -d '[:space:]')" \
+              != "Yes" ]; then
+            echo "Denied: confirm must be exactly 'Yes' to proceed."
+            exit 1
+          fi
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "Denied: environment_name must be 2-10 lowercase"
+            echo "alphanumeric characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_workload}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "Denied: TF_VAR_workload must be 2-16 lowercase"
+            echo "alphanumeric characters starting with a letter."
+            exit 1
+          fi
+
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_location \
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      # These modules read the state of modules destroyed below, and their
+      # resources would keep module 01's resource groups from deleting.
+      - name: GUARD - Assert out-of-scope modules hold no resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+          for module in 08-storage:storage 09-service-bus:service-bus \
+                        10-postgresql:postgresql 13-monitoring:monitoring \
+                        14-app-gateway:app-gateway; do
+            dir="${module%%:*}"
+            short="${module##*:}"
+            make ENV="$ENV_NAME" "init-${short}" >/dev/null
+            resources="$(cd "${ROOTS_DIR}/${dir}" && terraform state list)"
+            managed="$(printf '%s\n' "${resources}" \
+              | grep -Ev '(^|\.)data\.' || true)"
+            if [ -n "${managed}" ]; then
+              echo "DENIED: module ${dir} still holds resources:"
+              echo "${managed}" | sed 's/^/  /'
+              rc=1
+            else
+              echo "OK: module ${dir} is empty."
+            fi
+          done
+          if [ "$rc" -ne 0 ]; then
+            echo "Destroy those modules first, or use all-destroy.yml."
+          fi
+          exit $rc
+
+  aif:
+    name: aif
+    needs: guard
+    uses: ./.github/workflows/aif-destroy.yml
+    with:
+      environment_name: ${{ inputs.environment_name }}
+      confirm: ${{ inputs.confirm }}
+    secrets:
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+  aca:
+    name: aca
+    needs: aif
+    uses: ./.github/workflows/aca-destroy.yml
+    with:
+      environment_name: ${{ inputs.environment_name }}
+      confirm: ${{ inputs.confirm }}
+      apps: ${{ inputs.apps }}
+    secrets:
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+  cae:
+    name: cae
+    needs: aca
+    uses: ./.github/workflows/cae-destroy.yml
+    with:
+      environment_name: ${{ inputs.environment_name }}
+      confirm: ${{ inputs.confirm }}
+    secrets:
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+  acr:
+    name: acr
+    needs: cae
+    uses: ./.github/workflows/acr-destroy.yml
+    with:
+      environment_name: ${{ inputs.environment_name }}
+      acr_name: ${{ inputs.acr_name }}
+      confirm: ${{ inputs.confirm }}
+    secrets:
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+  core:
+    name: core
+    needs: acr
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: AZURE
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+      TF_VAR_backend_resource_group_name:
+        ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+      TF_IN_AUTOMATION: "true"
+      ROOTS_DIR: terraform/roots
+      ENV_NAME: ${{ inputs.environment_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+
+      # az is used by the orphan sweep and the verify step.
+      - name: Azure Login (Service Principal Secret)
+        uses: azure/login@v3
+        with:
+          auth-type: SERVICE_PRINCIPAL
+          creds: >-
+            {"clientId":"${{ vars.AZURE_CLIENT_ID }}",
+             "clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}",
+             "tenantId":"${{ vars.AZURE_TENANT_ID }}",
+             "subscriptionId":"${{ vars.AZURE_SUBSCRIPTION_ID }}"}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      # The provider purges the soft-deleted vault on destroy.
+      - name: Destroy module 06 - key vault
+        shell: bash
+        run: make ENV="$ENV_NAME" destroy-key-vault
+
+      - name: Destroy module 05 - app configuration
+        shell: bash
+        run: make ENV="$ENV_NAME" destroy-app-configuration
+
+      - name: Destroy module 04 - managed identities
+        shell: bash
+        run: make ENV="$ENV_NAME" destroy-managed-identities
+
+      - name: Destroy module 03 - log analytics
+        shell: bash
+        run: make ENV="$ENV_NAME" destroy-log-analytics
+
+      - name: Destroy module 02 - networking
+        shell: bash
+        run: make ENV="$ENV_NAME" destroy-networking
+
+      # Azure-created action groups would keep the observability RG alive.
+      - name: Sweep Azure-generated orphans
+        shell: bash
+        run: make ENV="$ENV_NAME" purge-orphans
+
+      - name: Destroy module 01 - resource groups
+        shell: bash
+        run: make ENV="$ENV_NAME" destroy-resource-groups
+
+      # Accumulates into rc and exits once, so every assertion is reported.
+      - name: Verify the estate is destroyed and the backend survived
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+
+          # Both anchors also match the backend RG, which must survive.
+          rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
+          ends_with(name, '-${ENV_NAME}') && \
+          name != '${TF_VAR_backend_resource_group_name}'].name"
+          remaining="$(az group list --query "${rg_query}" -o tsv)"
+          if [ -n "${remaining}" ]; then
+            echo "FAIL: resource groups still exist after the destroy:"
+            echo "${remaining}" | sed 's/^/  /'
+            rc=1
+          else
+            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
+            echo "groups remain."
+          fi
+
+          # A soft-deleted vault blocks its deterministic name on recreate.
+          deleted_vaults="$(az keyvault list-deleted \
+            --query "[?name == 'kv-${TF_VAR_workload}-${ENV_NAME}'].name" \
+            -o tsv 2>/dev/null || true)"
+          if [ -n "${deleted_vaults}" ]; then
+            echo "WARNING: soft-deleted Key Vault remains: ${deleted_vaults}"
+            echo "         Purge with: az keyvault purge --name <name>"
+            echo "         --location <region>"
+          else
+            echo "OK: no soft-deleted Key Vault left behind."
+          fi
+
+          if az group show -n "${TF_VAR_backend_resource_group_name}" \
+              -o none 2>/dev/null; then
+            echo "OK: state backend resource group"
+            echo "'${TF_VAR_backend_resource_group_name}' preserved."
+          else
+            echo "FAIL: '${TF_VAR_backend_resource_group_name}' is missing"
+            echo "— the Terraform state backend is gone."
+            rc=1
+          fi
+
+          exit $rc

@@ -51,8 +51,8 @@ permissions:
   contents: read
 
 jobs:
-  destroy-all:
-    name: destroy-all
+  all-destroy:
+    name: all-destroy
     runs-on: ubuntu-latest
 
     # PostgreSQL Flexible Server is the long pole. Generous rather than tight:

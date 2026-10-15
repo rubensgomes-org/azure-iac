@@ -99,7 +99,7 @@ source "${HOME}/lib/sh-lib/sh_lib.sh" || exit
 ##
 ## TF_VAR_ENV is resolved but deliberately left out of
 ## ACTION_VARIABLE_ORDER: acr-create.yml, acr-destroy.yml and
-## destroy-all.yml each bind it from their own dispatch input, so a
+## all-destroy.yml each bind it from their own dispatch input, so a
 ## repository variable would pin every run to one environment.
 #####################################################################
 declare -A ACTION_VARIABLES=(

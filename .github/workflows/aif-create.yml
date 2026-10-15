@@ -1,8 +1,9 @@
 # =============================================================================
 # AIF Create (reusable)
 #
-# Brings modules 01 (resource groups, for the ai RG) and 15 (foundry) to
-# their desired state: an Azure AI Foundry resource and one project in it.
+# Brings modules 01 (resource groups, for the ai RG), 04 (managed
+# identities) and 15 (foundry) to their desired state: an Azure AI Foundry
+# resource and one project in it.
 # Every recipe is a `make` target from the repo-root Makefile. Endpoints and
 # keys are never printed.
 # =============================================================================
@@ -142,6 +143,14 @@ jobs:
         run: |
           make ENV="$ENV_NAME" \
             init-resource-groups plan-resource-groups apply-resource-groups
+
+      # Module 15 grants this identity "Cognitive Services OpenAI User".
+      - name: Module 04 - managed identities
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-managed-identities plan-managed-identities \
+            apply-managed-identities
 
       - name: Module 15 - foundry
         shell: bash

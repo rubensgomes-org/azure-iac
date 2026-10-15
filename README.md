@@ -89,13 +89,15 @@ resources provisioned by this project.
 | `aca-destroy.yml`    | **destructive** — destroy module 12 only, the Container Apps                                            |
 | `agw-create.yml`     | apply modules 02 → 14 so one Container App is public through an Application Gateway                     |
 | `agw-destroy.yml`    | **destructive** — destroy module 14 only, the Application Gateway and its public IP                     |
-| `aif-create.yml`     | apply modules 01 → 15 so a Foundry resource and project exist                                           |
+| `aif-create.yml`     | apply modules 01 → 04 → 15 so a Foundry resource and project exist                                      |
 | `aif-destroy.yml`    | **destructive** — destroy module 15 only, the Foundry project and resource                              |
+| `foundry-create-all.yml` | apply modules 01–07, 11, 12, 15 via `aca-create.yml` then `aif-create.yml`                         |
+| `foundry-destroy-all.yml` | **destructive** — destroy modules 15, 12, 11, 07, 06 → 01; refuses while 08–10, 13, 14 exist     |
 | `rg-create-all.yml`  | apply module 01, all six resource groups; plans only unless `dry_run` is cleared                        |
 | `rg-destroy-all.yml` | **destructive** — destroy module 01 only, after modules 02–15; plans only unless `dry_run` is cleared   |
 | `rg-create.yml`      | apply ONE module 01 resource group, chosen by `purpose`; plans only unless `dry_run` is cleared         |
 | `rg-destroy.yml`     | **destructive** — destroy ONE module 01 resource group; plans only unless `dry_run` is cleared          |
-| `destroy-all.yml`    | **destructive** — destroy the whole estate, modules 15 → 01; plans only unless `dry_run` is cleared     |
+| `all-destroy.yml`    | **destructive** — destroy the whole estate, modules 15 → 01; plans only unless `dry_run` is cleared     |
 | `main-verify.yml`    | manual checks on `main` — `terraform` and `workflows` always, `sonar` when `run_sonar` is true          |
 | `release.yml`        | fires on a `v*.*.*` tag push — validate the tag against `VERSION` + `CHANGELOG.md`, publish the release |
 

@@ -26,9 +26,20 @@ premise.
 
 ### Added
 
+- `foundry-create-all.yml` and `foundry-destroy-all.yml`: reusable workflows
+  that create or destroy modules 01-07, 11, 12 and 15. The destroy refuses
+  to start while modules 08, 09, 10, 13 or 14 hold resources.
+
 ### Changed
 
+- Renamed `destroy-all.yml` to `all-destroy.yml`, and its job to
+  `all-destroy`.
+
 ### Fixed
+
+- `aif-create.yml` applies `04-managed-identities` before `15-foundry`, so
+  a run on an estate without module 04 no longer fails at plan with
+  "Unsupported attribute".
 
 ## [0.0.49] - 2026-10-15
 
