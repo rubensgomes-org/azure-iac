@@ -21,11 +21,6 @@
 # * **NSG rules owned here**, not by module 02, so destroying the gateway
 #   also closes the public port. GatewayManager 65200-65535 is required by
 #   Azure before a v2 gateway can be created on a subnet with an NSG.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # -----------------------------------------------------------------------------
 
 locals {

@@ -5,11 +5,6 @@
 # Container Apps only. THE BLAST RADIUS IS THE APPS -- modules 01, 04, 05,
 # 06, 07 and 11 (resource groups, managed identities, app configuration, key
 # vault, ACR and the Container App Environment) are left standing.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # =============================================================================
 
 name: ACA Destroy (reusable)

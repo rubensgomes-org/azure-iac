@@ -5,11 +5,6 @@
 # their desired state, in dependency order, so a container registry exists and
 # is writable before an application pipeline pushes an image to it. Every
 # recipe is a `make` target from the repo-root Makefile.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # =============================================================================
 
 name: ACR Create (reusable)

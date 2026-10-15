@@ -4,11 +4,6 @@
 # Destroys module 15 only: the Azure AI Foundry project and resource, with
 # every model deployment on it, then purges the soft-deleted resource. The
 # ai RG (module 01) stays in place, so aif-create.yml can bring them back.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # =============================================================================
 
 name: AIF Destroy (reusable)

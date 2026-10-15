@@ -6,11 +6,6 @@
 # order, so a Container App Environment exists before an application
 # pipeline deploys a container app into it. Every recipe is a `make` target
 # from the repo-root Makefile.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # =============================================================================
 
 name: CAE Create (reusable)

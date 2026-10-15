@@ -38,8 +38,3 @@ caller — this module has no `backend` block.
   or private endpoints.
 - **Key Vault references** in key-values are resolved by the client (the
   shared UAMI), not by the store.
-
-This project's source code and documentation were generated with the
-assistance of Artificial Intelligence (AI). For more information, please
-refer to the `AI_DISCLAIMER.md` document located in the project's root
-directory.

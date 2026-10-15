@@ -4,11 +4,6 @@
 # Validates and publishes a release when a v*.*.* tag is pushed: the tag name,
 # the VERSION file, and the CHANGELOG entry must agree, and the estate must
 # still format and validate, before a GitHub Release appears.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # =============================================================================
 
 name: Release (tag push)

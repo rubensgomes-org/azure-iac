@@ -38,8 +38,3 @@ Called by `terraform/roots/14-app-gateway/`.
 - **Cost:** the Standard_v2 fixed charge applies while the gateway exists.
 - **HTTP only:** HTTPS needs a custom domain and certificate.
 - **No scale to zero:** health probes keep one app replica running.
-
-This project's source code and documentation were generated with the
-assistance of Artificial Intelligence (AI). For more information, please
-refer to the `AI_DISCLAIMER.md` document located in the project's root
-directory.

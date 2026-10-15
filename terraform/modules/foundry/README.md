@@ -14,6 +14,20 @@ Called by `terraform/roots/15-foundry/`.
 | `azurerm_role_assignment`           | —                       | UAMI "Cognitive Services OpenAI User"      |
 | `azurerm_role_assignment`           | —                       | "Foundry User"; only when a user ID is set |
 
+## RBAC
+
+Both roles are assigned by role definition ID, scoped to the Foundry
+resource.
+
+| Principal                                    | Role                               |
+|----------------------------------------------|------------------------------------|
+| Shared UAMI used by the container apps (04)  | Cognitive Services OpenAI User     |
+| `foundry_user_object_id` (optional)          | Foundry User                       |
+
+The UAMI gets "Cognitive Services OpenAI User" rather than "Foundry User":
+it covers model inference (including the Responses API) without granting
+every `Microsoft.CognitiveServices/*` data action.
+
 ## Inputs
 
 | Name                     | Type          | Required | Notes                                      |
@@ -36,8 +50,3 @@ Called by `terraform/roots/15-foundry/`.
   root purges on destroy.
 - **Model deployments** are managed outside this module and are deleted
   with the resource.
-
-This project's source code and documentation were generated with the
-assistance of Artificial Intelligence (AI). For more information, please
-refer to the `AI_DISCLAIMER.md` document located in the project's root
-directory.

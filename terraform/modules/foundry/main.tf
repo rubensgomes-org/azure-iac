@@ -18,11 +18,6 @@
 # * **UAMI gets "Cognitive Services OpenAI User", not "Foundry User".** It
 #   covers model inference (including the Responses API) without granting
 #   every `Microsoft.CognitiveServices/*` data action.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # -----------------------------------------------------------------------------
 
 locals {

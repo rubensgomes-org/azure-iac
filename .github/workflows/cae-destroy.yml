@@ -7,11 +7,6 @@
 # left standing. Azure refuses to delete an environment while container apps
 # still reference it, so if module 12 has apps deployed into this CAE,
 # destroy them first (or this destroy will fail during apply).
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # =============================================================================
 
 name: CAE Destroy (reusable)

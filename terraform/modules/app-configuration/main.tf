@@ -9,11 +9,6 @@
 #
 # Individual key-values are NOT managed here; writing them would need a
 # data-plane role for the Terraform SP.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------

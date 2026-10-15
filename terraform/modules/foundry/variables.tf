@@ -2,11 +2,6 @@
 # -----------------------------------------------------------------------------
 # Inputs consumed by main.tf. Kind, SKU and the role ID are hard-coded as
 # locals in main.tf.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # -----------------------------------------------------------------------------
 
 variable "workload" {

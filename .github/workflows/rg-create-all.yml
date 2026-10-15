@@ -3,11 +3,6 @@
 #
 # Brings module 01 (all six resource groups) to its desired state for one
 # environment. With dry_run checked, plans only and leaves Azure untouched.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # =============================================================================
 
 name: RG Create All

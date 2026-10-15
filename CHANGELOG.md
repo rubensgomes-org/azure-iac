@@ -26,7 +26,13 @@ premise.
 
 ### Added
 
+- `modules/foundry/README.md`: RBAC section listing the roles granted on the
+  Foundry resource.
+
 ### Changed
+
+- Removed the AI disclaimer comment from the GitHub workflows and the
+  `foundry`, `app-configuration` and `app-gateway` modules.
 
 ### Fixed
 
