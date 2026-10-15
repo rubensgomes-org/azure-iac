@@ -30,6 +30,14 @@ premise.
 
 ### Fixed
 
+## [0.0.51] - 2026-10-15
+
+### Added
+
+### Changed
+
+### Fixed
+
 - `foundry-create-all.yml` and `foundry-destroy-all.yml` call their nested
   workflows as `rubensgomes-org/azure-iac/...@v0`. The `./` paths resolved
   against the cross-repo caller and failed with "workflow was not found".
