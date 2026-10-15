@@ -108,7 +108,7 @@ concurrency:
 jobs:
   aca:
     name: aca
-    uses: ./.github/workflows/aca-create.yml
+    uses: rubensgomes-org/azure-iac/.github/workflows/aca-create.yml@v0
     with:
       environment_name: ${{ inputs.environment_name }}
       acr_name: ${{ inputs.acr_name }}
@@ -121,7 +121,7 @@ jobs:
   aif:
     name: aif
     needs: aca
-    uses: ./.github/workflows/aif-create.yml
+    uses: rubensgomes-org/azure-iac/.github/workflows/aif-create.yml@v0
     with:
       environment_name: ${{ inputs.environment_name }}
     secrets:

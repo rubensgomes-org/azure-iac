@@ -203,7 +203,7 @@ jobs:
   aif:
     name: aif
     needs: guard
-    uses: ./.github/workflows/aif-destroy.yml
+    uses: rubensgomes-org/azure-iac/.github/workflows/aif-destroy.yml@v0
     with:
       environment_name: ${{ inputs.environment_name }}
       confirm: ${{ inputs.confirm }}
@@ -213,7 +213,7 @@ jobs:
   aca:
     name: aca
     needs: aif
-    uses: ./.github/workflows/aca-destroy.yml
+    uses: rubensgomes-org/azure-iac/.github/workflows/aca-destroy.yml@v0
     with:
       environment_name: ${{ inputs.environment_name }}
       confirm: ${{ inputs.confirm }}
@@ -224,7 +224,7 @@ jobs:
   cae:
     name: cae
     needs: aca
-    uses: ./.github/workflows/cae-destroy.yml
+    uses: rubensgomes-org/azure-iac/.github/workflows/cae-destroy.yml@v0
     with:
       environment_name: ${{ inputs.environment_name }}
       confirm: ${{ inputs.confirm }}
@@ -234,7 +234,7 @@ jobs:
   acr:
     name: acr
     needs: cae
-    uses: ./.github/workflows/acr-destroy.yml
+    uses: rubensgomes-org/azure-iac/.github/workflows/acr-destroy.yml@v0
     with:
       environment_name: ${{ inputs.environment_name }}
       acr_name: ${{ inputs.acr_name }}
