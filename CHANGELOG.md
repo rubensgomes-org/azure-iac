@@ -30,6 +30,12 @@ premise.
 
 ### Fixed
 
+- `plan-destroy-<name>` and `destroy-<name>` exit 0 when the module's state
+  holds no managed resources, and the `aca-`, `acr-`, `cae-`, `aif-` and
+  `agw-destroy.yml` plan guards accept the missing `tfplan`. Re-running
+  `foundry-destroy-all.yml` on a partially destroyed estate no longer fails
+  on outputs of already-destroyed upstream states.
+
 ## [0.0.51] - 2026-10-15
 
 ### Added

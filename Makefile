@@ -176,6 +176,20 @@ DIRS_REV := $(strip $(call reverse,$(DIRS)))
 # -----------------------------------------------------------------------------
 # Per-module target factory
 # -----------------------------------------------------------------------------
+# Exits the recipe with 0 when module $(1)'s state holds no managed
+# resources, so a re-run against a partially destroyed estate never
+# evaluates config that reads upstream states which are already gone.
+# Removes any stale tfplan so callers cannot read an older plan.
+define SKIP_IF_STATE_EMPTY
+_state=$$(cd $(ROOTS_DIR)/$(1) && terraform state list) || exit 1; \
+_managed=$$(printf '%s\n' "$$_state" | grep -Ev '(^|\.)data\.' || true); \
+if [ -z "$$_managed" ]; then \
+  rm -f $(ROOTS_DIR)/$(1)/tfplan; \
+  echo "  $(1): state is empty -- nothing to destroy"; \
+  exit 0; \
+fi
+endef
+
 # For each DIRS entry, generate init-/plan-/apply-/destroy-<short-name>.
 # Backend key is the short name (`key-vault/terraform.tfstate`), matching
 # what every module README documents.
@@ -201,7 +215,8 @@ plan-$(2): init-$(2)
 # -auto-approve); it exists to be READ, by eye or by `terraform show -json`.
 plan-destroy-$(2): init-$(2)
 	@echo "=== PLAN -destroy $(1) ==="
-	@cd $(ROOTS_DIR)/$(1) && terraform plan -destroy \
+	@$$(call SKIP_IF_STATE_EMPTY,$(1)); \
+	 cd $(ROOTS_DIR)/$(1) && terraform plan -destroy \
 	  $(ENV_VARFILE) -out=tfplan
 
 apply-$(2): init-$(2)
@@ -211,7 +226,8 @@ apply-$(2): init-$(2)
 
 destroy-$(2): init-$(2)
 	@echo "=== DESTROY $(1) ==="
-	@cd $(ROOTS_DIR)/$(1) && terraform destroy -auto-approve \
+	@$$(call SKIP_IF_STATE_EMPTY,$(1)); \
+	 cd $(ROOTS_DIR)/$(1) && terraform destroy -auto-approve \
 	  $(ENV_VARFILE)
 endef
 
@@ -389,7 +405,8 @@ plan-container-apps: init-container-apps
 # generic plan-destroy-<name> recipe in MODULE_TARGETS.
 plan-destroy-container-apps: init-container-apps
 	@echo "=== PLAN -destroy 12-container-apps ==="
-	@set -f; $(CONTAINER_APPS_TARGET_FLAGS); \
+	@set -f; $(call SKIP_IF_STATE_EMPTY,12-container-apps); \
+	 $(CONTAINER_APPS_TARGET_FLAGS); \
 	 cd $(ROOTS_DIR)/12-container-apps && terraform plan -destroy \
 	   $(ENV_VARFILE) $$targets -out=tfplan
 
@@ -401,7 +418,8 @@ apply-container-apps: init-container-apps
 
 destroy-container-apps: init-container-apps
 	@echo "=== DESTROY 12-container-apps ==="
-	@set -f; $(CONTAINER_APPS_TARGET_FLAGS); \
+	@set -f; $(call SKIP_IF_STATE_EMPTY,12-container-apps); \
+	 $(CONTAINER_APPS_TARGET_FLAGS); \
 	 cd $(ROOTS_DIR)/12-container-apps && terraform destroy -auto-approve \
 	   $(ENV_VARFILE) $$targets
 

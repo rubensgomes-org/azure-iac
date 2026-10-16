@@ -160,6 +160,11 @@ jobs:
         working-directory: ${{ env.ROOTS_DIR }}/14-app-gateway
         run: |
           set -euo pipefail
+          # `make plan-destroy-<name>` writes no tfplan when the state is empty.
+          if [ ! -f tfplan ]; then
+            echo "OK: state is empty — already destroyed."
+            exit 0
+          fi
           forbidden="$(terraform show -json tfplan | jq -r '
             .resource_changes[]?
             | select(.change.actions | index("delete"))

@@ -421,6 +421,12 @@ jobs:
           label="$1"; shift
           allowed="$*"
 
+          # `make plan-destroy-<name>` writes no tfplan when the state is empty.
+          if [ ! -f "${module_dir}/tfplan" ]; then
+            echo "${label}: state is empty — already destroyed."
+            exit 0
+          fi
+
           # Written to RUNNER_TEMP, not the module directory: *tfplan* is
           # gitignored but plan.json would not be.
           plan_json="${RUNNER_TEMP}/$(basename "${module_dir}")"
