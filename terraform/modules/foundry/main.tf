@@ -1,8 +1,9 @@
 # modules/foundry/main.tf
 # -----------------------------------------------------------------------------
 # Provisions an Azure AI Foundry resource (`kind = AIServices`), one project
-# under it, a "Cognitive Services OpenAI User" grant for the shared UAMI, and
-# an optional "Foundry User" grant for a human user.
+# under it, a "Cognitive Services OpenAI User" grant for the shared UAMI, an
+# optional "Foundry User" grant for a human user, and an Application Insights
+# connected to the resource for agent tracing.
 #
 # Design decisions (fixed here, not variables):
 #
@@ -21,8 +22,9 @@
 # -----------------------------------------------------------------------------
 
 locals {
-  account_name = "aif-${var.workload}-${var.env}"
-  project_name = "proj-${var.workload}-${var.env}"
+  account_name      = "aif-${var.workload}-${var.env}"
+  project_name      = "proj-${var.workload}-${var.env}"
+  app_insights_name = "appi-${var.workload}ai-${var.env}"
 
   kind     = "AIServices"
   sku_name = "S0"
@@ -81,4 +83,33 @@ resource "azurerm_role_assignment" "uami_openai_user" {
   role_definition_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/${local.openai_user_role_id}"
   principal_id       = var.uami_principal_id
   principal_type     = "ServicePrincipal"
+}
+
+# Foundry agent tracing exports OpenTelemetry to the Application Insights
+# behind this connection.
+resource "azurerm_application_insights" "this" {
+  name                = local.app_insights_name
+  location            = var.location
+  resource_group_name = var.resource_group_name
+
+  workspace_id     = var.log_analytics_workspace_id
+  application_type = "web"
+
+  tags = merge(
+    var.tags,
+    { component = "foundry" },
+  )
+}
+
+resource "azurerm_cognitive_account_connection_api_key" "app_insights" {
+  name                 = local.app_insights_name
+  cognitive_account_id = azurerm_cognitive_account.this.id
+  category             = "AppInsights"
+  target               = azurerm_application_insights.this.id
+  api_key              = azurerm_application_insights.this.connection_string
+
+  metadata = {
+    ApiType    = "Azure"
+    ResourceId = azurerm_application_insights.this.id
+  }
 }

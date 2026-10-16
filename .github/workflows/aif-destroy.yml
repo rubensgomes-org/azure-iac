@@ -2,8 +2,9 @@
 # AIF Destroy (reusable)
 #
 # Destroys module 15 only: the Azure AI Foundry project and resource, with
-# every model deployment on it, then purges the soft-deleted resource. The
-# ai RG (module 01) stays in place, so aif-create.yml can bring them back.
+# every model deployment on it, and its Application Insights, then purges
+# the soft-deleted resource. The ai RG (module 01) and the workspace (module
+# 03) stay in place, so aif-create.yml can bring them back.
 # =============================================================================
 
 name: AIF Destroy (reusable)
@@ -168,7 +169,9 @@ jobs:
           forbidden="$(terraform show -json tfplan | jq -r '
             .resource_changes[]?
             | select(.change.actions | index("delete"))
-            | select(.type | IN("azurerm_cognitive_account",
+            | select(.type | IN("azurerm_application_insights",
+                                "azurerm_cognitive_account",
+                                "azurerm_cognitive_account_connection_api_key",
                                 "azurerm_cognitive_account_project",
                                 "azurerm_role_assignment") | not)
             | .address')"

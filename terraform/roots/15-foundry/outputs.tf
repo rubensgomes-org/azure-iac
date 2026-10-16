@@ -27,3 +27,13 @@ output "foundry_project_name" {
   description = "Name of the Foundry project."
   value       = module.foundry.foundry_project_name
 }
+
+output "app_insights_id" {
+  description = "Resource ID of appi-<workload>ai-<env>."
+  value       = module.foundry.app_insights_id
+}
+
+output "app_insights_name" {
+  description = "Name of the Application Insights connected for tracing."
+  value       = module.foundry.app_insights_name
+}

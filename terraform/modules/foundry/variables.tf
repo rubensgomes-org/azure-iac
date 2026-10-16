@@ -42,6 +42,11 @@ variable "resource_group_name" {
   type        = string
 }
 
+variable "log_analytics_workspace_id" {
+  description = "Resource ID of the Log Analytics workspace (module 03) backing Application Insights."
+  type        = string
+}
+
 variable "uami_principal_id" {
   description = "Entra object ID of the shared UAMI (module 04), granted \"Cognitive Services OpenAI User\" on the resource."
   type        = string

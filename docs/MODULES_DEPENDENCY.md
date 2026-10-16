@@ -23,7 +23,7 @@ since most modules have more than one parent.
 │   ├── 08-storage                      ← 01, 04
 │   ├── 09-service-bus                  ← 01, 04
 │   ├── 10-postgresql                   ← 01, 04
-│   └── 15-foundry                      ← 01, 04
+│   └── 15-foundry                      ← 01, 03, 04
 ├── 11-container-app-environment        ← 01, 02, 03
 ├── 12-container-apps                   ← 01, 04, 05, 06, 07, 11
 │   └── 14-app-gateway                  ← 01, 02, 11, 12
@@ -48,7 +48,7 @@ since most modules have more than one parent.
 | `12-container-apps`            | 01, 04, 05, 06, 07, 11     | Environment, registry, UAMI, and the store endpoint and vault URI as app config.     |
 | `13-monitoring`                | 01, 03, 06, 07, 08, 09, 10 | Workspace, plus the resource ID of each service it attaches a diagnostic setting to. |
 | `14-app-gateway`               | 01, 02, 11, 12             | RG placement; the `agw` subnet and NSG; environment static IP; public app's FQDN.    |
-| `15-foundry`                   | 01, 04                     | RG placement; UAMI "Cognitive Services OpenAI User".                                 |
+| `15-foundry`                   | 01, 03, 04                 | RG placement; workspace for tracing; UAMI "Cognitive Services OpenAI User".          |
 
 ## Notes
 

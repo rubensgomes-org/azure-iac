@@ -52,6 +52,7 @@ Workload `rgomes`, environment `lab`.
 | Action group `short_name` | `<workload>ops`                                       | `rgomesops`                                                                                                                                         | `modules/monitoring`                |
 | Foundry resource          | `aif-<workload>-<env>`                                | `aif-rgomes-lab`                                                                                                                                    | `modules/foundry`                   |
 | Foundry project           | `proj-<workload>-<env>`                               | `proj-rgomes-lab`                                                                                                                                   | `modules/foundry`                   |
+| Foundry App Insights      | `appi-<workload>ai-<env>`                             | `appi-rgomesai-lab`                                                                                                                                 | `modules/foundry`                   |
 
 The storage account is the one name with no dashes — Azure forbids them there —
 so its three tokens simply run together in the same order.

@@ -22,3 +22,13 @@ output "foundry_project_name" {
   description = "Name of the Foundry project."
   value       = azurerm_cognitive_account_project.this.name
 }
+
+output "app_insights_id" {
+  description = "Resource ID of appi-<workload>ai-<env>."
+  value       = azurerm_application_insights.this.id
+}
+
+output "app_insights_name" {
+  description = "Name of the Application Insights connected for tracing."
+  value       = azurerm_application_insights.this.name
+}
