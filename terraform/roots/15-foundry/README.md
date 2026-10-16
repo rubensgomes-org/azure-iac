@@ -16,6 +16,7 @@ Wraps [`../../modules/foundry/`](../../modules/foundry/README.md).
 
 ```bash
 export TF_VAR_foundry_user_object_id="<user-object-id>"   # optional
+export TF_VAR_foundry_location="<region>"                 # optional
 make apply-foundry
 ```
 

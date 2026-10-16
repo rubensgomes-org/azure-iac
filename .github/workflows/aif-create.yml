@@ -19,6 +19,13 @@ on:
           variable and selects terraform/envs/<env>.
         type: string
         required: true
+      location:
+        description: >-
+          Azure region for the Foundry resource and project. Empty uses
+          vars.TF_VAR_location.
+        type: string
+        required: false
+        default: ''
 
     outputs:
       foundry_name:
@@ -41,6 +48,11 @@ on:
         options:
           - dev
           - lab
+      location:
+        description: 'Region for Foundry. Empty uses TF_VAR_location.'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -79,6 +91,8 @@ jobs:
 
       TF_VAR_env: ${{ inputs.environment_name }}
       TF_VAR_location: ${{ vars.TF_VAR_location }}
+      # Optional. Empty falls back to TF_VAR_location in module 15.
+      TF_VAR_foundry_location: ${{ inputs.location }}
       TF_VAR_owner: ${{ vars.TF_VAR_owner }}
 
       # Optional. Unset skips the "Foundry User" grant.
@@ -129,7 +143,15 @@ jobs:
             echo "characters starting with a letter."
             exit 1
           fi
-          echo "Validated: env='${ENV_NAME}' workload='${TF_VAR_workload}'."
+          if [ -n "${TF_VAR_foundry_location}" ] \
+              && ! printf '%s' "${TF_VAR_foundry_location}" \
+                | grep -qE '^[a-z][a-z0-9]{1,30}$'; then
+            echo "FAIL: location must be an Azure region name such as"
+            echo "'eastus2' (lowercase alphanumeric)."
+            exit 1
+          fi
+          echo "Validated: env='${ENV_NAME}' workload='${TF_VAR_workload}'" \
+            "foundry_location='${TF_VAR_foundry_location:-${TF_VAR_location}}'."
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4

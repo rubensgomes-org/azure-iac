@@ -37,7 +37,7 @@ variable "workload" {
 }
 
 variable "location" {
-  description = "Azure region for the Foundry resource and project. Sourced from ../../envs/<env>/env.tfvars."
+  description = "Default Azure region for the Foundry resource and project. Sourced from ../../envs/<env>/env.tfvars."
   type        = string
 }
 
@@ -64,6 +64,14 @@ variable "owner" {
 # shared by every root.
 variable "foundry_user_object_id" {
   description = "Entra object ID of a user granted \"Foundry User\" on the resource. Null skips the grant."
+  type        = string
+  default     = null
+}
+
+# Supplied as TF_VAR_foundry_location. Overrides `location` for this root
+# only, since `location` also places the resource groups and identities.
+variable "foundry_location" {
+  description = "Azure region for the Foundry resource and project. Null or \"\" uses `location`."
   type        = string
   default     = null
 }
