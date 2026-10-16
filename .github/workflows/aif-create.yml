@@ -22,7 +22,7 @@ on:
       location:
         description: >-
           Azure region for the Foundry resource and project. Empty uses
-          vars.TF_VAR_location.
+          vars.TF_VAR_foundry_location, then vars.TF_VAR_location.
         type: string
         required: false
         default: ''
@@ -49,7 +49,7 @@ on:
           - dev
           - lab
       location:
-        description: 'Region for Foundry. Empty uses TF_VAR_location.'
+        description: 'Region for Foundry. Empty uses TF_VAR_FOUNDRY_LOCATION.'
         type: string
         required: false
         default: ''
@@ -92,7 +92,8 @@ jobs:
       TF_VAR_env: ${{ inputs.environment_name }}
       TF_VAR_location: ${{ vars.TF_VAR_location }}
       # Optional. Empty falls back to TF_VAR_location in module 15.
-      TF_VAR_foundry_location: ${{ inputs.location }}
+      TF_VAR_foundry_location: ${{
+        inputs.location || vars.TF_VAR_foundry_location }}
       TF_VAR_owner: ${{ vars.TF_VAR_owner }}
 
       # Optional. Unset skips the "Foundry User" grant.
