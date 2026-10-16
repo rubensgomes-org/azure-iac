@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.54] - 2026-10-16
+
+### Added
+
+### Changed
+
 - `aif-create.yml`: an empty `location` input uses the
   `TF_VAR_foundry_location` Actions variable before `TF_VAR_location`.
 
