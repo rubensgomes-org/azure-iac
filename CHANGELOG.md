@@ -30,6 +30,14 @@ premise.
 
 ### Fixed
 
+## [0.0.52] - 2026-10-15
+
+### Added
+
+### Changed
+
+### Fixed
+
 - `plan-destroy-<name>` and `destroy-<name>` exit 0 when the module's state
   holds no managed resources, and the `aca-`, `acr-`, `cae-`, `aif-` and
   `agw-destroy.yml` plan guards accept the missing `tfplan`. Re-running
