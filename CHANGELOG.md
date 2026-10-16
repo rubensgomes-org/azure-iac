@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.55] - 2026-10-16
+
+### Added
+
 - Module 15 creates `appi-<workload>ai-<env>`, a workspace-based
   Application Insights, and an `AppInsights` connection on the Foundry
   resource for agent tracing. Module 15 now depends on module 03, and
