@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.53] - 2026-10-16
+
+### Added
+
 - `aif-create.yml` takes an optional `location` input, passed to module 15
   as `TF_VAR_foundry_location`. Empty keeps `TF_VAR_location`. Changing the
   region of an existing Foundry resource replaces it.
