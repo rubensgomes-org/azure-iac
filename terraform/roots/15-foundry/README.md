@@ -41,8 +41,3 @@ make destroy-foundry
 
 Removes the project and the resource, with every model deployment on it,
 then purges the soft-deleted resource. The RG stays in module 01.
-
-This project's source code and documentation were generated with the
-assistance of Artificial Intelligence (AI). For more information, please
-refer to the `AI_DISCLAIMER.md` document located in the project's root
-directory.

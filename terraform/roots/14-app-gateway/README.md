@@ -39,8 +39,3 @@ make destroy-app-gateway
 Removes the gateway, public IP and NSG rules; the subnet stays in module 02.
 Destroy this root before modules 02, 11 and 12. The public IP changes on
 recreate; the DNS name does not.
-
-This project's source code and documentation were generated with the
-assistance of Artificial Intelligence (AI). For more information, please
-refer to the `AI_DISCLAIMER.md` document located in the project's root
-directory.

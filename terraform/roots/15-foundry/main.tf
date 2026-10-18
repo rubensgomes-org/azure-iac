@@ -7,11 +7,6 @@
 #     "Cognitive Services OpenAI User" grant)
 #
 # See docs/MODULES_DEPENDENCY.md for the full dependency map.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # -----------------------------------------------------------------------------
 
 data "terraform_remote_state" "resource_groups" {

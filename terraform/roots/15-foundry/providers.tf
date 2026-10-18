@@ -12,11 +12,6 @@
 #
 # `purge_soft_delete_on_destroy` releases the globally unique custom
 # subdomain, so the same name can be re-created right after a destroy.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # -----------------------------------------------------------------------------
 
 provider "azurerm" {

@@ -40,8 +40,3 @@ make destroy-app-configuration
 
 Destroy modules 06 and 12 first; both read this root's state. The `free` SKU
 has no soft delete, so the name is reusable immediately.
-
-This project's source code and documentation were generated with the
-assistance of Artificial Intelligence (AI). For more information, please
-refer to the `AI_DISCLAIMER.md` document located in the project's root
-directory.

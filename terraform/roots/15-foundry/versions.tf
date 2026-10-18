@@ -5,11 +5,6 @@
 #
 # This root calls `../../modules/foundry/` (azurerm only) and reads state
 # from 01 via `data.terraform_remote_state`.
-#
-# This project's source code and documentation were generated with the
-# assistance of Artificial Intelligence (AI). For more information, please
-# refer to the `AI_DISCLAIMER.md` document located in the project's root
-# directory.
 # -----------------------------------------------------------------------------
 
 terraform {
