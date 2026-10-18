@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.56] - 2026-10-18
+
+### Added
+
+### Changed
+
 - Removed the AI disclaimer paragraph from the `.tf` headers and READMEs of
   modules 05, 14 and 15. `AI_DISCLAIMER.md` is unchanged.
 
