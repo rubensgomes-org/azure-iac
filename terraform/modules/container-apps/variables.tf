@@ -22,7 +22,7 @@
 variable "env" {
   description = <<-EOT
     Environment name (e.g. "lab", "dev", "prod"). Trailing token of every
-    container app name: ca-<app>-<env>.
+    container app name: ca-<app>-<env>. Injected as APP_ENV.
   EOT
   type        = string
 

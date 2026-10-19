@@ -17,7 +17,7 @@ makes the env vars below usable at runtime.
 
 | Name                           | Type         | Default                                    | Description                                                                  |
 |--------------------------------|--------------|--------------------------------------------|------------------------------------------------------------------------------|
-| `env`                          | string       | —                                          | Environment token, baked into app names (`ca-<app>-<env>`).                  |
+| `env`                          | string       | —                                          | Environment token in app names (`ca-<app>-<env>`). Injected as `APP_ENV`.    |
 | `resource_group_name`          | string       | —                                          | `rg-<workload>app-<env>` (from module 01).                                   |
 | `container_app_environment_id` | string       | —                                          | `cae_id` (from module 11).                                                   |
 | `apps`                         | list(string) | —                                          | Microservice names. Must match `var.apps` in `env.tfvars`.                   |

@@ -120,6 +120,12 @@ resource "azurerm_container_app" "app" {
         value = var.app_configuration_endpoint
       }
 
+      # Environment name (e.g. "lab"); matches App Configuration labels.
+      env {
+        name  = "APP_ENV"
+        value = var.env
+      }
+
       # HTTP probes only for apps listed in `var.health_probe_paths`; the
       # rest keep ACA's default TCP probe on `target_port`.
       dynamic "startup_probe" {
