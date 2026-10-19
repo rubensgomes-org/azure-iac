@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.57] - 2026-10-18
+
+### Added
+
 - `12-container-apps` injects `APP_ENV` (the `env` value) into every app.
 
 ### Changed
