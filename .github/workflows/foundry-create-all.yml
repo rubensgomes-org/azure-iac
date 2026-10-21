@@ -2,7 +2,8 @@
 # Foundry Create All (reusable)
 #
 # Brings modules 01-07, 11, 12 and 15 to their desired state: the Container
-# Apps and their dependencies, then the Foundry resource and project. Runs
+# Apps and their dependencies, then the Foundry resource, project and,
+# unless `app_insights` is off, its tracing Application Insights. Runs
 # aca-create.yml and aif-create.yml in sequence; foundry-destroy-all.yml is
 # its counterpart.
 # =============================================================================
@@ -42,6 +43,14 @@ on:
         type: string
         required: false
         default: '[]'
+
+      app_insights:
+        description: >-
+          Create the Application Insights for agent tracing. false destroys
+          an existing one.
+        type: boolean
+        required: false
+        default: true
 
     outputs:
       app_ids:
@@ -97,6 +106,15 @@ on:
         required: false
         default: '[]'
 
+      app_insights:
+        description: 'Create Application Insights for agent tracing?'
+        type: choice
+        required: true
+        default: 'yes'
+        options:
+          - 'yes'
+          - 'no'
+
 permissions:
   contents: read
 
@@ -124,5 +142,8 @@ jobs:
     uses: rubensgomes-org/azure-iac/.github/workflows/aif-create.yml@v0
     with:
       environment_name: ${{ inputs.environment_name }}
+      # workflow_call passes a boolean; workflow_dispatch passes 'yes'/'no'.
+      app_insights: ${{
+        inputs.app_insights == true || inputs.app_insights == 'yes' }}
     secrets:
       AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
