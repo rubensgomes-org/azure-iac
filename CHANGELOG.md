@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.59] - 2026-10-21
+
+### Added
+
 - `foundry-create-all.yml` takes an `app_insights` input (default `true`)
   and passes it to `aif-create.yml`.
 
