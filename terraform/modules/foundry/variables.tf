@@ -47,6 +47,13 @@ variable "log_analytics_workspace_id" {
   type        = string
 }
 
+variable "app_insights_enabled" {
+  description = "Create the Application Insights and its Foundry connection for agent tracing."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "uami_principal_id" {
   description = "Entra object ID of the shared UAMI (module 04), granted \"Cognitive Services OpenAI User\" on the resource."
   type        = string

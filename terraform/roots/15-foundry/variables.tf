@@ -76,6 +76,13 @@ variable "foundry_location" {
   default     = null
 }
 
+# Supplied as TF_VAR_app_insights_enabled.
+variable "app_insights_enabled" {
+  description = "Create the Application Insights connected for agent tracing."
+  type        = bool
+  default     = true
+}
+
 # ---- Declared for env.tfvars parity, unused by this module -----------------
 
 variable "apps" {

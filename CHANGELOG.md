@@ -26,6 +26,9 @@ premise.
 
 ### Added
 
+- `aif-create.yml` takes an `app_insights` input (default `true`). `false`
+  skips, or destroys, module 15's Application Insights and its connection.
+
 ### Changed
 
 ### Fixed

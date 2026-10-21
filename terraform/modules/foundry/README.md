@@ -1,7 +1,8 @@
 # modules/foundry
 
 Child Terraform module that provisions an Azure AI Foundry resource, one
-project under it, and an Application Insights connected for agent tracing.
+project under it, and an optional Application Insights connected for agent
+tracing.
 
 Called by `terraform/roots/15-foundry/`.
 
@@ -13,8 +14,8 @@ Called by `terraform/roots/15-foundry/`.
 | `azurerm_cognitive_account_project`            | `proj-<workload>-<env>`   | System-assigned identity                   |
 | `azurerm_role_assignment`                      | —                         | UAMI "Cognitive Services OpenAI User"      |
 | `azurerm_role_assignment`                      | —                         | "Foundry User"; only when a user ID is set |
-| `azurerm_application_insights`                 | `appi-<workload>ai-<env>` | Workspace-based (module 03)                |
-| `azurerm_cognitive_account_connection_api_key` | `appi-<workload>ai-<env>` | `AppInsights` connection for tracing       |
+| `azurerm_application_insights`                 | `appi-<workload>ai-<env>` | Only when `app_insights_enabled`           |
+| `azurerm_cognitive_account_connection_api_key` | `appi-<workload>ai-<env>` | Only when `app_insights_enabled`           |
 
 ## RBAC
 
@@ -39,6 +40,7 @@ every `Microsoft.CognitiveServices/*` data action.
 | `resource_group_name`        | `string`      | yes      | ai RG (module 01).                       |
 | `log_analytics_workspace_id` | `string`      | yes      | Workspace (module 03).                   |
 | `uami_principal_id`          | `string`      | yes      | Shared UAMI (module 04).                 |
+| `app_insights_enabled`       | `bool`        | no       | Default `true`.                          |
 | `foundry_user_object_id`     | `string`      | no       | User granted "Foundry User". Null skips. |
 | `tags`                       | `map(string)` | no       | Merged with `component = "foundry"`.     |
 
@@ -46,7 +48,7 @@ every `Microsoft.CognitiveServices/*` data action.
 
 - `foundry_id`, `foundry_name`
 - `foundry_project_id`, `foundry_project_name`
-- `app_insights_id`, `app_insights_name`
+- `app_insights_id`, `app_insights_name` (null when disabled)
 
 ## Caveats
 

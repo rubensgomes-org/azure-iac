@@ -24,11 +24,11 @@ output "foundry_project_name" {
 }
 
 output "app_insights_id" {
-  description = "Resource ID of appi-<workload>ai-<env>."
+  description = "Resource ID of appi-<workload>ai-<env>. Null when disabled."
   value       = module.foundry.app_insights_id
 }
 
 output "app_insights_name" {
-  description = "Name of the Application Insights connected for tracing."
+  description = "Name of the Application Insights connected for tracing. Null when disabled."
   value       = module.foundry.app_insights_name
 }

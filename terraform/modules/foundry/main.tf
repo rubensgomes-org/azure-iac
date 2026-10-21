@@ -2,8 +2,8 @@
 # -----------------------------------------------------------------------------
 # Provisions an Azure AI Foundry resource (`kind = AIServices`), one project
 # under it, a "Cognitive Services OpenAI User" grant for the shared UAMI, an
-# optional "Foundry User" grant for a human user, and an Application Insights
-# connected to the resource for agent tracing.
+# optional "Foundry User" grant for a human user, and an optional Application
+# Insights connected to the resource for agent tracing.
 #
 # Design decisions (fixed here, not variables):
 #
@@ -88,6 +88,8 @@ resource "azurerm_role_assignment" "uami_openai_user" {
 # Foundry agent tracing exports OpenTelemetry to the Application Insights
 # behind this connection.
 resource "azurerm_application_insights" "this" {
+  count = var.app_insights_enabled ? 1 : 0
+
   name                = local.app_insights_name
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -102,14 +104,16 @@ resource "azurerm_application_insights" "this" {
 }
 
 resource "azurerm_cognitive_account_connection_api_key" "app_insights" {
+  count = var.app_insights_enabled ? 1 : 0
+
   name                 = local.app_insights_name
   cognitive_account_id = azurerm_cognitive_account.this.id
   category             = "AppInsights"
-  target               = azurerm_application_insights.this.id
-  api_key              = azurerm_application_insights.this.connection_string
+  target               = azurerm_application_insights.this[0].id
+  api_key              = azurerm_application_insights.this[0].connection_string
 
   metadata = {
     ApiType    = "Azure"
-    ResourceId = azurerm_application_insights.this.id
+    ResourceId = azurerm_application_insights.this[0].id
   }
 }

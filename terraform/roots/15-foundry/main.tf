@@ -53,6 +53,7 @@ module "foundry" {
   location                   = coalesce(var.foundry_location, var.location)
   resource_group_name        = data.terraform_remote_state.resource_groups.outputs.rg_ai_name
   log_analytics_workspace_id = data.terraform_remote_state.log_analytics.outputs.law_id
+  app_insights_enabled       = var.app_insights_enabled
   uami_principal_id          = data.terraform_remote_state.managed_identities.outputs.uami_app_principal_id
   # An unset Actions variable arrives as "", which means "no grant".
   foundry_user_object_id = var.foundry_user_object_id == "" ? null : var.foundry_user_object_id

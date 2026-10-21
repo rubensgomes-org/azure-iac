@@ -1,9 +1,9 @@
 # 15-foundry (terraform/roots)
 
 Root Terraform config that provisions an Azure AI Foundry resource, one
-project and a connected Application Insights in the ai resource group, and
-grants the shared UAMI "Cognitive Services OpenAI User" on it. State lives at key
-`foundry/terraform.tfstate` in the backend blob container.
+project and an optional connected Application Insights in the ai resource
+group, and grants the shared UAMI "Cognitive Services OpenAI User" on it.
+State lives at key `foundry/terraform.tfstate` in the backend blob container.
 
 Wraps [`../../modules/foundry/`](../../modules/foundry/README.md).
 
@@ -18,6 +18,7 @@ Wraps [`../../modules/foundry/`](../../modules/foundry/README.md).
 ```bash
 export TF_VAR_foundry_user_object_id="<user-object-id>"   # optional
 export TF_VAR_foundry_location="<region>"                 # optional
+export TF_VAR_app_insights_enabled=false                  # optional
 make apply-foundry
 ```
 
