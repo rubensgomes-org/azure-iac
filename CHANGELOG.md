@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.60] - 2026-10-21
+
+### Added
+
 - `aif-destroy.yml` takes an optional `location` input, with the same
   fallback as `aif-create.yml`.
 
