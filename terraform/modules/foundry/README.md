@@ -8,14 +8,14 @@ Called by `terraform/roots/15-foundry/`.
 
 ## Resources created
 
-| Type                                           | Name                      | Notes                                      |
-|------------------------------------------------|---------------------------|--------------------------------------------|
-| `azurerm_cognitive_account`                    | `aif-<workload>-<env>`    | `AIServices`, S0, custom subdomain = name  |
-| `azurerm_cognitive_account_project`            | `proj-<workload>-<env>`   | System-assigned identity                   |
-| `azurerm_role_assignment`                      | —                         | UAMI "Cognitive Services OpenAI User"      |
-| `azurerm_role_assignment`                      | —                         | "Foundry User"; only when a user ID is set |
-| `azurerm_application_insights`                 | `appi-<workload>ai-<env>` | Only when `app_insights_enabled`           |
-| `azurerm_cognitive_account_connection_api_key` | `appi-<workload>ai-<env>` | Only when `app_insights_enabled`           |
+| Type                                           | Name                            | Notes                                      |
+|------------------------------------------------|---------------------------------|--------------------------------------------|
+| `azurerm_cognitive_account`                    | `aif-<workload>-<env>-<region>` | `AIServices`, S0, custom subdomain = name  |
+| `azurerm_cognitive_account_project`            | `proj-<workload>-<env>`         | System-assigned identity                   |
+| `azurerm_role_assignment`                      | —                               | UAMI "Cognitive Services OpenAI User"      |
+| `azurerm_role_assignment`                      | —                               | "Foundry User"; only when a user ID is set |
+| `azurerm_application_insights`                 | `appi-<workload>ai-<env>`       | Only when `app_insights_enabled`           |
+| `azurerm_cognitive_account_connection_api_key` | `appi-<workload>ai-<env>`       | Only when `app_insights_enabled`           |
 
 ## RBAC
 
@@ -36,7 +36,7 @@ every `Microsoft.CognitiveServices/*` data action.
 | Name                         | Type          | Required | Notes                                    |
 |------------------------------|---------------|----------|------------------------------------------|
 | `workload`, `env`            | `string`      | `env`    | CAF name tokens.                         |
-| `location`                   | `string`      | yes      | Azure region.                            |
+| `location`                   | `string`      | yes      | Azure region; resource name suffix.      |
 | `resource_group_name`        | `string`      | yes      | ai RG (module 01).                       |
 | `log_analytics_workspace_id` | `string`      | yes      | Workspace (module 03).                   |
 | `uami_principal_id`          | `string`      | yes      | Shared UAMI (module 04).                 |

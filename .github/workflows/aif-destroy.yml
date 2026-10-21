@@ -20,6 +20,12 @@ on:
           - dev
           - lab
 
+      location:
+        description: 'Region for Foundry. Empty uses TF_VAR_FOUNDRY_LOCATION.'
+        type: string
+        required: false
+        default: ''
+
       confirm:
         description: >
           DESTROYS MODULE 15 ONLY — the Foundry project and resource, with
@@ -37,6 +43,14 @@ on:
         description: 'Estate environment holding the Foundry resource.'
         type: string
         required: true
+
+      location:
+        description: >-
+          Azure region of the Foundry resource. Empty uses
+          vars.TF_VAR_foundry_location, then vars.TF_VAR_location.
+        type: string
+        required: false
+        default: ''
 
       confirm:
         description: 'SAFEGUARD: must be exactly "Yes". Destroys module 15.'
@@ -72,6 +86,9 @@ jobs:
 
       TF_VAR_env: ${{ inputs.environment_name }}
       TF_VAR_location: ${{ vars.TF_VAR_location }}
+      # Same fallback as aif-create.yml; the region is part of the name.
+      TF_VAR_foundry_location: ${{
+        inputs.location || vars.TF_VAR_foundry_location }}
       TF_VAR_owner: ${{ vars.TF_VAR_owner }}
 
       TF_VAR_backend_resource_group_name:
@@ -129,6 +146,13 @@ jobs:
               | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
             echo "Denied: TF_VAR_workload must be 2-16 lowercase"
             echo "alphanumeric characters starting with a letter."
+            exit 1
+          fi
+          if [ -n "${TF_VAR_foundry_location}" ] \
+              && ! printf '%s' "${TF_VAR_foundry_location}" \
+                | grep -qE '^[a-z][a-z0-9]{1,30}$'; then
+            echo "Denied: location must be an Azure region name such as"
+            echo "'eastus2' (lowercase alphanumeric)."
             exit 1
           fi
 

@@ -4,7 +4,7 @@
 # -----------------------------------------------------------------------------
 
 output "foundry_id" {
-  description = "Resource ID of aif-<workload>-<env>."
+  description = "Resource ID of aif-<workload>-<env>-<region>."
   value       = azurerm_cognitive_account.this.id
 }
 

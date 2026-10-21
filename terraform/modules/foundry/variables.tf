@@ -7,7 +7,7 @@
 variable "workload" {
   description = <<-EOT
     Workload token in the CAF name `<type>-<workload>-<env>`, e.g. "rgomes"
-    produces aif-rgomes-lab and proj-rgomes-lab. `name` is ForceNew, so
+    produces aif-rgomes-lab-<region> and proj-rgomes-lab. `name` is ForceNew, so
     changing this on a live estate is a destroy+recreate. See docs/NAMING.md.
   EOT
   type        = string
@@ -33,7 +33,7 @@ variable "env" {
 }
 
 variable "location" {
-  description = "Azure region for the resource and project. The Foundry resource kind must be available there."
+  description = "Azure region for the resource and project, and the resource name suffix. The Foundry resource kind must be available there."
   type        = string
 }
 

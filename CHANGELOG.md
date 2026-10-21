@@ -26,7 +26,16 @@ premise.
 
 ### Added
 
+- `aif-destroy.yml` takes an optional `location` input, with the same
+  fallback as `aif-create.yml`.
+
 ### Changed
+
+- **Breaking:** module 15 names the Foundry resource
+  `aif-<workload>-<env>-<region>`, where region is the Foundry location.
+  The name is ForceNew and is the custom subdomain, so the next apply
+  replaces the resource and project, deletes every model deployment and
+  changes the endpoint.
 
 ### Fixed
 
