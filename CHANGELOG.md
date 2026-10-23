@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.61] - 2026-10-23
+
+### Added
+
 - `kv-create.yml` applies modules 01 → 04 → 05 → 06 and outputs `kv_name`
   and `kv_uri`.
 - `kv-destroy.yml` destroys modules 06, 05, 04 and 01 and purges the
