@@ -1,0 +1,338 @@
+# =============================================================================
+# KV Destroy (reusable)
+#
+# Destroys everything kv-create.yml creates, in reverse dependency order:
+# 06 (key vault), 05 (app configuration), 04 (managed identities) and 01
+# (all six resource groups). Refuses to start while modules 02, 03 or 07-15
+# hold resources. Vault secrets are NOT recoverable: the soft-deleted vault
+# is purged so its name can be reused. The Terraform state backend is never
+# in scope.
+# =============================================================================
+
+name: KV Destroy (reusable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: >
+          Estate environment to destroy. Maps to the Makefile ENV variable
+          and selects terraform/envs/<env>.
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
+
+      confirm:
+        description: >
+          DESTROYS MODULES 06, 05, 04 AND 01 — Key Vault and every secret,
+          key and certificate in it, App Configuration, the shared UAMI and
+          all six resource groups.
+        type: choice
+        required: true
+        default: "No"
+        options:
+          - "No"
+          - "Yes"
+
+  # `confirm` is deliberately undefaulted: a caller must write it out.
+  workflow_call:
+    inputs:
+      environment_name:
+        description: 'Estate environment to destroy.'
+        type: string
+        required: true
+
+      confirm:
+        description: >
+          SAFEGUARD: must be exactly "Yes". Destroys modules 06, 05, 04
+          and 01.
+        type: string
+        required: true
+
+    # Optional because the job binds the "AZURE" Environment, which the CALLER
+    # resolves: a caller may pass this secret or define it in that Environment.
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  destroy:
+    name: destroy
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    # Also the hook for a required-reviewer approval gate. Do not make it
+    # conditional on `github.event_name`.
+    environment: AZURE
+
+    # Must share this group string verbatim with kv-create.yml.
+    concurrency:
+      group: kv-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+      TF_VAR_backend_resource_group_name: >-
+        ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+      TF_IN_AUTOMATION: "true"
+      ROOTS_DIR: terraform/roots
+
+      # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
+      ENV_NAME: ${{ inputs.environment_name }}
+
+      # Enforced on BOTH triggers; see acr-destroy.yml.
+      ALLOWED_ACTORS: "rubensgomes rubens-gomes_3CC"
+
+    steps:
+      # See acr-create.yml for why job.workflow_* is used here.
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+
+      # Runs before any credential is used.
+      - name: SAFEGUARD - Validate actor, confirmation and inputs
+        shell: bash
+        env:
+          ACTOR: ${{ github.actor }}
+          TYPED_CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+
+          allowed=false
+          for allowed_actor in ${ALLOWED_ACTORS}; do
+            if [ "${ACTOR}" = "${allowed_actor}" ]; then
+              allowed=true
+              break
+            fi
+          done
+          if [ "${allowed}" != "true" ]; then
+            echo "Denied: actor '${ACTOR}' is not allowed."
+            exit 1
+          fi
+
+          if [ "$(printf '%s' "${TYPED_CONFIRM}" | tr -d '[:space:]')" \
+              != "Yes" ]; then
+            echo "Denied: confirm must be exactly 'Yes' to proceed."
+            exit 1
+          fi
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "Denied: environment_name must be 2-10 lowercase"
+            echo "alphanumeric characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_workload}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "Denied: TF_VAR_workload must be 2-16 lowercase"
+            echo "alphanumeric characters starting with a letter."
+            exit 1
+          fi
+
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_location \
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+          echo "KV_NAME=kv-${TF_VAR_workload}-${ENV_NAME}" >> "$GITHUB_ENV"
+          echo "Safeguard passed. Scope: modules 06, 05, 04 and 01."
+
+      - name: Validate backend coordinates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # A typo here points Terraform at a different (or nonexistent)
+          # state, where it sees an empty world.
+          if ! printf '%s' "${TF_VAR_storage_account_id}" \
+              | grep -qE '^[a-z0-9]{3,24}$'; then
+            echo "FAIL: TF_VAR_storage_account_id must be 3-24 lowercase"
+            echo "alphanumeric characters (an Azure storage account name)."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_container_name}" \
+              | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
+            echo "FAIL: TF_VAR_container_name must be 3-63 lowercase"
+            echo "alphanumeric/hyphen characters starting with alphanumeric."
+            exit 1
+          fi
+          if [ "${TF_VAR_backend_resource_group_name: -1}" = "." ] \
+             || [ "${#TF_VAR_backend_resource_group_name}" -gt 90 ]; then
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with a"
+            echo "period or exceed 90 characters."
+            exit 1
+          fi
+          echo "Backend: ${TF_VAR_backend_resource_group_name}/"
+          echo "${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
+
+      # az is used by the inventory, orphan sweep, purge and verify steps.
+      - name: Azure Login (Service Principal Secret)
+        uses: azure/login@v3
+        with:
+          auth-type: SERVICE_PRINCIPAL
+          creds: >-
+            {"clientId":"${{ vars.AZURE_CLIENT_ID }}",
+             "clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}",
+             "tenantId":"${{ vars.AZURE_TENANT_ID }}",
+             "subscriptionId":"${{ vars.AZURE_SUBSCRIPTION_ID }}"}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      # These modules read the state of modules destroyed below, and their
+      # resources would keep module 01's resource groups from deleting.
+      - name: GUARD - Assert out-of-scope modules hold no resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+          for module in 02-networking:networking \
+                        03-log-analytics:log-analytics 07-acr:acr \
+                        08-storage:storage 09-service-bus:service-bus \
+                        10-postgresql:postgresql \
+                        11-container-app-environment:container-app-environment \
+                        12-container-apps:container-apps \
+                        13-monitoring:monitoring 14-app-gateway:app-gateway \
+                        15-foundry:foundry; do
+            dir="${module%%:*}"
+            short="${module##*:}"
+            make ENV="$ENV_NAME" "init-${short}" >/dev/null
+            resources="$(cd "${ROOTS_DIR}/${dir}" && terraform state list)"
+            managed="$(printf '%s\n' "${resources}" \
+              | grep -Ev '(^|\.)data\.' || true)"
+            if [ -n "${managed}" ]; then
+              echo "DENIED: module ${dir} still holds resources:"
+              echo "${managed}" | sed 's/^/  /'
+              rc=1
+            else
+              echo "OK: module ${dir} is empty."
+            fi
+          done
+          if [ "$rc" -ne 0 ]; then
+            echo "Destroy those modules first, or use all-destroy.yml."
+          fi
+          exit $rc
+
+      # The run log is the only surviving record of what the vault held.
+      # Wholly informational: a vault that is already gone must not fail.
+      - name: Inventory vault contents (pre-destroy record)
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          if ! az keyvault show -n "${KV_NAME}" -o none 2>/dev/null; then
+            echo "Vault '${KV_NAME}' does not exist. Nothing to inventory."
+            exit 0
+          fi
+
+          echo "The following will be PERMANENTLY deleted from '${KV_NAME}':"
+          for kind in secret key certificate; do
+            names="$(az keyvault "${kind}" list --vault-name "${KV_NAME}" \
+              --query "[].name" -o tsv 2>/dev/null \
+              || echo "<not listable by this principal>")"
+            echo "  ${kind}s: $(echo "${names:-<none>}" | tr '\n' ' ')"
+          done
+
+      # The provider purges the soft-deleted vault on destroy.
+      - name: Destroy module 06 - key vault
+        shell: bash
+        run: make ENV="$ENV_NAME" destroy-key-vault
+
+      - name: Destroy module 05 - app configuration
+        shell: bash
+        run: make ENV="$ENV_NAME" destroy-app-configuration
+
+      - name: Destroy module 04 - managed identities
+        shell: bash
+        run: make ENV="$ENV_NAME" destroy-managed-identities
+
+      # Azure-created action groups would keep the observability RG alive.
+      - name: Sweep Azure-generated orphans
+        shell: bash
+        run: make ENV="$ENV_NAME" purge-orphans
+
+      - name: Destroy module 01 - resource groups
+        shell: bash
+        run: make ENV="$ENV_NAME" destroy-resource-groups
+
+      # A soft-deleted vault blocks its deterministic name on recreate.
+      - name: Purge the vault if left soft-deleted
+        shell: bash
+        run: |
+          set -euo pipefail
+          location="$(az keyvault list-deleted \
+            --query "[?name == '${KV_NAME}'].properties.location | [0]" \
+            -o tsv 2>/dev/null || true)"
+          if [ -z "${location}" ]; then
+            echo "OK: no soft-deleted vault '${KV_NAME}' to purge."
+            exit 0
+          fi
+          echo "Purging soft-deleted vault '${KV_NAME}' in ${location}."
+          az keyvault purge --name "${KV_NAME}" --location "${location}"
+
+      # Accumulates into rc and exits once, so every assertion is reported.
+      - name: Verify the vault and RGs are gone and the backend survived
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+
+          if az keyvault show -n "${KV_NAME}" -o none 2>/dev/null; then
+            echo "FAIL: vault '${KV_NAME}' still exists."
+            rc=1
+          else
+            echo "OK: vault '${KV_NAME}' is gone."
+          fi
+
+          # Both anchors also match the backend RG, which must survive.
+          rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
+          ends_with(name, '-${ENV_NAME}') && \
+          name != '${TF_VAR_backend_resource_group_name}'].name"
+          remaining="$(az group list --query "${rg_query}" -o tsv)"
+          if [ -n "${remaining}" ]; then
+            echo "FAIL: resource groups still exist after the destroy:"
+            echo "${remaining}" | sed 's/^/  /'
+            rc=1
+          else
+            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
+            echo "groups remain."
+          fi
+
+          if az group show -n "${TF_VAR_backend_resource_group_name}" \
+              -o none 2>/dev/null; then
+            echo "OK: state backend resource group"
+            echo "'${TF_VAR_backend_resource_group_name}' preserved."
+          else
+            echo "FAIL: '${TF_VAR_backend_resource_group_name}' is missing"
+            echo "— the Terraform state backend is gone."
+            rc=1
+          fi
+
+          exit $rc

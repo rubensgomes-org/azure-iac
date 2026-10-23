@@ -1,0 +1,256 @@
+# =============================================================================
+# KV Create (reusable)
+#
+# Brings modules 01 (resource groups), 04 (managed identities), 05 (app
+# configuration) and 06 (key vault) to their desired state, in dependency
+# order, so a Key Vault exists and the shared UAMI can read its secrets.
+# Every recipe is a `make` target from the repo-root Makefile.
+# =============================================================================
+
+name: KV Create (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: >
+          Estate environment to provision. Maps to the Makefile ENV
+          variable and selects terraform/envs/<env>.
+        type: string
+        required: true
+
+    outputs:
+      kv_name:
+        description: 'Key Vault name, e.g. kv-rgomes-dev.'
+        value: ${{ jobs.provision.outputs.kv_name }}
+      kv_uri:
+        description: >
+          Vault URI, e.g. https://kv-rgomes-dev.vault.azure.net/. Use with
+          DefaultAzureCredential + SecretClient.
+        value: ${{ jobs.provision.outputs.kv_uri }}
+
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: true
+
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: 'Estate environment to provision'
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    name: provision
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Must share this group string verbatim with kv-destroy.yml. Cross-
+    # repository runs are serialised only by the azurerm blob lease; never
+    # work around that with -lock=false.
+    concurrency:
+      group: kv-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    outputs:
+      kv_name: ${{ steps.kv_outputs.outputs.kv_name }}
+      kv_uri: ${{ steps.kv_outputs.outputs.kv_uri }}
+
+    # See acr-create.yml for the rationale behind each binding.
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      TF_IN_AUTOMATION: "true"
+
+      ROOTS_DIR: terraform/roots
+
+      # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
+      ENV_NAME: ${{ inputs.environment_name }}
+
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+      TF_VAR_backend_resource_group_name: >-
+        ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
+    steps:
+      # See acr-create.yml for why job.workflow_* is used here.
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+
+      - name: Verify required Azure configuration is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_env TF_VAR_location \
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Check the calling repository's Actions configuration:"
+            echo "  Variables: AZURE_CLIENT_ID, AZURE_TENANT_ID,"
+            echo "             AZURE_SUBSCRIPTION_ID, TF_VAR_location,"
+            echo "             TF_VAR_backend_resource_group_name,"
+            echo "             TF_VAR_storage_account_id, TF_VAR_container_name"
+            echo "  Secret:    AZURE_CLIENT_SECRET"
+          fi
+          exit $missing
+
+      - name: GUARD - Validate Terraform inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "${ENV_NAME}" \
+              | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "FAIL: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_location}" \
+              | grep -qE '^[a-z][a-z0-9]*$'; then
+            echo "FAIL: TF_VAR_location must be a lowercase Azure region"
+            echo "identifier such as 'centralus'."
+            exit 1
+          fi
+
+          echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}'."
+
+      - name: GUARD - Validate workload and backend coordinates
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "${TF_VAR_workload:-}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "FAIL: workload must be 2-16 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+
+          # Module 06 asserts the same limit at plan time; failing here
+          # names the cause before any module is applied.
+          kv_name="kv-${TF_VAR_workload}-${ENV_NAME}"
+          if [ "${#kv_name}" -gt 24 ]; then
+            echo "FAIL: Key Vault name '${kv_name}' exceeds 24 characters."
+            exit 1
+          fi
+
+          if ! printf '%s' "${TF_VAR_storage_account_id}" \
+              | grep -qE '^[a-z0-9]{3,24}$'; then
+            echo "FAIL: TF_VAR_storage_account_id must be 3-24 lowercase"
+            echo "alphanumeric characters (an Azure storage account name)."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_container_name}" \
+              | grep -qE '^[a-z0-9][a-z0-9-]{2,62}$'; then
+            echo "FAIL: TF_VAR_container_name must be 3-63 lowercase"
+            echo "alphanumeric/hyphen characters starting with alphanumeric."
+            exit 1
+          fi
+          if [ "${TF_VAR_backend_resource_group_name: -1}" = "." ] \
+             || [ "${#TF_VAR_backend_resource_group_name}" -gt 90 ]; then
+            echo "FAIL: TF_VAR_backend_resource_group_name cannot end with a"
+            echo "period or exceed 90 characters."
+            exit 1
+          fi
+          echo "Vault: ${kv_name}"
+          echo "Backend: ${TF_VAR_backend_resource_group_name}/"
+          echo "${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
+
+      # terraform_wrapper is false: the wrapper intercepts stdout, which would
+      # break the `terraform output -raw` calls below.
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      - name: Module 01 - init
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" init-resource-groups
+
+      # `name` is ForceNew on azurerm_resource_group; see acr-create.yml.
+      - name: GUARD - Assert workload matches module 01's state
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/01-resource-groups
+        run: |
+          set -euo pipefail
+          current="$(terraform output -raw rg_platform_name \
+            2>/dev/null || true)"
+          expected="rg-${TF_VAR_workload}platform-${ENV_NAME}"
+
+          if [ -z "$current" ]; then
+            echo "Module 01 state is empty -- first provision."
+          elif [ "$current" != "$expected" ]; then
+            echo "FAIL: module 01's state holds '${current}',"
+            echo "      but TF_VAR_workload asks for '${expected}'."
+            echo "Tear the estate down first, then change TF_VAR_workload."
+            exit 1
+          else
+            echo "OK: workload matches state (${current})."
+          fi
+
+      # The `plan-*` targets gate nothing: `apply-<name>` re-plans internally.
+      - name: Module 01 - resource groups
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            plan-resource-groups apply-resource-groups
+
+      - name: Module 04 - managed identities
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-managed-identities plan-managed-identities \
+            apply-managed-identities
+
+      # Module 06 grants this store's identity a vault role.
+      - name: Module 05 - app configuration
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-app-configuration plan-app-configuration \
+            apply-app-configuration
+
+      # A soft-deleted vault of the same name fails this apply; recover with
+      # `az keyvault purge --name kv-<workload>-<env>`.
+      - name: Module 06 - key vault
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-key-vault plan-key-vault apply-key-vault
+
+      - name: Publish Key Vault outputs
+        id: kv_outputs
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/06-key-vault
+        run: |
+          set -euo pipefail
+          kv_name="$(terraform output -raw kv_name)"
+          kv_uri="$(terraform output -raw kv_uri)"
+          echo "kv_name=${kv_name}" >> "$GITHUB_OUTPUT"
+          echo "kv_uri=${kv_uri}"   >> "$GITHUB_OUTPUT"
+          echo "Key Vault ready: ${kv_uri}"

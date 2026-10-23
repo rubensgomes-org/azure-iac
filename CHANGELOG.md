@@ -26,6 +26,11 @@ premise.
 
 ### Added
 
+- `kv-create.yml` applies modules 01 → 04 → 05 → 06 and outputs `kv_name`
+  and `kv_uri`.
+- `kv-destroy.yml` destroys modules 06, 05, 04 and 01 and purges the
+  soft-deleted vault; refuses while modules 02, 03 or 07–15 hold resources.
+
 ### Changed
 
 ### Fixed

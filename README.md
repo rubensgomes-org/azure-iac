@@ -83,6 +83,8 @@ resources provisioned by this project.
 |----------------------|---------------------------------------------------------------------------------------------------------|
 | `acr-create.yml`     | apply modules 01 → 04 → 07 so a registry exists and is writable                                         |
 | `acr-destroy.yml`    | **destructive** — destroy module 07 only, the registry and every image in it                            |
+| `kv-create.yml`      | apply modules 01 → 04 → 05 → 06 so a Key Vault exists and the shared UAMI can read it                   |
+| `kv-destroy.yml`     | **destructive** — destroy modules 06, 05, 04, 01; refuses while 02, 03 or 07–15 hold resources          |
 | `cae-create.yml`     | apply modules 01 → 02 → 03 → 11 so a Container App Environment exists                                   |
 | `cae-destroy.yml`    | **destructive** — destroy module 11 only, the Container App Environment                                 |
 | `aca-create.yml`     | apply modules 01 → 02 → 03 → 04 → 05 → 06 → 07 → 11 → 12 so the Container Apps exist                    |
