@@ -14,7 +14,7 @@ output "foundry_name" {
 }
 
 output "foundry_project_id" {
-  description = "Resource ID of proj-<workload>-<env>."
+  description = "Resource ID of proj-<workload>-<env>-<region>."
   value       = module.foundry.foundry_project_id
 }
 

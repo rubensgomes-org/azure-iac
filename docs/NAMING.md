@@ -51,7 +51,7 @@ Workload `rgomes`, environment `lab`.
 | Action group              | `ag-<workload>ops-<env>`                              | `ag-rgomesops-lab`                                                                                                                                  | `modules/monitoring`                |
 | Action group `short_name` | `<workload>ops`                                       | `rgomesops`                                                                                                                                         | `modules/monitoring`                |
 | Foundry resource          | `aif-<workload>-<env>-<region>`                       | `aif-rgomes-lab-swedencentral`                                                                                                                      | `modules/foundry`                   |
-| Foundry project           | `proj-<workload>-<env>`                               | `proj-rgomes-lab`                                                                                                                                   | `modules/foundry`                   |
+| Foundry project           | `proj-<workload>-<env>-<region>`                      | `proj-rgomes-lab-swedencentral`                                                                                                                     | `modules/foundry`                   |
 | Foundry App Insights      | `appi-<workload>ai-<env>`                             | `appi-rgomesai-lab`                                                                                                                                 | `modules/foundry`                   |
 
 The storage account is the one name with no dashes — Azure forbids them there —

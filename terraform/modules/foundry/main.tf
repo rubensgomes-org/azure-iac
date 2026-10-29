@@ -25,7 +25,7 @@ locals {
   # Azure accepts "Sweden Central" as well as "swedencentral".
   region            = lower(replace(var.location, " ", ""))
   account_name      = "aif-${var.workload}-${var.env}-${local.region}"
-  project_name      = "proj-${var.workload}-${var.env}"
+  project_name      = "proj-${var.workload}-${var.env}-${local.region}"
   app_insights_name = "appi-${var.workload}ai-${var.env}"
 
   kind     = "AIServices"

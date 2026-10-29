@@ -28,6 +28,9 @@ premise.
 
 ### Changed
 
+- **Breaking:** the Foundry project is renamed to
+  `proj-<workload>-<env>-<region>`; applying module 15 recreates it.
+
 ### Fixed
 
 ## [0.0.62] - 2026-10-28

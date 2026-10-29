@@ -30,7 +30,7 @@ az cognitiveservices account show \
   --query properties.provisioningState -o tsv
 az cognitiveservices account project show \
   -g rg-<workload>ai-<env> -n aif-<workload>-<env>-<region> \
-  --project-name proj-<workload>-<env> \
+  --project-name proj-<workload>-<env>-<region> \
   --query properties.provisioningState -o tsv
 ```
 
