@@ -3,7 +3,8 @@
 Root Terraform config that provisions an Azure AI Foundry resource, one
 project and an optional connected Application Insights in the ai resource
 group, and grants the shared UAMI "Cognitive Services OpenAI User" on it.
-State lives at key `foundry/terraform.tfstate` in the backend blob container.
+State lives at key `foundry/<region>/terraform.tfstate` in the backend blob
+container, one per region (`TF_VAR_foundry_location`, else `TF_VAR_location`).
 
 Wraps [`../../modules/foundry/`](../../modules/foundry/README.md).
 

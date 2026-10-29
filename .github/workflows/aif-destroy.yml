@@ -1,10 +1,12 @@
 # =============================================================================
 # AIF Destroy (reusable)
 #
-# Destroys modules 15 and 08: the Azure AI Foundry project and resource,
-# with every model deployment on it, its Application Insights, and the
-# storage account with every blob in it. The ai RG (module 01) and the
-# workspace (module 03) stay in place, so aif-create.yml can bring them back.
+# Destroys modules 15 and 08: the Azure AI Foundry project and resource in
+# the given region, with every model deployment on it, its Application
+# Insights, and the storage account with every blob in it. The storage
+# account is kept while another region's Foundry state holds resources. The
+# ai RG (module 01) and the workspace (module 03) stay in place, so
+# aif-create.yml can bring them back.
 # =============================================================================
 
 name: AIF Destroy (reusable)
@@ -215,13 +217,56 @@ jobs:
         run: |
           make ENV="$ENV_NAME" destroy-foundry
 
+      # az lists the other regions' module 15 states.
+      - name: Azure Login (Service Principal Secret)
+        uses: azure/login@v3
+        with:
+          auth-type: SERVICE_PRINCIPAL
+          creds: >-
+            {"clientId":"${{ vars.AZURE_CLIENT_ID }}",
+             "clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}",
+             "tenantId":"${{ vars.AZURE_TENANT_ID }}",
+             "subscriptionId":"${{ vars.AZURE_SUBSCRIPTION_ID }}"}
+
+      # Module 08 storage is shared by every Foundry region in the env.
+      - name: Check whether another Foundry region still holds resources
+        id: other_regions
+        shell: bash
+        run: |
+          set -euo pipefail
+          region="${TF_VAR_foundry_location:-${TF_VAR_location}}"
+          own_blob="foundry/${region}/terraform.tfstate"
+          state_file="${RUNNER_TEMP}/foundry.tfstate"
+          in_use=false
+          blobs="$(az storage blob list --auth-mode key \
+            --account-name "${TF_VAR_storage_account_id}" \
+            --container-name "${TF_VAR_container_name}" \
+            --prefix foundry/ --query '[].name' -o tsv)"
+          for blob in ${blobs}; do
+            [ "${blob}" != "${own_blob}" ] || continue
+            az storage blob download --auth-mode key --only-show-errors \
+              --account-name "${TF_VAR_storage_account_id}" \
+              --container-name "${TF_VAR_container_name}" \
+              --name "${blob}" --file "${state_file}" >/dev/null
+            managed="$(jq '[.resources[]? | select(.mode == "managed")]
+              | length' "${state_file}")"
+            if [ "${managed}" -gt 0 ]; then
+              echo "Keeping storage: ${blob} holds ${managed} resource(s)."
+              in_use=true
+            fi
+          done
+          rm -f "${state_file}"
+          echo "in_use=${in_use}" >> "$GITHUB_OUTPUT"
+
       - name: Plan the destroy - module 08 (storage)
+        if: steps.other_regions.outputs.in_use == 'false'
         shell: bash
         run: |
           make ENV="$ENV_NAME" plan-destroy-storage
 
       # Aborts if the plan would delete any type module 08 does not own.
       - name: GUARD - Assert the plan destroys only module 08 resources
+        if: steps.other_regions.outputs.in_use == 'false'
         shell: bash
         working-directory: ${{ env.ROOTS_DIR }}/08-storage
         run: |
@@ -249,6 +294,7 @@ jobs:
           echo "OK: plan touches only module 08 resources."
 
       - name: Destroy module 08 - storage
+        if: steps.other_regions.outputs.in_use == 'false'
         shell: bash
         run: |
           make ENV="$ENV_NAME" destroy-storage

@@ -6,6 +6,8 @@
 # state: a storage account, an Azure AI Foundry resource, one project in it,
 # and, unless `app_insights` is off, the Application Insights it traces
 # agents to.
+# Module 15 state is per region: a new region adds a Foundry resource and
+# project, and an existing one is never destroyed (only aif-destroy.yml does).
 # Every recipe is a `make` target from the repo-root Makefile. Endpoints and
 # keys are never printed.
 # =============================================================================
@@ -211,11 +213,37 @@ jobs:
           make ENV="$ENV_NAME" \
             init-storage plan-storage apply-storage
 
-      - name: Module 15 - foundry
+      - name: Plan module 15 - foundry
         shell: bash
         run: |
-          make ENV="$ENV_NAME" \
-            init-foundry plan-foundry apply-foundry
+          make ENV="$ENV_NAME" init-foundry plan-foundry
+
+      - name: GUARD - Assert the plan destroys no Foundry resource or project
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/15-foundry
+        run: |
+          set -euo pipefail
+          forbidden="$(terraform show -json tfplan | jq -r '
+            .resource_changes[]?
+            | select(.change.actions | index("delete"))
+            | select(.type | IN("azurerm_cognitive_account",
+                                "azurerm_cognitive_account_project"))
+            | .address')"
+          if [ -n "${forbidden}" ]; then
+            echo "DENIED: plan destroys or replaces a Foundry resource or"
+            echo "project. Use aif-destroy.yml to remove one:"
+            while IFS= read -r address; do
+              echo "  ${address}"
+            done <<< "${forbidden}"
+            exit 1
+          fi
+          echo "OK: plan destroys no Foundry resource or project."
+
+      # Applies the guarded plan file, not a fresh plan.
+      - name: Apply module 15 - foundry
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/15-foundry
+        run: terraform apply -lock-timeout=10m tfplan
 
       - name: Publish AIF outputs
         id: aif_outputs

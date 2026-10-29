@@ -101,6 +101,23 @@ BACKEND_OVERRIDES := \
   $(if $(TF_VAR_storage_account_id),-backend-config="storage_account_name=$(TF_VAR_storage_account_id)") \
   $(if $(TF_VAR_container_name),-backend-config="container_name=$(TF_VAR_container_name)")
 
+# Module 15 keeps one state per Foundry region, so a new region adds a
+# resource and project instead of replacing the existing ones. Same fallback
+# as the root's `coalesce(var.foundry_location, var.location)`.
+FOUNDRY_REGION := $(or $(TF_VAR_foundry_location),$(TF_VAR_location))
+
+# Shell snippet: sets $$state to the backend key prefix of short name $$key.
+define SET_STATE_PREFIX
+state="$$key"; \
+if [ "$$key" = "foundry" ]; then \
+  if [ -z "$(FOUNDRY_REGION)" ]; then \
+    echo "ERROR: set TF_VAR_foundry_location or TF_VAR_location." >&2; \
+    exit 1; \
+  fi; \
+  state="foundry/$(FOUNDRY_REGION)"; \
+fi
+endef
+
 # CAF workload token, mirroring the `workload` input every module takes.
 # Terraform reads TF_VAR_workload from the environment; Make imports the
 # environment as variables, so the same export reaches both without a second
@@ -192,15 +209,17 @@ endef
 
 # For each DIRS entry, generate init-/plan-/apply-/destroy-<short-name>.
 # Backend key is the short name (`key-vault/terraform.tfstate`), matching
-# what every module README documents.
+# what every module README documents, except for module 15 (see
+# SET_STATE_PREFIX).
 define MODULE_TARGETS
 .PHONY: init-$(2) plan-$(2) plan-destroy-$(2) apply-$(2) destroy-$(2)
 
 init-$(2): check-backend
 	@echo "=== INIT $(1) ==="
-	@cd $(ROOTS_DIR)/$(1) && terraform init -reconfigure \
+	@key="$(2)"; $$(SET_STATE_PREFIX); \
+	 cd $(ROOTS_DIR)/$(1) && terraform init -reconfigure \
 	  -backend-config=../../envs/$(ENV)/backend.hcl \
-	  -backend-config="key=$(2)/terraform.tfstate" \
+	  -backend-config="key=$$$$state/terraform.tfstate" \
 	  $(BACKEND_OVERRIDES)
 
 plan-$(2): init-$(2)
@@ -437,11 +456,12 @@ destroy-container-apps: init-container-apps
 apply: check-backend
 	@set -e; for d in $(DIRS); do \
 	  key="$${d#[0-9][0-9]-}"; \
+	  $(SET_STATE_PREFIX); \
 	  echo "=== APPLY $$d ==="; \
 	  ( cd $(ROOTS_DIR)/$$d \
 	    && terraform init -reconfigure \
 	         -backend-config=../../envs/$(ENV)/backend.hcl \
-	         -backend-config="key=$$key/terraform.tfstate" \
+	         -backend-config="key=$$state/terraform.tfstate" \
 	         $(BACKEND_OVERRIDES) ); \
 	  if [ "$$d" = "12-container-apps" ]; then \
 	    $(ASSERT_APPS_COVER_STATE); \
@@ -559,11 +579,12 @@ destroy: check-backend
 	     $(SWEEP_ORPHANS); \
 	   fi; \
 	   key="$${d#[0-9][0-9]-}"; \
+	   $(SET_STATE_PREFIX); \
 	   echo "=== DESTROY $$d ==="; \
 	   ( cd $(ROOTS_DIR)/$$d \
 	     && terraform init -reconfigure \
 	          -backend-config=../../envs/$(ENV)/backend.hcl \
-	          -backend-config="key=$$key/terraform.tfstate" \
+	          -backend-config="key=$$state/terraform.tfstate" \
 	          $(BACKEND_OVERRIDES) \
 	     && resources=$$(terraform state list) \
 	     && managed=$$(printf '%s\n' "$$resources" \
@@ -967,11 +988,12 @@ pull-state: check-backend
 	@mkdir -p $(STATE_DIR)
 	@set -e; for d in $(DIRS); do \
 	  key="$${d#[0-9][0-9]-}"; \
+	  $(SET_STATE_PREFIX); \
 	  echo "=== PULL $$d ==="; \
 	  ( cd $(ROOTS_DIR)/$$d \
 	    && terraform init -reconfigure \
 	         -backend-config=../../envs/$(ENV)/backend.hcl \
-	         -backend-config="key=$$key/terraform.tfstate" \
+	         -backend-config="key=$$state/terraform.tfstate" \
 	         $(BACKEND_OVERRIDES) >/dev/null \
 	    && terraform state pull ) > $(STATE_DIR)/$$key.json; \
 	  if [ ! -s $(STATE_DIR)/$$key.json ]; then \

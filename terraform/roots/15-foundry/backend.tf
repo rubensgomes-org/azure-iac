@@ -5,12 +5,12 @@
 #
 #   terraform init \
 #     -backend-config=../../envs/<env>/backend.hcl \
-#     -backend-config="key=foundry/terraform.tfstate"
+#     -backend-config="key=foundry/<region>/terraform.tfstate"
 #
 # The shared `../../envs/<env>/backend.hcl` provides `resource_group_name`,
 # `storage_account_name`, `container_name`, and `use_azuread_auth`. The
-# per-module `key` puts this module's state at `foundry/terraform.tfstate`
-# inside the tfstate container.
+# per-module `key` puts this module's state at
+# `foundry/<region>/terraform.tfstate` inside the tfstate container.
 #
 # Backend blocks cannot interpolate variables — that's why this file is
 # empty and the values live in backend.hcl instead.
