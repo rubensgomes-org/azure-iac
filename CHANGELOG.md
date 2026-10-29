@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.65] - 2026-10-29
+
+### Added
+
+### Changed
+
 - **Breaking:** module 15 state moves to `foundry/<region>/terraform.tfstate`,
   so `aif-create.yml` adds a Foundry resource per region instead of replacing
   the existing one. Destroy existing Foundry resources before upgrading.
