@@ -3,7 +3,7 @@
 # Creates the 6 lifecycle-aligned Resource Groups.
 #
 # Naming follows the Microsoft Cloud Adoption Framework (CAF) form
-# `<resource type>-<workload>-<environment>`, e.g. `rg-rgomesapp-lab`. The
+# `<resource type>-<workload>-<environment>`, e.g. `rg-rgomesapp-lab-eus2`. The
 # lifecycle purpose is folded onto the workload token rather than given a
 # dash of its own (`rgomesapp`, not `rgomes-app`) so every name in the estate
 # stays at exactly three tokens — see docs/NAMING.md.
@@ -13,6 +13,11 @@
 # a purpose here is a breaking change that must be coordinated across the
 # rest of the estate.
 # -----------------------------------------------------------------------------
+
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
 
 # -----------------------------------------------------------------------------
 # Lifecycle purposes (fixed)
@@ -49,7 +54,7 @@ locals {
 resource "azurerm_resource_group" "this" {
   for_each = local.purposes
 
-  name     = "rg-${var.workload}${each.key}-${var.env}"
+  name     = "rg-${var.workload}${each.key}-${var.env}-${module.region_code.code}"
   location = var.location
 
   tags = merge(

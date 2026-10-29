@@ -26,7 +26,18 @@ premise.
 
 ### Added
 
+- `modules/region-code` and `scripts/region-code.sh` map an Azure region to
+  its short code (`docs/NAMING.md#region-codes`).
+
 ### Changed
+
+- **Breaking:** every top-level resource name ends with the region code,
+  e.g. `kv-rgomes-lab-eus2`, `strgomesapplabeus2`; Foundry switches from the
+  full region name. Applying recreates the estate, so tear it down first.
+- Container app names in `TF_VAR_apps` are capped at 20 characters, and root
+  12 now requires `TF_VAR_location`.
+- Workflows and the Makefile orphan sweep derive the region code from
+  `TF_VAR_location` and fail on a region with no code.
 
 ### Fixed
 

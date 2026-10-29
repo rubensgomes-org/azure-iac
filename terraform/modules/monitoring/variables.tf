@@ -19,7 +19,7 @@
 variable "workload" {
   description = <<-EOT
     Workload token in the CAF name `<type>-<workload>-<env>`, e.g. "rgomes"
-    produces appi-rgomes-lab and ag-rgomesops-lab.
+    produces appi-rgomes-lab-eus2 and ag-rgomesops-lab-eus2.
     Also the leading token of the action group `short_name` (`<workload>ops`),
     which Azure caps at 12 chars — main.tf asserts that in a precondition.
 
@@ -41,8 +41,8 @@ variable "workload" {
   validation {
     # Lowercase alnum, 2-16 chars — the same shape enforced by every module, so
     # one value can name the whole estate. The ceiling is set by the tightest
-    # consumer, the storage account name (st<workload><purpose><env>, 24 chars,
-    # no dashes). The leading letter avoids a name that looks numeric.
+    # consumer, the storage account name (st<workload><purpose><env><region>, 24
+    # chars, no dashes). The leading letter avoids a name that looks numeric.
     condition     = can(regex("^[a-z][a-z0-9]{1,15}$", var.workload))
     error_message = "workload must be 2-16 lowercase alnum chars starting with a letter."
   }
@@ -51,7 +51,8 @@ variable "workload" {
 variable "env" {
   description = <<-EOT
     Environment name (e.g. "lab", "dev", "prod"). Trailing token of the App
-    Insights and Action Group names: appi-<workload>-<env>, ag-<workload>ops-<env>.
+    Insights and Action Group names: appi-<workload>-<env>-<region>,
+    ag-<workload>ops-<env>-<region>.
   EOT
   type        = string
 

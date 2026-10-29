@@ -148,6 +148,15 @@ jobs:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
 
+      # Region code suffix of every composed resource name.
+      - name: Resolve region code
+        shell: bash
+        run: |
+          set -euo pipefail
+          region_code="$(scripts/region-code.sh "${TF_VAR_location}")"
+          echo "REGION_CODE=${region_code}" >> "$GITHUB_ENV"
+          echo "Region code: '${region_code}' (${TF_VAR_location})."
+
       # Runs BEFORE any credential is used, so a failed confirmation never
       # reaches Azure. Identical on both triggers: a workflow_call caller is
       # checked by the same two comparisons a human at the form is. Also
@@ -202,9 +211,10 @@ jobs:
           fi
 
           # Mirrors module 12's own naming: apps live in the app RG
-          # `rg-<workload>app-<env>`, same as module 10. Not a workflow input.
-          echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}" >> "$GITHUB_ENV"
-          echo "CAE_NAME=cae-${TF_VAR_workload}-${ENV_NAME}" >> "$GITHUB_ENV"
+          # `rg-<workload>app-<env>-<region>`, same as module 10. Not a
+          # workflow input.
+          echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}-${REGION_CODE}" >> "$GITHUB_ENV"
+          echo "CAE_NAME=cae-${TF_VAR_workload}-${ENV_NAME}-${REGION_CODE}" >> "$GITHUB_ENV"
           echo "Safeguard passed. Target environment: ${ENV_NAME}"
           echo "Scope: module 12 (container-apps) only. Modules 01, 04, 05, 06,"
           echo "07 and 11 are not touched."
@@ -330,14 +340,14 @@ jobs:
           set -uo pipefail
 
           apps_query="[?starts_with(name, 'ca-')"
-          apps_query+=" && ends_with(name, '-${ENV_NAME}')].name"
+          apps_query+=" && ends_with(name, '-${ENV_NAME}-${REGION_CODE}')].name"
           apps="$(az containerapp list \
             --resource-group "${APP_RG}" \
             --query "${apps_query}" \
             -o tsv 2>/dev/null || true)"
           if [ -z "${apps}" ]; then
             echo "No container apps found in '${APP_RG}' matching"
-            echo "ca-*-${ENV_NAME}."
+            echo "ca-*-${ENV_NAME}-${REGION_CODE}."
             exit 0
           fi
 
@@ -498,17 +508,17 @@ jobs:
           # too and is excluded by name: counting it would let the OK branch
           # be satisfied by the backend alone.
           rgs_query="[?starts_with(name, 'rg-${TF_VAR_workload}')"
-          rgs_query+=" && ends_with(name, '-${ENV_NAME}')"
+          rgs_query+=" && ends_with(name, '-${ENV_NAME}-${REGION_CODE}')"
           rgs_query+=" && name != '${TF_VAR_backend_resource_group_name}'].name"
           remaining_rgs="$(az group list \
             --query "${rgs_query}" \
             -o tsv)"
           if [ -n "${remaining_rgs}" ]; then
-            echo "OK: rg-${TF_VAR_workload}*-${ENV_NAME} resource groups"
+            echo "OK: rg-${TF_VAR_workload}*-${ENV_NAME}-${REGION_CODE} resource groups"
             echo "still present (modules 01/04/05/06/07/11 untouched):"
             echo "${remaining_rgs}" | sed 's/^/  /'
           else
-            echo "WARNING: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
+            echo "WARNING: no rg-${TF_VAR_workload}*-${ENV_NAME}-${REGION_CODE} resource"
             echo "         groups exist. This workflow does not destroy"
             echo "         module 01. If they were there before this run,"
             echo "         the destroy scope leaked — investigate."

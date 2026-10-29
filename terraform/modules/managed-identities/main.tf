@@ -17,10 +17,15 @@
 # RBAC granularity).
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 resource "azurerm_user_assigned_identity" "app" {
-  # CAF form `id-<workload>-<env>` with the `app` purpose folded onto the
-  # workload token, matching the rest of the estate: id-rgomesapp-lab.
-  name                = "id-${var.workload}app-${var.env}"
+  # CAF form `id-<workload>-<env>-<region>` with the `app` purpose folded onto
+  # the workload token, matching the rest of the estate: id-rgomesapp-lab-eus2.
+  name                = "id-${var.workload}app-${var.env}-${module.region_code.code}"
   location            = var.location
   resource_group_name = var.resource_group_name
 

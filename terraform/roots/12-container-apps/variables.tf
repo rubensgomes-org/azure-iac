@@ -18,6 +18,11 @@ variable "env" {
   type        = string
 }
 
+variable "location" {
+  description = "Azure region of the Container App Environment. Supplies the region code in app names."
+  type        = string
+}
+
 variable "apps" {
   description = <<-EOT
     Microservice names. One Container App per entry. Sourced from
@@ -129,12 +134,6 @@ variable "ingress_external_apps" {
 # doesn't warn as undeclared.
 variable "workload" {
   description = "CAF workload token. Not used here — Container Apps omit workload from their name. Declared for env.tfvars parity."
-  type        = string
-  default     = null
-}
-
-variable "location" {
-  description = "Azure region. Not used here — Container Apps inherit region from the environment. Declared for env.tfvars parity."
   type        = string
   default     = null
 }

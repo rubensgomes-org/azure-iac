@@ -118,6 +118,15 @@ jobs:
           fi
           echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}'."
 
+      # Region code suffix of every composed resource name.
+      - name: Resolve region code
+        shell: bash
+        run: |
+          set -euo pipefail
+          region_code="$(scripts/region-code.sh "${TF_VAR_location}")"
+          echo "REGION_CODE=${region_code}" >> "$GITHUB_ENV"
+          echo "Region code: '${region_code}' (${TF_VAR_location})."
+
       # A typo in a backend coordinate points Terraform at a different (or
       # nonexistent) state, where it proposes to create the RGs a second time.
       - name: GUARD - Validate workload and backend coordinates
@@ -150,7 +159,7 @@ jobs:
             echo "period or exceed 90 characters."
             exit 1
           fi
-          echo "RG names: rg-${TF_VAR_workload}<purpose>-${ENV_NAME}"
+          echo "RG names: rg-${TF_VAR_workload}<purpose>-${ENV_NAME}-${REGION_CODE}"
 
       # terraform_wrapper is false: the wrapper intercepts stdout, which would
       # break `terraform output -raw` in the workload guard.
@@ -173,7 +182,7 @@ jobs:
           set -euo pipefail
           current="$(terraform output -raw rg_platform_name \
             2>/dev/null || true)"
-          expected="rg-${TF_VAR_workload}platform-${ENV_NAME}"
+          expected="rg-${TF_VAR_workload}platform-${ENV_NAME}-${REGION_CODE}"
 
           if [ -z "$current" ]; then
             echo "Module 01 state is empty -- first provision."

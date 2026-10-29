@@ -15,7 +15,7 @@ caller — this module has no `backend` block.
 
 | Type                                                                | Name                  | Notes                                                                                                                                                              |
 |---------------------------------------------------------------------|-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `azurerm_postgresql_flexible_server`                                | `psql-<workload>-<env>` | Burstable `B_Standard_B1ms`, PG 16, 32 GiB P4, 7-day backup, no HA/geo, AAD-only auth (`password_auth_enabled = false`).                                           |
+| `azurerm_postgresql_flexible_server`                                | `psql-<workload>-<env>-<region>` | Burstable `B_Standard_B1ms`, PG 16, 32 GiB P4, 7-day backup, no HA/geo, AAD-only auth (`password_auth_enabled = false`).                                           |
 | `azurerm_postgresql_flexible_server_active_directory_administrator` | `admin`               | Binds the Entra group as PG admin (`principal_type = "Group"`).                                                                                                    |
 | `azurerm_postgresql_flexible_server_firewall_rule`                  | `runner`              | Single-IP allowlist for the Terraform runner.                                                                                                                      |
 | `azurerm_postgresql_flexible_server_firewall_rule`                  | `azure_services`      | `0.0.0.0/0.0.0.0` magic pair — allow all Azure services.                                                                                                           |
@@ -28,7 +28,7 @@ caller — this module has no `backend` block.
 |----------------------------------|----------------|----------|---------------------------------------------------------------------------------------------|
 | `env`                            | `string`       | yes      | Baked into name and random keeper. `^[a-z][a-z0-9]{1,9}$`.                                  |
 | `location`                       | `string`       | yes      | Azure region. Must match the RG's location.                                                 |
-| `resource_group_name`            | `string`       | yes      | Caller passes `rg-<workload>data-<env>` (from module 01).                                             |
+| `resource_group_name`            | `string`       | yes      | Caller passes `rg-<workload>data-<env>-<region>` (from module 01).                                             |
 | `tenant_id`                      | `string`       | yes      | Entra tenant ID. From `data.azurerm_client_config.current` in the root.                     |
 | `pg_entra_admin_group_object_id` | `string`       | yes      | Object ID of the Entra group set as PG administrator.                                       |
 | `pg_entra_admin_group_name`      | `string`       | yes      | Display name of that group. Used as `principal_name` on the admin resource and as `PGUSER`. |
@@ -41,7 +41,7 @@ caller — this module has no `backend` block.
 ## Outputs
 
 - `pg_server_id` — full Azure Resource ID
-- `pg_server_name` — server name (`psql-<workload>-<env>`)
+- `pg_server_name` — server name (`psql-<workload>-<env>-<region>`)
 - `pg_fqdn` — `<name>.postgres.database.azure.com`
 - `pg_version` — engine major version
 - `pg_location`

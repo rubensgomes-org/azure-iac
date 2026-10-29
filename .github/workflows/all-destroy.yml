@@ -236,6 +236,15 @@ jobs:
           fi
           exit $missing
 
+      # Region code suffix of every composed resource name.
+      - name: Resolve region code
+        shell: bash
+        run: |
+          set -euo pipefail
+          region_code="$(scripts/region-code.sh "${TF_VAR_location}")"
+          echo "REGION_CODE=${region_code}" >> "$GITHUB_ENV"
+          echo "Region code: '${region_code}' (${TF_VAR_location})."
+
       # A typo in a backend coordinate points Terraform at a different (or
       # nonexistent) state, where it plans nothing and reports success with
       # the estate still standing.
@@ -276,7 +285,7 @@ jobs:
           fi
           echo "Backend: ${TF_VAR_backend_resource_group_name}/\
           ${TF_VAR_storage_account_id}/${TF_VAR_container_name}"
-          echo "RG names: rg-${TF_VAR_workload}<purpose>-${ENV_NAME}"
+          echo "RG names: rg-${TF_VAR_workload}<purpose>-${ENV_NAME}-${REGION_CODE}"
 
       # Terraform does not need this; it reads ARM_* from the environment.
       # `make destroy` shells out to az twice -- the orphan sweep before
@@ -308,16 +317,16 @@ jobs:
         run: |
           set -uo pipefail
 
-          # The backend RG follows the same rg-<workload><purpose>-<env>
-          # pattern, so both anchors match it. It is never in scope.
+          # The backend RG carries no region code, so the end anchor already
+          # excludes it; the name check is a backstop. It is never in scope.
           rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
-          ends_with(name, '-${ENV_NAME}') && \
+          ends_with(name, '-${ENV_NAME}-${REGION_CODE}') && \
           name != '${TF_VAR_backend_resource_group_name}'].name"
 
           groups="$(az group list --query "${rg_query}" \
             -o tsv 2>/dev/null || true)"
           if [ -z "${groups}" ]; then
-            echo "No rg-${TF_VAR_workload}*-${ENV_NAME} resource groups"
+            echo "No rg-${TF_VAR_workload}*-${ENV_NAME}-${REGION_CODE} resource groups"
             echo "exist. Nothing to inventory."
             exit 0
           fi
@@ -407,7 +416,7 @@ jobs:
           # in the same subscription. Both anchors also match the backend RG,
           # which must survive: exclude it here and assert it separately.
           rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
-          ends_with(name, '-${ENV_NAME}') && \
+          ends_with(name, '-${ENV_NAME}-${REGION_CODE}') && \
           name != '${TF_VAR_backend_resource_group_name}'].name"
           remaining="$(az group list --query "${rg_query}" -o tsv)"
           if [ -n "${remaining}" ]; then
@@ -416,15 +425,15 @@ jobs:
             echo "       Re-dispatch to resume — the teardown is idempotent."
             rc=1
           else
-            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
+            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME}-${REGION_CODE} resource"
             echo "groups remain."
           fi
 
-          # The vault name is the deterministic kv-<workload>-<env> with no
-          # random suffix, so one left soft-deleted blocks the ONLY name the
-          # next apply will ask for, for the full retention window.
+          # The vault name is the deterministic kv-<workload>-<env>-<region>
+          # with no random suffix, so one left soft-deleted blocks the ONLY
+          # name the next apply will ask for, for the full retention window.
           deleted_vaults="$(az keyvault list-deleted \
-            --query "[?name == 'kv-${TF_VAR_workload}-${ENV_NAME}'].name" \
+            --query "[?name == 'kv-${TF_VAR_workload}-${ENV_NAME}-${REGION_CODE}'].name" \
             -o tsv 2>/dev/null || true)"
           if [ -n "${deleted_vaults}" ]; then
             echo "WARNING: soft-deleted Key Vault(s) remain:"

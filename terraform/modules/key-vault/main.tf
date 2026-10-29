@@ -13,6 +13,11 @@
 #     doesn't need them).
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 # -----------------------------------------------------------------------------
 # Tenant lookup
 # -----------------------------------------------------------------------------
@@ -39,6 +44,7 @@ data "azurerm_client_config" "current" {}
 #     a private endpoint against `privatelink.vaultcore.azure.net` (zone
 #     already provisioned in module 02).
 locals {
+  name                       = "kv-${var.workload}-${var.env}-${module.region_code.code}"
   sku_name                   = "standard"
   rbac_authorization_enabled = true
   purge_protection_enabled   = false
@@ -48,26 +54,27 @@ locals {
 # -----------------------------------------------------------------------------
 # Key Vault
 # -----------------------------------------------------------------------------
-# Name pattern: the plain CAF form kv-<workload>-<env> (e.g. "kv-rgomes-lab").
-# Max 24 chars, alphanumeric + hyphens — the `workload` (≤16) and `env` (≤10)
-# validations plus the 4 literal chars can exceed that, so the precondition
-# below asserts the composed length rather than trusting the two separately.
+# Name pattern: the plain CAF form kv-<workload>-<env>-<region>
+# (e.g. "kv-rgomes-lab-eus2"). Max 24 chars, alphanumeric + hyphens — the
+# `workload` (≤16) and `env` (≤10) validations plus the region code can exceed
+# that, so the precondition below asserts the composed length rather than
+# trusting the two separately.
 #
 # TWO THINGS THIS DELIBERATELY GIVES UP by dropping the former random suffix:
 #
 #   1. Global uniqueness. KV names are unique across every Azure tenant, so
-#      `kv-<workload>-<env>` can collide with a stranger's vault. That is the
-#      price of a name an operator can derive from env.tfvars; pick a workload
-#      token distinctive enough to survive it.
+#      `kv-<workload>-<env>-<region>` can collide with a stranger's vault.
+#      That is the price of a name an operator can derive from env.tfvars;
+#      pick a workload token distinctive enough to survive it.
 #   2. Soft-delete-safe re-provision. A deleted vault's name is held in the
 #      recycle bin for `soft_delete_retention_days` (7 here) and a rebuild
 #      inside that window fails. Recover with:
 #
-#        az keyvault purge --name kv-<workload>-<env>
+#        az keyvault purge --name kv-<workload>-<env>-<region>
 #
 # See docs/NAMING.md and docs/TEARDOWN.md.
 resource "azurerm_key_vault" "this" {
-  name                = "kv-${var.workload}-${var.env}"
+  name                = local.name
   location            = var.location
   resource_group_name = var.resource_group_name
   tenant_id           = data.azurerm_client_config.current.tenant_id
@@ -101,8 +108,8 @@ resource "azurerm_key_vault" "this" {
   # offending value instead.
   lifecycle {
     precondition {
-      condition     = length("kv-${var.workload}-${var.env}") <= 24
-      error_message = "Key Vault name kv-${var.workload}-${var.env} exceeds 24 chars. Shorten workload or env."
+      condition     = length(local.name) <= 24
+      error_message = "Key Vault name ${local.name} exceeds 24 chars. Shorten workload or env."
     }
   }
 }

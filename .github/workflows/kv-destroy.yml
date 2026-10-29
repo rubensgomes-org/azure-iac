@@ -105,6 +105,15 @@ jobs:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
 
+      # Region code suffix of every composed resource name.
+      - name: Resolve region code
+        shell: bash
+        run: |
+          set -euo pipefail
+          region_code="$(scripts/region-code.sh "${TF_VAR_location}")"
+          echo "REGION_CODE=${region_code}" >> "$GITHUB_ENV"
+          echo "Region code: '${region_code}' (${TF_VAR_location})."
+
       # Runs before any credential is used.
       - name: SAFEGUARD - Validate actor, confirmation and inputs
         shell: bash
@@ -158,7 +167,7 @@ jobs:
             exit 1
           fi
 
-          echo "KV_NAME=kv-${TF_VAR_workload}-${ENV_NAME}" >> "$GITHUB_ENV"
+          echo "KV_NAME=kv-${TF_VAR_workload}-${ENV_NAME}-${REGION_CODE}" >> "$GITHUB_ENV"
           echo "Safeguard passed. Scope: modules 06, 05, 04 and 01."
 
       - name: Validate backend coordinates
@@ -313,7 +322,7 @@ jobs:
 
           # Both anchors also match the backend RG, which must survive.
           rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
-          ends_with(name, '-${ENV_NAME}') && \
+          ends_with(name, '-${ENV_NAME}-${REGION_CODE}') && \
           name != '${TF_VAR_backend_resource_group_name}'].name"
           remaining="$(az group list --query "${rg_query}" -o tsv)"
           if [ -n "${remaining}" ]; then
@@ -321,7 +330,7 @@ jobs:
             echo "${remaining}" | sed 's/^/  /'
             rc=1
           else
-            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
+            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME}-${REGION_CODE} resource"
             echo "groups remain."
           fi
 

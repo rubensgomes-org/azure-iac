@@ -3,12 +3,13 @@
 Creates the 6 lifecycle-aligned Azure Resource Groups that own every other
 resource in this estate.
 
-- `rg-<workload>platform-<env>` — Managed identities, Key Vault, ACR
-- `rg-<workload>network-<env>` — VNet, subnets, NSGs, private DNS zones
-- `rg-<workload>data-<env>` — PostgreSQL, Service Bus, Storage
-- `rg-<workload>app-<env>` — Container App Environment, Container Apps
-- `rg-<workload>observability-<env>` — Log Analytics, App Insights, Action Groups
-- `rg-<workload>ai-<env>` — Foundry, MCP servers, AI agents
+- `rg-<workload>platform-<env>-<region>` — Managed identities, Key Vault, ACR
+- `rg-<workload>network-<env>-<region>` — VNet, subnets, NSGs, private DNS zones
+- `rg-<workload>data-<env>-<region>` — PostgreSQL, Service Bus, Storage
+- `rg-<workload>app-<env>-<region>` — Container App Environment, Container Apps
+- `rg-<workload>observability-<env>-<region>` — Log Analytics, App Insights,
+  Action Groups
+- `rg-<workload>ai-<env>-<region>` — Foundry, MCP servers, AI agents
 
 The set of RGs is intentionally fixed: one per lifecycle, so that a blast
 radius stops at an RG boundary and the dependency direction between modules
@@ -23,9 +24,9 @@ stays one-way.
 | `location` | `string`      | yes      | Azure region (e.g. `eastus`).                     |
 | `tags`     | `map(string)` | no       | Common tags. `purpose` and `purpose_description` are added per-RG. |
 
-Names follow the CAF form `rg-<workload><purpose>-<env>`. The purpose is folded
-onto the workload token rather than given a dash of its own, so the name stays
-at three tokens — see [NAMING.md](../../../docs/NAMING.md).
+Names follow the CAF form `rg-<workload><purpose>-<env>-<region>`. The purpose
+is folded onto the workload token rather than given a dash of its own, so the
+name stays at three tokens — see [NAMING.md](../../../docs/NAMING.md).
 
 `workload` is safe to set at first provision or after a full teardown only:
 `name` is ForceNew on `azurerm_resource_group`, and the resources inside those

@@ -21,7 +21,7 @@ this module has no `backend` block.
 | `acr_name` | `string` | yes | Explicit registry name. `^[a-zA-Z0-9]{5,50}$`, globally unique across Azure. Dev: `crrgomesdev01`. |
 | `env` | `string` | yes | Not part of the registry name; kept for tag/convention parity. `^[a-z][a-z0-9]{1,9}$`. |
 | `location` | `string` | yes | Azure region. Must match the RG's location. |
-| `resource_group_name` | `string` | yes | Caller passes `rg-<workload>platform-<env>` (from module 01). |
+| `resource_group_name` | `string` | yes | Caller passes `rg-<workload>platform-<env>-<region>` (from module 01). |
 | `uami_principal_id` | `string` | yes | `principal_id` of the shared UAMI (from module 04). |
 | `tags` | `map(string)` | no | Merged with `component = "acr"`. |
 

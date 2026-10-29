@@ -4,7 +4,7 @@
 # -----------------------------------------------------------------------------
 
 output "agw_id" {
-  description = "Resource ID of agw-<workload>-<env>."
+  description = "Resource ID of agw-<workload>-<env>-<region>."
   value       = azurerm_application_gateway.this.id
 }
 

@@ -71,10 +71,10 @@ Application Insights component, or diagnostic-settings block that points at
 this workspace must be destroyed first.
 
 **Soft-delete note — read before reprovisioning.** Deleted workspace names are
-held in a recycle bin per RG for 14 days. `log-<workload>-<env>` is fully
-deterministic since the CAF rename, so a rebuild inside that window asks for
-the one name that is blocked and the apply fails. This module used to append a
-`random_id` precisely to sidestep that; it no longer does. Release the name
+held in a recycle bin per RG for 14 days. `log-<workload>-<env>-<region>` is
+fully deterministic since the CAF rename, so a rebuild inside that window asks
+for the one name that is blocked and the apply fails. This module used to append
+a `random_id` precisely to sidestep that; it no longer does. Release the name
 with:
 
 ```bash

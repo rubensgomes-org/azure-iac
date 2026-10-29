@@ -14,6 +14,11 @@
 # design.
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 # -----------------------------------------------------------------------------
 # SKU + posture (locals)
 # -----------------------------------------------------------------------------
@@ -43,12 +48,13 @@ locals {
   allow_nested_items_to_be_public = false
   soft_delete_retention_days      = 2
   purpose                         = "app"
+  name                            = "st${var.workload}${local.purpose}${var.env}${module.region_code.code}"
 }
 
 # -----------------------------------------------------------------------------
 # Storage Account
 # -----------------------------------------------------------------------------
-# Name pattern: st<workload>app<env> (e.g. "strgomesapplab").
+# Name pattern: st<workload>app<env><region> (e.g. "strgomesapplabeus2").
 #
 # This is the one resource where the CAF `<type>-<workload>-<env>` form cannot
 # be spelled with its dashes: storage account names are lowercase alphanumeric
@@ -57,8 +63,8 @@ locals {
 # workload token exactly as it is elsewhere in the estate.
 #
 # 24 chars is the tightest budget anywhere here, and `workload` (≤16) + "app"
-# + `env` (≤10) + "st" can reach 31 — hence the precondition below rather than
-# trusting the two variable validations separately.
+# + `env` (≤10) + "st" + the region code can reach 35 — hence the precondition
+# below rather than trusting the two variable validations separately.
 #
 # No random suffix: names are deterministic estate-wide. Storage account names
 # are globally unique across every Azure tenant, so this can collide with a
@@ -66,7 +72,7 @@ locals {
 # is no soft-delete tombstone on the account name itself, so unlike Key Vault
 # and Log Analytics a destroyed name is reusable immediately.
 resource "azurerm_storage_account" "this" {
-  name                = "st${var.workload}${local.purpose}${var.env}"
+  name                = local.name
   location            = var.location
   resource_group_name = var.resource_group_name
 
@@ -97,13 +103,13 @@ resource "azurerm_storage_account" "this" {
 
   # The tightest name budget in the estate, and the only one with no dashes to
   # make the overflow obvious on sight. `workload` (≤16) and `env` (≤10)
-  # validate independently, so a legal pair can compose a 31-char name that
+  # validate independently, so a legal pair can compose a 35-char name that
   # Azure rejects at apply time with an opaque error. Fail at plan time
   # instead, naming the offending value.
   lifecycle {
     precondition {
-      condition     = length("st${var.workload}${local.purpose}${var.env}") <= 24
-      error_message = "Storage account name st${var.workload}${local.purpose}${var.env} exceeds 24 chars. Shorten workload or env."
+      condition     = length(local.name) <= 24
+      error_message = "Storage account name ${local.name} exceeds 24 chars. Shorten workload or env."
     }
   }
 }

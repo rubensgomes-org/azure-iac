@@ -7,8 +7,8 @@
 variable "workload" {
   description = <<-EOT
     Workload token in the CAF name `<type>-<workload>-<env>`, e.g. "rgomes"
-    produces appcs-rgomes-lab. `name` is ForceNew, so changing this on a live
-    estate is a destroy+recreate. See docs/NAMING.md.
+    produces appcs-rgomes-lab-eus2. `name` is ForceNew, so changing this on a
+    live estate is a destroy+recreate. See docs/NAMING.md.
   EOT
   type        = string
   default     = "rgomes"

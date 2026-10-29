@@ -320,6 +320,15 @@ jobs:
         shell: bash
         run: make ENV="$ENV_NAME" destroy-resource-groups
 
+      # Region code suffix of every composed resource name.
+      - name: Resolve region code
+        shell: bash
+        run: |
+          set -euo pipefail
+          region_code="$(scripts/region-code.sh "${TF_VAR_location}")"
+          echo "REGION_CODE=${region_code}" >> "$GITHUB_ENV"
+          echo "Region code: '${region_code}' (${TF_VAR_location})."
+
       # Accumulates into rc and exits once, so every assertion is reported.
       - name: Verify the estate is destroyed and the backend survived
         shell: bash
@@ -329,7 +338,7 @@ jobs:
 
           # Both anchors also match the backend RG, which must survive.
           rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
-          ends_with(name, '-${ENV_NAME}') && \
+          ends_with(name, '-${ENV_NAME}-${REGION_CODE}') && \
           name != '${TF_VAR_backend_resource_group_name}'].name"
           remaining="$(az group list --query "${rg_query}" -o tsv)"
           if [ -n "${remaining}" ]; then
@@ -337,13 +346,13 @@ jobs:
             echo "${remaining}" | sed 's/^/  /'
             rc=1
           else
-            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
+            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME}-${REGION_CODE} resource"
             echo "groups remain."
           fi
 
           # A soft-deleted vault blocks its deterministic name on recreate.
           deleted_vaults="$(az keyvault list-deleted \
-            --query "[?name == 'kv-${TF_VAR_workload}-${ENV_NAME}'].name" \
+            --query "[?name == 'kv-${TF_VAR_workload}-${ENV_NAME}-${REGION_CODE}'].name" \
             -o tsv 2>/dev/null || true)"
           if [ -n "${deleted_vaults}" ]; then
             echo "WARNING: soft-deleted Key Vault remains: ${deleted_vaults}"

@@ -11,7 +11,7 @@ caller — this module has no `backend` block.
 
 | Type | Name | Notes |
 |------|------|-------|
-| `azurerm_app_configuration` | `appcs-<workload>-<env>` | SKU `free`, local auth off, public network, system-assigned identity. |
+| `azurerm_app_configuration` | `appcs-<workload>-<env>-<region>` | SKU `free`, local auth off, public network, system-assigned identity. |
 | `azurerm_role_assignment` | Data Reader for UAMI | Role `App Configuration Data Reader` at store scope. |
 
 ## Inputs

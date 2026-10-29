@@ -13,6 +13,11 @@
 # now — see the local block below for the rationale and the flip point.
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 # -----------------------------------------------------------------------------
 # SKU + posture (locals)
 # -----------------------------------------------------------------------------
@@ -43,10 +48,11 @@ locals {
 # -----------------------------------------------------------------------------
 # Service Bus namespace
 # -----------------------------------------------------------------------------
-# Name pattern: the CAF form sb-<workload>-<env> with the `msg` purpose folded
-# onto the workload token, as everywhere else in the estate — "sb-rgomesmsg-lab".
-# With `workload` ≤16, `env` ≤10, "sb-", "msg" and one dash, the worst case is
-# 34 chars against a 50-char ceiling, so no precondition is needed here.
+# Name pattern: the CAF form sb-<workload>-<env>-<region> with the `msg` purpose
+# folded onto the workload token, as everywhere else in the estate —
+# "sb-rgomesmsg-lab-eus2". With `workload` ≤16, `env` ≤10 and a ≤4-char region
+# code, the worst case is 39 chars against a 50-char ceiling, so no precondition
+# is needed here.
 #
 # No random suffix: names are deterministic estate-wide. Namespace names are
 # globally unique across every Azure tenant (they resolve as
@@ -55,7 +61,7 @@ locals {
 # soft-delete tombstone on the namespace name, so unlike Key Vault and Log
 # Analytics a destroyed name is reusable immediately.
 resource "azurerm_servicebus_namespace" "this" {
-  name                = "sb-${var.workload}${local.purpose}-${var.env}"
+  name                = "sb-${var.workload}${local.purpose}-${var.env}-${module.region_code.code}"
   location            = var.location
   resource_group_name = var.resource_group_name
 

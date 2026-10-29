@@ -11,7 +11,7 @@ this module has no `backend` block.
 
 | Type                                            | Name                              | Notes                                                                   |
 |-------------------------------------------------|-----------------------------------|-------------------------------------------------------------------------|
-| `azurerm_virtual_network`                       | `vnet-<workload>-<env>`           | `10.0.0.0/16`                                                           |
+| `azurerm_virtual_network`                       | `vnet-<workload>-<env>-<region>`           | `10.0.0.0/16`                                                           |
 | `azurerm_subnet`                                | `snet-<workload>app-<env>`        | `10.0.0.0/23`, delegated to `Microsoft.App/environments`                |
 | `azurerm_subnet`                                | `snet-<workload>pg-<env>`         | `10.0.4.0/24`, delegated to `Microsoft.DBforPostgreSQL/flexibleServers` |
 | `azurerm_subnet`                                | `snet-<workload>pe-<env>`         | `10.0.5.0/24`, `private_endpoint_network_policies = Disabled`           |
@@ -36,7 +36,7 @@ Private DNS zones:
 |-----------------------|---------------|----------|-----------------------------------------------------------------------------------------------------------|
 | `env`                 | `string`      | yes      | Baked into every resource name. `^[a-z][a-z0-9]{1,9}$`.                                                   |
 | `location`            | `string`      | yes      | Azure region. Must match the RG's location.                                                               |
-| `resource_group_name` | `string`      | yes      | RG that holds every resource. Caller passes `rg-<workload>network-<env>` (from module 01's remote state). |
+| `resource_group_name` | `string`      | yes      | RG that holds every resource. Caller passes `rg-<workload>network-<env>-<region>` (from module 01's remote state). |
 | `tags`                | `map(string)` | no       | Applied to VNet, NSGs, DNS zones, VNet links. Subnets don't support tags in azurerm.                      |
 
 ## Outputs

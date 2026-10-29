@@ -13,9 +13,9 @@
 variable "workload" {
   description = <<-EOT
     Workload token in the CAF name `<type>-<workload>-<env>`. Combined with the
-    lifecycle purpose it produces rg-<workload><purpose>-<env>, e.g.
-    rg-rgomesapp-lab. The purpose is folded onto this token rather than given a
-    dash of its own so the name stays at three tokens (see docs/NAMING.md).
+    lifecycle purpose it produces rg-<workload><purpose>-<env>-<region>, e.g.
+    rg-rgomesapp-lab-eus2. The purpose is folded onto this token rather than
+    given a dash of its own (see docs/NAMING.md).
 
     Override it to stand a second, parallel copy of the estate alongside the
     first. Two things to know before changing it:
@@ -44,8 +44,8 @@ variable "workload" {
   validation {
     # Lowercase alnum keeps the composed name inside the RG naming rules and
     # inside the tighter budgets downstream — the storage account name
-    # (st<workload><purpose><env>, 24 chars, no dashes) is the binding one.
-    # The leading letter avoids a name that looks numeric.
+    # (st<workload><purpose><env><region>, 24 chars, no dashes) is the binding
+    # one. The leading letter avoids a name that looks numeric.
     condition     = can(regex("^[a-z][a-z0-9]{1,15}$", var.workload))
     error_message = "workload must be 2-16 lowercase alnum chars starting with a letter."
   }
@@ -54,8 +54,8 @@ variable "workload" {
 variable "env" {
   description = <<-EOT
     Environment name (e.g. "lab", "dev", "prod"). Trailing token of every RG
-    name: rg-<workload><purpose>-<env>. Also stamped into the `environment`
-    tag if you override `tags` accordingly.
+    name: rg-<workload><purpose>-<env>-<region>. Also stamped into the
+    `environment` tag if you override `tags` accordingly.
   EOT
   type        = string
 

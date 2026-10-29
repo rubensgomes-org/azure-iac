@@ -7,9 +7,9 @@
 #
 # Only azurerm is used: Application Insights, action groups, and diagnostic
 # settings are all azurerm resources. No random suffix (the App Insights name
-# is the deterministic `appi-<workload>-<env>`; the action group name is
-# `ag-<workload>ops-<env>`; diagnostic settings inherit their target's
-# uniqueness).
+# is the deterministic `appi-<workload>-<env>-<region>`; the action group name
+# is `ag-<workload>ops-<env>-<region>`; diagnostic settings inherit their
+# target's uniqueness).
 #
 # -----------------------------------------------------------------------------
 

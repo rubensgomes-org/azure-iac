@@ -25,7 +25,7 @@ terraform -chdir=terraform/roots/14-app-gateway output -raw agw_public_url
 
 ```bash
 az network application-gateway show-backend-health \
-  -g rg-<workload>network-<env> -n agw-<workload>-<env> \
+  -g rg-<workload>network-<env>-<region> -n agw-<workload>-<env>-<region> \
   --query "backendAddressPools[].backendHttpSettingsCollection[].servers[].health"
 curl "$(terraform -chdir=terraform/roots/14-app-gateway output -raw agw_public_url)/health"
 ```

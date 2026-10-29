@@ -12,7 +12,7 @@
 variable "workload" {
   description = <<-EOT
     Workload token in the CAF name `<type>-<workload>-<env>`, e.g. "rgomes"
-    produces id-rgomesapp-lab.
+    produces id-rgomesapp-lab-eus2.
     The identity is the shared app identity, so the `app` purpose is folded
     onto this token rather than given a dash of its own.
 
@@ -34,8 +34,8 @@ variable "workload" {
   validation {
     # Lowercase alnum, 2-16 chars — the same shape enforced by every module, so
     # one value can name the whole estate. The ceiling is set by the tightest
-    # consumer, the storage account name (st<workload><purpose><env>, 24 chars,
-    # no dashes). The leading letter avoids a name that looks numeric.
+    # consumer, the storage account name (st<workload><purpose><env><region>, 24
+    # chars, no dashes). The leading letter avoids a name that looks numeric.
     condition     = can(regex("^[a-z][a-z0-9]{1,15}$", var.workload))
     error_message = "workload must be 2-16 lowercase alnum chars starting with a letter."
   }
@@ -44,7 +44,7 @@ variable "workload" {
 variable "env" {
   description = <<-EOT
     Environment name (e.g. "lab", "dev", "prod"). Trailing token of the
-    identity name: id-<workload>app-<env>.
+    identity name: id-<workload>app-<env>-<region>.
   EOT
   type        = string
 

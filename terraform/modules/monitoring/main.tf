@@ -45,14 +45,19 @@
 # See the module README for the observability posture.
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 # -----------------------------------------------------------------------------
 # Application Insights (workspace-based)
 # -----------------------------------------------------------------------------
-# CAF form `appi-<workload>-<env>` — no random suffix, and none is needed
-# here: App Insights names are not globally unique and carry no soft-delete
-# tombstone on the name.
+# CAF form `appi-<workload>-<env>-<region>` — no random suffix, and none is
+# needed here: App Insights names are not globally unique and carry no
+# soft-delete tombstone on the name.
 resource "azurerm_application_insights" "this" {
-  name                = "appi-${var.workload}-${var.env}"
+  name                = "appi-${var.workload}-${var.env}-${module.region_code.code}"
   location            = var.location
   resource_group_name = var.resource_group_name
 
@@ -68,8 +73,8 @@ resource "azurerm_application_insights" "this" {
 # -----------------------------------------------------------------------------
 # Action Group — email receiver
 # -----------------------------------------------------------------------------
-# Name is the CAF form `ag-<workload>-<env>` with the `ops` purpose folded onto
-# the workload token: ag-rgomesops-lab.
+# Name is the CAF form `ag-<workload>-<env>-<region>` with the `ops` purpose
+# folded onto the workload token: ag-rgomesops-lab-eus2.
 #
 # `short_name` is a separate, much tighter field — capped at 12 chars by Azure
 # — so it cannot carry all three tokens. It uses `<workload>ops`, which is the
@@ -81,7 +86,7 @@ resource "azurerm_application_insights" "this" {
 # Azure Monitor alert payload, which is what every ITSM / webhook expects.
 # Legacy schema is on its way out.
 resource "azurerm_monitor_action_group" "ops" {
-  name                = "ag-${var.workload}ops-${var.env}"
+  name                = "ag-${var.workload}ops-${var.env}-${module.region_code.code}"
   resource_group_name = var.resource_group_name
   short_name          = "${var.workload}ops"
 

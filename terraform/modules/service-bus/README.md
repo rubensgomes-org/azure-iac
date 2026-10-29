@@ -12,7 +12,7 @@ caller — this module has no `backend` block.
 
 | Type                       | Name                                      | Notes                                                                                                    |
 |----------------------------|-------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| `azurerm_servicebus_namespace` | `sb-<workload>msg-<env>`               | `Standard` SKU, TLS 1.2, public network on, local auth on (flip to off once every app is passwordless).  |
+| `azurerm_servicebus_namespace` | `sb-<workload>msg-<env>-<region>`               | `Standard` SKU, TLS 1.2, public network on, local auth on (flip to off once every app is passwordless).  |
 | `azurerm_role_assignment`  | `Azure Service Bus Data Sender` for UAMI  | Scope: namespace.                                                                                        |
 | `azurerm_role_assignment`  | `Azure Service Bus Data Receiver` for UAMI| Scope: namespace.                                                                                        |
 | `azurerm_servicebus_queue` | one per `var.queues`                      | All queue settings at Azure defaults.                                                                    |
@@ -23,7 +23,7 @@ caller — this module has no `backend` block.
 |-----------------------|----------------|----------|--------------------------------------------------------------------------------------------------|
 | `env`                 | `string`       | yes      | Baked into name and random keeper. `^[a-z][a-z0-9]{1,9}$`.                                       |
 | `location`            | `string`       | yes      | Azure region. Must match the RG's location.                                                      |
-| `resource_group_name` | `string`       | yes      | Caller passes `rg-<workload>data-<env>` (from module 01).                                                  |
+| `resource_group_name` | `string`       | yes      | Caller passes `rg-<workload>data-<env>-<region>` (from module 01).                                                  |
 | `uami_principal_id`   | `string`       | yes      | `principal_id` of the shared UAMI (from module 04).                                              |
 | `queues`              | `list(string)` | no       | Queue names to create. Default `[]`.                                                             |
 | `tags`                | `map(string)`  | no       | Merged with `component = "service-bus"`.                                                         |

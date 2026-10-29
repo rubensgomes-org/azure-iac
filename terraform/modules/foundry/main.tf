@@ -21,12 +21,16 @@
 #   every `Microsoft.CognitiveServices/*` data action.
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 locals {
-  # Azure accepts "Sweden Central" as well as "swedencentral".
-  region            = lower(replace(var.location, " ", ""))
+  region            = module.region_code.code
   account_name      = "aif-${var.workload}-${var.env}-${local.region}"
   project_name      = "proj-${var.workload}-${var.env}-${local.region}"
-  app_insights_name = "appi-${var.workload}ai-${var.env}"
+  app_insights_name = "appi-${var.workload}ai-${var.env}-${local.region}"
 
   kind     = "AIServices"
   sku_name = "S0"

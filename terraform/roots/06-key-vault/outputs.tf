@@ -11,7 +11,7 @@ output "kv_id" {
 }
 
 output "kv_name" {
-  description = "Key Vault name (`kv-<workload>-<env>`). Deterministic, so a rebuild inside the soft-delete window needs `az keyvault purge` first."
+  description = "Key Vault name (`kv-<workload>-<env>-<region>`). Deterministic, so a rebuild inside the soft-delete window needs `az keyvault purge` first."
   value       = module.key_vault.kv_name
 }
 

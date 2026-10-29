@@ -15,6 +15,11 @@
 # chosen. See docs/NAMING.md.
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 # -----------------------------------------------------------------------------
 # Address plan and subnet topology (locals)
 # -----------------------------------------------------------------------------
@@ -88,7 +93,7 @@ locals {
 # Virtual Network
 # -----------------------------------------------------------------------------
 resource "azurerm_virtual_network" "this" {
-  name                = "vnet-${var.workload}-${var.env}"
+  name                = "vnet-${var.workload}-${var.env}-${module.region_code.code}"
   location            = var.location
   resource_group_name = var.resource_group_name
   address_space       = [local.vnet_cidr]

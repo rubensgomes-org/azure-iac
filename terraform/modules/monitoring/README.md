@@ -21,9 +21,9 @@ here.
 
 | Name                        | Type        | Description                                                        |
 |-----------------------------|-------------|--------------------------------------------------------------------|
-| `env`                       | string      | Env token, baked into `appi-<workload>-<env>` and `ag-<workload>ops-<env>`.             |
+| `env`                       | string      | Env token, baked into `appi-<workload>-<env>-<region>` and `ag-<workload>ops-<env>-<region>`.             |
 | `location`                  | string      | Azure region for App Insights + action group.                      |
-| `resource_group_name`       | string      | `rg-<workload>observability-<env>` (from module 01).                         |
+| `resource_group_name`       | string      | `rg-<workload>observability-<env>-<region>` (from module 01).                         |
 | `log_analytics_workspace_id`| string      | `law_id` (from module 03). Backs App Insights AND is the diag sink. |
 | `action_group_email`        | string      | Email receiver for the `owner` alert channel. Regex-validated.     |
 | `key_vault_id`              | string      | `kv_id` (from module 06).                                          |
@@ -38,7 +38,7 @@ here.
 | Name                     | Description                                                          |
 |--------------------------|----------------------------------------------------------------------|
 | `ai_id`                  | App Insights resource ID.                                            |
-| `ai_name`                | `appi-<workload>-<env>`.                                                        |
+| `ai_name`                | `appi-<workload>-<env>-<region>`.                                                        |
 | `ai_app_id`              | App Insights `app_id` GUID.                                          |
 | `ai_instrumentation_key` | Legacy key (sensitive).                                              |
 | `ai_connection_string`   | Preferred telemetry carrier (sensitive).                             |

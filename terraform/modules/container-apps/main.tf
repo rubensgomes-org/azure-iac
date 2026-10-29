@@ -40,6 +40,11 @@
 # per-service env-var contract.
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 locals {
   # App name -> zero- or one-element list, for the dynamic probe blocks.
   probe_paths = {
@@ -52,7 +57,8 @@ resource "azurerm_container_app" "app" {
 
   # Exception to the CAF workload-folding rule (see docs/NAMING.md): no
   # workload token, so the name stays legible for a set keyed by app name.
-  name                         = "ca-${each.key}-${var.env}"
+  # The region code is the CAE's, which shares `var.location`.
+  name                         = "ca-${each.key}-${var.env}-${module.region_code.code}"
   container_app_environment_id = var.container_app_environment_id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"

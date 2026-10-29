@@ -4,7 +4,7 @@
 # -----------------------------------------------------------------------------
 
 output "agw_id" {
-  description = "Resource ID of agw-<workload>-<env>."
+  description = "Resource ID of agw-<workload>-<env>-<region>."
   value       = module.app_gateway.agw_id
 }
 

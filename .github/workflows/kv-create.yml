@@ -21,11 +21,11 @@ on:
 
     outputs:
       kv_name:
-        description: 'Key Vault name, e.g. kv-rgomes-dev.'
+        description: 'Key Vault name, e.g. kv-rgomes-dev-eus2.'
         value: ${{ jobs.provision.outputs.kv_name }}
       kv_uri:
         description: >
-          Vault URI, e.g. https://kv-rgomes-dev.vault.azure.net/. Use with
+          Vault URI, e.g. https://kv-rgomes-dev-eus2.vault.azure.net/. Use with
           DefaultAzureCredential + SecretClient.
         value: ${{ jobs.provision.outputs.kv_uri }}
 
@@ -138,6 +138,15 @@ jobs:
 
           echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}'."
 
+      # Region code suffix of every composed resource name.
+      - name: Resolve region code
+        shell: bash
+        run: |
+          set -euo pipefail
+          region_code="$(scripts/region-code.sh "${TF_VAR_location}")"
+          echo "REGION_CODE=${region_code}" >> "$GITHUB_ENV"
+          echo "Region code: '${region_code}' (${TF_VAR_location})."
+
       - name: GUARD - Validate workload and backend coordinates
         shell: bash
         run: |
@@ -151,7 +160,7 @@ jobs:
 
           # Module 06 asserts the same limit at plan time; failing here
           # names the cause before any module is applied.
-          kv_name="kv-${TF_VAR_workload}-${ENV_NAME}"
+          kv_name="kv-${TF_VAR_workload}-${ENV_NAME}-${REGION_CODE}"
           if [ "${#kv_name}" -gt 24 ]; then
             echo "FAIL: Key Vault name '${kv_name}' exceeds 24 characters."
             exit 1
@@ -200,7 +209,7 @@ jobs:
           set -euo pipefail
           current="$(terraform output -raw rg_platform_name \
             2>/dev/null || true)"
-          expected="rg-${TF_VAR_workload}platform-${ENV_NAME}"
+          expected="rg-${TF_VAR_workload}platform-${ENV_NAME}-${REGION_CODE}"
 
           if [ -z "$current" ]; then
             echo "Module 01 state is empty -- first provision."
@@ -236,7 +245,7 @@ jobs:
             apply-app-configuration
 
       # A soft-deleted vault of the same name fails this apply; recover with
-      # `az keyvault purge --name kv-<workload>-<env>`.
+      # `az keyvault purge --name kv-<workload>-<env>-<region>`.
       - name: Module 06 - key vault
         shell: bash
         run: |

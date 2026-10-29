@@ -4,20 +4,21 @@ Every Azure resource this estate provisions is named after the Microsoft Cloud
 Adoption Framework (CAF) form:
 
 ```
-<resource type>-<workload>-<environment>        e.g. rg-rgomesapp-lab
+<resource type>-<workload>-<environment>-<region>   e.g. rg-rgomesapp-lab-eus2
 ```
 
-Two inputs decide the whole namespace: `workload` (default `rgomes`) and `env`
-(`lab`, `dev`). Both live in `terraform/envs/<env>/env.tfvars`, and every one of
-the fifteen modules under `terraform/modules/` takes both.
+Three inputs decide the whole namespace: `workload` (default `rgomes`), `env`
+(`lab`, `dev`) and `location`, which becomes a short
+[region code](#region-codes). `workload` and `env` live in
+`terraform/envs/<env>/env.tfvars`; `location` comes from `TF_VAR_location`.
 
 ## The two rules that are not obvious
 
 **Purposes are folded onto the workload token, not dash-separated.** Several
 resources come as a set — six resource groups by lifecycle purpose, three
 subnets. CAF's three-token form has no slot for that fourth idea, so the set
-key is concatenated onto the workload: `rg-rgomesapp-lab`, not
-`rg-rgomes-app-lab`. Every name in the estate is therefore exactly three
+key is concatenated onto the workload: `rg-rgomesapp-lab-eus2`, not
+`rg-rgomes-app-lab-eus2`. Every name in the estate is therefore exactly four
 tokens — except container apps, a
 [second exception](#a-second-exception-container-apps).
 
@@ -31,31 +32,31 @@ below — read it before your first teardown.
 
 Workload `rgomes`, environment `lab`.
 
-| Resource                  | Pattern                                               | Example                                                                                                                                             | Built in                            |
-|---------------------------|-------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|
-| Resource groups (6)       | `rg-<workload><purpose>-<env>`                        | `rg-rgomesplatform-lab`<br>`rg-rgomesnetwork-lab`<br>`rg-rgomesdata-lab`<br>`rg-rgomesapp-lab`<br>`rg-rgomesobservability-lab`<br>`rg-rgomesai-lab` | `modules/resource-groups`           |
-| Virtual network           | `vnet-<workload>-<env>`                               | `vnet-rgomes-lab`                                                                                                                                   | `modules/networking`                |
-| Subnets (3)               | `snet-<workload><purpose>-<env>`                      | `snet-rgomesapp-lab`, `snet-rgomespg-lab`, `snet-rgomespe-lab`                                                                                      | `modules/networking`                |
-| NSGs (3)                  | `nsg-<workload><purpose>-<env>`                       | `nsg-rgomesapp-lab`                                                                                                                                 | `modules/networking`                |
-| VNet links (5)            | `vnet-link-<workload><zone>-<env>`                    | `vnet-link-rgomeskv-lab`                                                                                                                            | `modules/networking`                |
-| Log Analytics             | `log-<workload>-<env>`                                | `log-rgomes-lab`                                                                                                                                    | `modules/log-analytics`             |
-| Managed identity          | `id-<workload>app-<env>`                              | `id-rgomesapp-lab`                                                                                                                                  | `modules/managed-identities`        |
-| Key Vault                 | `kv-<workload>-<env>`                                 | `kv-rgomes-lab`                                                                                                                                     | `modules/key-vault`                 |
-| Container registry        | *see [exception](#the-one-exception-acr)*             | `crrgomesdev01`                                                                                                                                     | `modules/acr`                       |
-| Storage account           | `st<workload>app<env>`                                | `strgomesapplab`                                                                                                                                    | `modules/storage`                   |
-| Service Bus               | `sb-<workload>msg-<env>`                              | `sb-rgomesmsg-lab`                                                                                                                                  | `modules/service-bus`               |
-| PostgreSQL                | `psql-<workload>-<env>`                               | `psql-rgomes-lab`                                                                                                                                   | `modules/postgresql`                |
-| Container App Env         | `cae-<workload>-<env>`                                | `cae-rgomes-lab`                                                                                                                                    | `modules/container-app-environment` |
-| Container apps            | *see [exception](#a-second-exception-container-apps)* | `ca-api-lab`                                                                                                                                        | `modules/container-apps`            |
-| Application Insights      | `appi-<workload>-<env>`                               | `appi-rgomes-lab`                                                                                                                                   | `modules/monitoring`                |
-| Action group              | `ag-<workload>ops-<env>`                              | `ag-rgomesops-lab`                                                                                                                                  | `modules/monitoring`                |
-| Action group `short_name` | `<workload>ops`                                       | `rgomesops`                                                                                                                                         | `modules/monitoring`                |
-| Foundry resource          | `aif-<workload>-<env>-<region>`                       | `aif-rgomes-lab-swedencentral`                                                                                                                      | `modules/foundry`                   |
-| Foundry project           | `proj-<workload>-<env>-<region>`                      | `proj-rgomes-lab-swedencentral`                                                                                                                     | `modules/foundry`                   |
-| Foundry App Insights      | `appi-<workload>ai-<env>`                             | `appi-rgomesai-lab`                                                                                                                                 | `modules/foundry`                   |
+| Resource                  | Pattern                                               | Example                                                                                                                                                                           | Built in                            |
+|---------------------------|-------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|
+| Resource groups (6)       | `rg-<workload><purpose>-<env>-<region>`               | `rg-rgomesplatform-lab-eus2`<br>`rg-rgomesnetwork-lab-eus2`<br>`rg-rgomesdata-lab-eus2`<br>`rg-rgomesapp-lab-eus2`<br>`rg-rgomesobservability-lab-eus2`<br>`rg-rgomesai-lab-eus2` | `modules/resource-groups`           |
+| Virtual network           | `vnet-<workload>-<env>-<region>`                      | `vnet-rgomes-lab-eus2`                                                                                                                                                            | `modules/networking`                |
+| Subnets (3)               | `snet-<workload><purpose>-<env>`                      | `snet-rgomesapp-lab`, `snet-rgomespg-lab`, `snet-rgomespe-lab`                                                                                                                    | `modules/networking`                |
+| NSGs (3)                  | `nsg-<workload><purpose>-<env>`                       | `nsg-rgomesapp-lab`                                                                                                                                                               | `modules/networking`                |
+| VNet links (5)            | `vnet-link-<workload><zone>-<env>`                    | `vnet-link-rgomeskv-lab`                                                                                                                                                          | `modules/networking`                |
+| Log Analytics             | `log-<workload>-<env>-<region>`                       | `log-rgomes-lab-eus2`                                                                                                                                                             | `modules/log-analytics`             |
+| Managed identity          | `id-<workload>app-<env>-<region>`                     | `id-rgomesapp-lab-eus2`                                                                                                                                                           | `modules/managed-identities`        |
+| Key Vault                 | `kv-<workload>-<env>-<region>`                        | `kv-rgomes-lab-eus2`                                                                                                                                                              | `modules/key-vault`                 |
+| Container registry        | *see [exception](#the-one-exception-acr)*             | `crrgomesdev01`                                                                                                                                                                   | `modules/acr`                       |
+| Storage account           | `st<workload>app<env><region>`                        | `strgomesapplabeus2`                                                                                                                                                              | `modules/storage`                   |
+| Service Bus               | `sb-<workload>msg-<env>-<region>`                     | `sb-rgomesmsg-lab-eus2`                                                                                                                                                           | `modules/service-bus`               |
+| PostgreSQL                | `psql-<workload>-<env>-<region>`                      | `psql-rgomes-lab-eus2`                                                                                                                                                            | `modules/postgresql`                |
+| Container App Env         | `cae-<workload>-<env>-<region>`                       | `cae-rgomes-lab-eus2`                                                                                                                                                             | `modules/container-app-environment` |
+| Container apps            | *see [exception](#a-second-exception-container-apps)* | `ca-api-lab-eus2`                                                                                                                                                                 | `modules/container-apps`            |
+| Application Insights      | `appi-<workload>-<env>-<region>`                      | `appi-rgomes-lab-eus2`                                                                                                                                                            | `modules/monitoring`                |
+| Action group              | `ag-<workload>ops-<env>-<region>`                     | `ag-rgomesops-lab-eus2`                                                                                                                                                           | `modules/monitoring`                |
+| Action group `short_name` | `<workload>ops`                                       | `rgomesops`                                                                                                                                                                       | `modules/monitoring`                |
+| Foundry resource          | `aif-<workload>-<env>-<region>`                       | `aif-rgomes-lab-eus2`                                                                                                                                                             | `modules/foundry`                   |
+| Foundry project           | `proj-<workload>-<env>-<region>`                      | `proj-rgomes-lab-eus2`                                                                                                                                                            | `modules/foundry`                   |
+| Foundry App Insights      | `appi-<workload>ai-<env>-<region>`                    | `appi-rgomesai-lab-eus2`                                                                                                                                                          | `modules/foundry`                   |
 
 The storage account is the one name with no dashes — Azure forbids them there —
-so its three tokens simply run together in the same order.
+so its four tokens simply run together in the same order.
 
 Names **not** composed from workload and env, deliberately:
 
@@ -68,20 +69,47 @@ Names **not** composed from workload and env, deliberately:
 - **The state backend**, which follows its own shape — see
   [below](#the-state-backend).
 
+## Region codes
+
+Azure publishes no short code for a region; `az account list-locations`
+returns only the name (`eastus2`) and display name (`East US 2`). Codes here
+are the lowercase Azure Backup geo-codes from
+[Geo-code mapping](https://learn.microsoft.com/en-us/azure/backup/scripts/geo-code-list).
+The map lives in `terraform/modules/region-code/region-codes.json`, read by
+both Terraform and `scripts/region-code.sh`. It is maintained by hand; add a
+region from that page before using it.
+
+| Region           | Code   |
+|------------------|--------|
+| `eastus`         | `eus`  |
+| `eastus2`        | `eus2` |
+| `westus`         | `wus`  |
+| `westus2`        | `wus2` |
+| `westus3`        | `wus3` |
+| `centralus`      | `cus`  |
+| `northcentralus` | `ncus` |
+| `southcentralus` | `scus` |
+| `canadacentral`  | `cnc`  |
+| `northeurope`    | `ne`   |
+| `westeurope`     | `we`   |
+| `swedencentral`  | `sdc`  |
+| `uksouth`        | `uks`  |
+
 ## Length budgets
 
-`workload` validates at 2–16 lowercase alphanumeric characters, `env` at 2–10.
-Three composed names can still overflow a legal pair, so the modules assert them
-at plan time rather than letting Azure reject them mid-apply:
+`workload` validates at 2–16 lowercase alphanumeric characters, `env` at 2–10,
+and region codes are 2–4. Three composed names can still overflow a legal set,
+so the modules assert them at plan time rather than letting Azure reject them
+mid-apply:
 
-| Name                      | Cap | At `rgomes`/`lab`     | Precondition                 |
-|---------------------------|-----|-----------------------|------------------------------|
-| Storage account           | 24  | `strgomesapplab` (14) | `modules/storage/main.tf`    |
-| Key Vault                 | 24  | `kv-rgomes-lab` (13)  | `modules/key-vault/main.tf`  |
-| Action group `short_name` | 12  | `rgomesops` (9)       | `modules/monitoring/main.tf` |
+| Name                      | Cap | At `rgomes`/`lab`         | Precondition                 |
+|---------------------------|-----|---------------------------|------------------------------|
+| Storage account           | 24  | `strgomesapplabeus2` (18) | `modules/storage/main.tf`    |
+| Key Vault                 | 24  | `kv-rgomes-lab-eus2` (18) | `modules/key-vault/main.tf`  |
+| Action group `short_name` | 12  | `rgomesops` (9)           | `modules/monitoring/main.tf` |
 
-The storage account is the binding constraint on how long `workload` can be,
-which is why its 16-character ceiling is set where it is.
+The storage account is the binding constraint: with a 3-character `env` and a
+4-character region code, `workload` fits only up to 12 characters.
 
 ## Soft-delete is now an operational concern
 
@@ -139,12 +167,12 @@ hatch, which is the second reason this stays a human-chosen literal.
 
 ## A second exception: container apps
 
-`modules/container-apps` omits the workload token: `ca-<app>-<env>`, e.g.
-`ca-api-lab`, not `ca-rgomesapi-lab`. `<app>` (an entry in `var.apps`) is
-already the leaf identifier callers type and read back from `app_names`, so
-folding a fixed, estate-wide `workload` token onto it added a prefix without
-adding information. Every other resource in the estate still folds in
-`workload`.
+`modules/container-apps` omits the workload token: `ca-<app>-<env>-<region>`,
+e.g. `ca-api-lab-eus2`, not `ca-rgomesapi-lab-eus2`. `<app>` (an entry in
+`var.apps`) is already the leaf identifier callers type and read back from
+`app_names`, so folding a fixed, estate-wide `workload` token onto it added a
+prefix without adding information. Every other resource in the estate still
+folds in `workload`.
 
 ## The state backend
 

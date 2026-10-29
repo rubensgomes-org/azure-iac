@@ -60,8 +60,8 @@ variable "workload" {
   validation {
     # Lowercase alnum, 2-16 chars — the same shape enforced by every module, so
     # one value can name the whole estate. The ceiling is set by the tightest
-    # consumer, the storage account name (st<workload><purpose><env>, 24 chars,
-    # no dashes). The leading letter avoids a name that looks numeric.
+    # consumer, the storage account name (st<workload><purpose><env><region>, 24
+    # chars, no dashes). The leading letter avoids a name that looks numeric.
     condition     = can(regex("^[a-z][a-z0-9]{1,15}$", var.workload))
     error_message = "workload must be 2-16 lowercase alnum chars starting with a letter."
   }

@@ -12,7 +12,7 @@ caller — this module has no `backend` block.
 
 | Type | Name | Notes |
 |------|------|-------|
-| `azurerm_user_assigned_identity` | `id-<workload>app-<env>` | Lives in `rg-<workload>platform-<env>`. |
+| `azurerm_user_assigned_identity` | `id-<workload>app-<env>-<region>` | Lives in `rg-<workload>platform-<env>-<region>`. |
 
 ## Inputs
 
@@ -20,7 +20,7 @@ caller — this module has no `backend` block.
 |------|------|----------|-------|
 | `env` | `string` | yes | Baked into the UAMI name. `^[a-z][a-z0-9]{1,9}$`. |
 | `location` | `string` | yes | Azure region. Must match the RG's location. |
-| `resource_group_name` | `string` | yes | RG that holds the UAMI. Caller passes `rg-<workload>platform-<env>` (from module 01's remote state). |
+| `resource_group_name` | `string` | yes | RG that holds the UAMI. Caller passes `rg-<workload>platform-<env>-<region>` (from module 01's remote state). |
 | `tags` | `map(string)` | no | Merged with `component = "managed-identity"`. |
 
 ## Outputs
@@ -37,10 +37,11 @@ caller — this module has no `backend` block.
 - **One UAMI, not per-app.** Every microservice shares this identity. Simpler
   RBAC and uniform grants; the trade-off is a blast radius shared across
   every app.
-- **Lives in `rg-<workload>platform-<env>`.** Long-lived and shared across workloads —
-  belongs with Key Vault and ACR, not with the fast-iterating app RG.
+- **Lives in `rg-<workload>platform-<env>-<region>`.** Long-lived and shared
+  across workloads — belongs with Key Vault and ACR, not with the fast-iterating
+  app RG.
 - **No random suffix.** UAMI names are scoped to their RG, not globally
-  unique. `id-<workload>app-<env>` is stable and destroy+recreate-safe.
+  unique. `id-<workload>app-<env>-<region>` is stable and destroy+recreate-safe.
 
 ## Downstream consumers
 

@@ -1,0 +1,15 @@
+{
+  "eastus": "eus",
+  "eastus2": "eus2",
+  "westus": "wus",
+  "westus2": "wus2",
+  "westus3": "wus3",
+  "centralus": "cus",
+  "northcentralus": "ncus",
+  "southcentralus": "scus",
+  "canadacentral": "cnc",
+  "northeurope": "ne",
+  "westeurope": "we",
+  "swedencentral": "sdc",
+  "uksouth": "uks"
+}

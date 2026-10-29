@@ -10,7 +10,7 @@ output "appcs_id" {
 }
 
 output "appcs_name" {
-  description = "Store name (`appcs-<workload>-<env>`)."
+  description = "Store name (`appcs-<workload>-<env>-<region>`)."
   value       = azurerm_app_configuration.this.name
 }
 

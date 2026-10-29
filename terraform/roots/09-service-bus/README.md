@@ -88,9 +88,9 @@ No post-destroy purge needed — the namespace name is released immediately
 ## Reprovision
 
 Same commands as **Provision**. The name is the deterministic
-`sb-<workload>msg-<env>`, so reprovisioning the same env lands on the SAME
-name. Service Bus keeps no soft-delete tombstone on a namespace name, so that
-name is free again the moment the destroy completes — nothing to purge.
+`sb-<workload>msg-<env>-<region>`, so reprovisioning the same env lands on the
+SAME name. Service Bus keeps no soft-delete tombstone on a namespace name, so
+that name is free again the moment the destroy completes — nothing to purge.
 
 ## Notes
 

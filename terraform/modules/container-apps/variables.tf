@@ -3,7 +3,7 @@
 # Inputs consumed by main.tf.
 #
 # Every microservice in `var.apps` becomes one `azurerm_container_app` named
-# `ca-<app>-<env>`, all sharing:
+# `ca-<app>-<env>-<region>`, all sharing:
 #   - the same Container App Environment (`var.container_app_environment_id`),
 #   - the same UAMI (`var.uami_id`) for runtime identity AND ACR pull,
 #   - the same Key Vault (`var.key_vault_uri`) for secrets,
@@ -22,7 +22,7 @@
 variable "env" {
   description = <<-EOT
     Environment name (e.g. "lab", "dev", "prod"). Trailing token of every
-    container app name: ca-<app>-<env>. Injected as APP_ENV.
+    container app name: ca-<app>-<env>-<region>. Injected as APP_ENV.
   EOT
   type        = string
 
@@ -52,23 +52,28 @@ variable "container_app_environment_id" {
   type        = string
 }
 
+variable "location" {
+  description = "Azure region of the Container App Environment. Supplies the region code in app names."
+  type        = string
+}
+
 variable "apps" {
   description = <<-EOT
     List of microservice names. One `azurerm_container_app` is created per
     entry, keyed by `for_each = toset(var.apps)`. Names appear in the
-    resource name (`ca-<app>-<env>`), the `app` tag, and are used as the
-    default key when looking up per-app values in `var.apps_image_map`.
+    resource name (`ca-<app>-<env>-<region>`), the `app` tag, and are used
+    as the default key when looking up per-app values in
+    `var.apps_image_map`.
 
-    Each name must be a valid Container App name suffix: 2-27 chars,
-    lowercase alnum + hyphens, starting with a letter. With the
-    `ca-` prefix and `-<env>` suffix (at most 4 chars for env="dev") that
-    keeps the full name under Azure's 32-char cap.
+    Each name must be 2-20 chars, lowercase alnum + hyphens, starting
+    with a letter. With the `ca-` prefix and a 3-char env and 4-char
+    region code, that keeps the full name under Azure's 32-char cap.
   EOT
   type        = list(string)
 
   validation {
-    condition     = alltrue([for a in var.apps : can(regex("^[a-z][a-z0-9-]{1,26}$", a))])
-    error_message = "Each app name must be 2-27 lowercase alnum chars (or hyphens) starting with a letter."
+    condition     = alltrue([for a in var.apps : can(regex("^[a-z][a-z0-9-]{1,19}$", a))])
+    error_message = "Each app name must be 2-20 lowercase alnum chars (or hyphens) starting with a letter."
   }
 }
 

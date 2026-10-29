@@ -11,7 +11,7 @@ output "appcs_id" {
 }
 
 output "appcs_name" {
-  description = "Store name (`appcs-<workload>-<env>`)."
+  description = "Store name (`appcs-<workload>-<env>-<region>`)."
   value       = module.app_configuration.appcs_name
 }
 

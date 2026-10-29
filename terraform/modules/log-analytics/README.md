@@ -12,7 +12,7 @@ caller — this module has no `backend` block.
 
 | Type | Name | Notes |
 |------|------|-------|
-| `azurerm_log_analytics_workspace` | `log-<workload>-<env>` | SKU `PerGB2018`, 30-day retention. |
+| `azurerm_log_analytics_workspace` | `log-<workload>-<env>-<region>` | SKU `PerGB2018`, 30-day retention. |
 
 ## Inputs
 
@@ -20,7 +20,7 @@ caller — this module has no `backend` block.
 |------|------|----------|-------|
 | `env` | `string` | yes | Baked into the workspace name and the random-suffix keeper. `^[a-z][a-z0-9]{1,9}$`. |
 | `location` | `string` | yes | Azure region. Must match the RG's location. |
-| `resource_group_name` | `string` | yes | RG that holds the workspace. Caller passes `rg-<workload>observability-<env>` (from module 01's remote state). |
+| `resource_group_name` | `string` | yes | RG that holds the workspace. Caller passes `rg-<workload>observability-<env>-<region>` (from module 01's remote state). |
 | `tags` | `map(string)` | no | Merged with `component = "log-analytics"`. |
 
 ## Outputs
@@ -40,12 +40,12 @@ caller — this module has no `backend` block.
 - **No `daily_quota_gb`.** A hard quota silently drops ingestion once hit —
   worse than a small surprise bill for a learning env. Set cost alerts in
   Azure Budgets instead.
-- **No random suffix in the name.** `log-<workload>-<env>` is deterministic, so
-  it can be derived without reading state. The cost: LAW names go into a
-  soft-delete recycle bin per RG for 14 days, and a destroy+recreate inside that
-  window asks for the blocked name. Release it with
-  `az monitor log-analytics workspace delete --force`, or recover the old
-  workspace with `... workspace recover`. See
+- **No random suffix in the name.** `log-<workload>-<env>-<region>` is
+  deterministic, so it can be derived without reading state. The cost: LAW names
+  go into a soft-delete recycle bin per RG for 14 days, and a destroy+recreate
+  inside that window asks for the blocked name. Release it with `az monitor
+  log-analytics workspace delete --force`, or recover the old workspace with
+  `... workspace recover`. See
   [NAMING.md](../../../docs/NAMING.md#soft-delete-is-now-an-operational-concern).
 - **Sensitive output `law_primary_shared_key`.** The passwordless model
   doesn't need it, but some downstream integrations (e.g. Container App

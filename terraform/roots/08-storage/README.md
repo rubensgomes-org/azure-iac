@@ -98,9 +98,9 @@ matters for individual blobs — the account itself is gone.
 ## Reprovision
 
 Same commands as **Provision**. The name is the deterministic
-`st<workload>app<env>`, so reprovisioning the same env lands on the SAME name.
-Azure keeps no soft-delete tombstone on a storage account name, so that name is
-free again the moment the destroy completes — nothing to purge.
+`st<workload>app<env><region>`, so reprovisioning the same env lands on the SAME
+name. Azure keeps no soft-delete tombstone on a storage account name, so that
+name is free again the moment the destroy completes — nothing to purge.
 
 ## Notes
 

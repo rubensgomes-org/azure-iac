@@ -10,6 +10,11 @@
 # no per-workspace overhead beyond the data ingested.
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 # -----------------------------------------------------------------------------
 # SKU + retention (locals)
 # -----------------------------------------------------------------------------
@@ -27,9 +32,9 @@ locals {
 # -----------------------------------------------------------------------------
 # Log Analytics Workspace
 # -----------------------------------------------------------------------------
-# Name is the plain CAF form `log-<workload>-<env>` — fully deterministic, no
-# random suffix. An operator can derive it from env.tfvars without reading
-# state, which is the whole point of adopting CAF.
+# Name is the plain CAF form `log-<workload>-<env>-<region>` — fully
+# deterministic, no random suffix. An operator can derive it from env.tfvars
+# without reading state, which is the whole point of adopting CAF.
 #
 # THE TRADE-OFF, and it is a real one: LAW names live in a soft-delete recycle
 # bin per RG for 14 days after a workspace is deleted. This module used to
@@ -37,13 +42,15 @@ locals {
 # with its own tombstone. With a fixed name it does, and `terraform apply`
 # fails with "workspace name is in soft-delete state". Recover with either:
 #
-#   az monitor log-analytics workspace recover  -g <rg> -n log-<workload>-<env>
-#   az monitor log-analytics workspace delete   -g <rg> -n log-<workload>-<env> --force
+#   az monitor log-analytics workspace recover \
+#     -g <rg> -n log-<workload>-<env>-<region>
+#   az monitor log-analytics workspace delete \
+#     -g <rg> -n log-<workload>-<env>-<region> --force
 #
 # See docs/NAMING.md and docs/TEARDOWN.md — the same burden applies to Key
 # Vault, whose window is 90 days.
 resource "azurerm_log_analytics_workspace" "this" {
-  name                = "log-${var.workload}-${var.env}"
+  name                = "log-${var.workload}-${var.env}-${module.region_code.code}"
   location            = var.location
   resource_group_name = var.resource_group_name
 

@@ -116,6 +116,7 @@ module "container_apps" {
   source = "../../modules/container-apps"
 
   env                          = var.env
+  location                     = var.location
   resource_group_name          = data.terraform_remote_state.resource_groups.outputs.rg_app_name
   container_app_environment_id = data.terraform_remote_state.container_app_environment.outputs.cae_id
   apps                         = var.apps

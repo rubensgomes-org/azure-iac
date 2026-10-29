@@ -12,7 +12,7 @@ this module has no `backend` block.
 
 | Type | Name | Notes |
 |------|------|-------|
-| `azurerm_storage_account` | `st<workload>app<env>` | Standard_LRS, StorageV2, TLS 1.2, `shared_access_key_enabled = false`, 2-day soft delete on blobs + containers. |
+| `azurerm_storage_account` | `st<workload>app<env><region>` | Standard_LRS, StorageV2, TLS 1.2, `shared_access_key_enabled = false`, 2-day soft delete on blobs + containers. |
 | `azurerm_role_assignment` | `Storage Blob Data Contributor` for UAMI | Scope: storage account. |
 | `azapi_resource` | `container` per `var.apps` | ARM control plane; `publicAccess = None`. |
 
@@ -22,7 +22,7 @@ this module has no `backend` block.
 |------|------|----------|-------|
 | `env` | `string` | yes | Baked into name and random keeper. `^[a-z][a-z0-9]{1,9}$`. |
 | `location` | `string` | yes | Azure region. Must match the RG's location. |
-| `resource_group_name` | `string` | yes | Caller passes `rg-<workload>data-<env>` (from module 01). |
+| `resource_group_name` | `string` | yes | Caller passes `rg-<workload>data-<env>-<region>` (from module 01). |
 | `uami_principal_id` | `string` | yes | `principal_id` of the shared UAMI (from module 04). |
 | `apps` | `list(string)` | no | Names of microservices. One container per name. Default `[]`. |
 | `tags` | `map(string)` | no | Merged with `component = "storage"`. |

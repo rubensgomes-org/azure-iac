@@ -108,8 +108,8 @@ BACKEND_OVERRIDES := \
 #
 # Unset or empty falls back to `rgomes`, which is every module's declared
 # default for `workload`. The two MUST agree: if this line fell back to
-# something else while Terraform named the RG `rg-rgomesobservability-lab`, the
-# sweep below would query an RG that does not exist, report "(none)" through
+# something else while Terraform named the RG
+# `rg-rgomesobservability-lab-eus2`, the sweep below would query an RG that does not exist, report "(none)" through
 # its `|| true`, and module 01's destroy would then fail on
 # `prevent_deletion_if_contains_resources` naming none of this.
 #
@@ -457,9 +457,9 @@ apply: check-backend
 # Creating an Application Insights component makes Azure ALSO create an action
 # group named "Application Insights Smart Detection" in the same RG. Terraform
 # never manages it, so destroying module 13 leaves it behind — and then module
-# 01 cannot delete rg-<env>-observability, because azurerm's
-# `prevent_deletion_if_contains_resources` (default true) refuses to delete an
-# RG with unknown resources in it. This recurs on EVERY teardown.
+# 01 cannot delete rg-<workload>observability-<env>-<region>, because
+# azurerm's `prevent_deletion_if_contains_resources` (default true) refuses to
+# delete an RG with unknown resources in it. This recurs on EVERY teardown.
 #
 # The sweep runs between module 02 and module 01 (see the destroy loop), by
 # which point every Terraform-managed resource in these RGs is already gone —
@@ -477,8 +477,10 @@ apply: check-backend
 # `make -n destroy` would run the ENTIRE teardown for real instead of printing
 # it. Inlining keeps `-n` an honest dry run.
 define SWEEP_ORPHANS
-echo "=== SWEEP Azure-generated orphans (rg-$(WORKLOAD)observability-$(ENV)) ==="; \
-ids=$$(az monitor action-group list -g rg-$(WORKLOAD)observability-$(ENV) \
+region_code=$$($(CURDIR)/scripts/region-code.sh "$$TF_VAR_location") || exit 1; \
+obs_rg="rg-$(WORKLOAD)observability-$(ENV)-$$region_code"; \
+echo "=== SWEEP Azure-generated orphans ($$obs_rg) ==="; \
+ids=$$(az monitor action-group list -g "$$obs_rg" \
          --query "[].id" -o tsv 2>/dev/null || true); \
 if [ -z "$$ids" ]; then echo "  (none)"; else \
   echo "$$ids" | while IFS= read -r id; do \
@@ -523,9 +525,9 @@ purge-orphans:
 # --show-deleted` does not exist (no such flag, and no `list-deleted`
 # subcommand) — it errored to stderr, grep got empty stdin, and the `||` branch
 # printed "name is free to reuse" no matter what. Module 10 now names the
-# server `psql-<workload>-<env>` with no random suffix, so unlike before, a
-# fresh apply CAN collide with a dropped server's retained name -- Azure holds
-# it for up to 7 days. There is still no step here because there is still no
+# server `psql-<workload>-<env>-<region>` with no random suffix, so unlike
+# before, a fresh apply CAN collide with a dropped server's retained name --
+# Azure holds it for up to 7 days. There is still no step here because there is still no
 # command to write one with; `az postgres flexible-server revive-dropped` is
 # the recovery counterpart, and docs/TEARDOWN.md carries the procedure.
 #

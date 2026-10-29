@@ -80,8 +80,8 @@ terraform destroy
 
 # Post-destroy purge — required because we set purge_protection_enabled = false
 # and the vault sits in a 7-day soft-delete window after destroy. The name is
-# deterministic (kv-<workload>-<env>), so this is the ONLY name the next apply
-# will ask for: skip the purge and the reprovision fails for 7 days.
+# deterministic (kv-<workload>-<env>-<region>), so this is the ONLY name the
+# next apply will ask for: skip the purge and the reprovision fails for 7 days.
 az keyvault purge --name "$KV_NAME" --location centralus
 ```
 
@@ -98,8 +98,9 @@ above, `terraform apply` fails on the same name (soft-delete tombstone). Since
 the CAF rename there is no random suffix to route around it, so there are only
 two options:
 
-1. Run `az keyvault purge --name kv-<workload>-<env> --location centralus`
-   first. This is the recommended path, and `make destroy` already does it.
+1. Run `az keyvault purge --name kv-<workload>-<env>-<region> --location
+   centralus` first. This is the recommended path, and `make destroy` already
+   does it.
 2. Wait 7 days for the tombstone to expire, then reprovision.
 
 See [NAMING.md](../../../docs/NAMING.md#soft-delete-is-now-an-operational-concern).

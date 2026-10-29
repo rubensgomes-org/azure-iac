@@ -17,7 +17,7 @@ with *Unsupported attribute* rather than anything self-explanatory.
 Bring module 10 up with:
 
 ```bash
-make apply-resource-groups      # 01 — rg-<workload>data-<env> and friends
+make apply-resource-groups      # 01 — rg-<workload>data-<env>-<region> etc.
 make apply-managed-identities   # 04 — the shared UAMI this module registers in PG
 make apply-postgresql           # 10
 ```
@@ -305,14 +305,14 @@ If the new region is restricted, the cheapest fix is what this root did
 before: give PG Flex its own `location`, moving it alone. That value cannot
 live in a `terraform.tfvars` here — this root is shared by every environment
 and `make check-tfvars` rejects one — so add a `pg_location` input to the root
-and export it. The parent RG `rg-<workload>data-<env>` follows `env.tfvars`;
-Azure allows an RG to hold resources in a different region.
+and export it. The parent RG `rg-<workload>data-<env>-<region>` follows
+`env.tfvars`; Azure allows an RG to hold resources in a different region.
 
 ### `InvalidResourceLocation` 409 after a failed create
 
 ```
 409 Conflict — InvalidResourceLocation: The resource 'psql-${TF_VAR_workload:-rgomes}-${TF_VAR_env:-lab}'
-already exists in location '<old-region>' in resource group 'rg-rgomesdata-lab'.
+already exists in location '<old-region>' in resource group 'rg-rgomesdata-lab-eus2'.
 A resource with the same name cannot be created in location '<new-region>'.
 ```
 

@@ -24,7 +24,7 @@ output "foundry_project_name" {
 }
 
 output "app_insights_id" {
-  description = "Resource ID of appi-<workload>ai-<env>. Null when disabled."
+  description = "Resource ID of appi-<workload>ai-<env>-<region>. Null when disabled."
   value       = module.foundry.app_insights_id
 }
 

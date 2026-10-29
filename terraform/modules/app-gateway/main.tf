@@ -3,7 +3,8 @@
 # Publishes one Container App to the internet through an Application Gateway
 # v2 in front of the internal Container App Environment (module 11):
 #
-#   client --HTTP:80--> pip-<workload>agw-<env> / agw-<workload>-<env>
+#   client --HTTP:80--> pip-<workload>agw-<env>-<region>
+#          / agw-<workload>-<env>-<region>
 #          --HTTPS:443, Host=<app fqdn>--> CAE static IP --> Container App
 #
 # Design decisions (fixed here, not variables):
@@ -23,8 +24,13 @@
 #   Azure before a v2 gateway can be created on a subnet with an NSG.
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 locals {
-  name = "agw-${var.workload}-${var.env}"
+  name = "agw-${var.workload}-${var.env}-${module.region_code.code}"
   nsg  = provider::azurerm::parse_resource_id(var.nsg_id)
 
   min_capacity = 0
@@ -85,7 +91,7 @@ resource "azurerm_network_security_rule" "http" {
 # Public IP
 # -----------------------------------------------------------------------------
 resource "azurerm_public_ip" "this" {
-  name                = "pip-${var.workload}agw-${var.env}"
+  name                = "pip-${var.workload}agw-${var.env}-${module.region_code.code}"
   location            = var.location
   resource_group_name = var.resource_group_name
   allocation_method   = "Static"

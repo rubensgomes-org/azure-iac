@@ -12,7 +12,7 @@ owned by the caller — this module has no `backend` block.
 
 | Type                                | Name                   | Notes                                                                                                  |
 |-------------------------------------|------------------------|--------------------------------------------------------------------------------------------------------|
-| `azurerm_container_app_environment` | `cae-<workload>-<env>` | Consumption-only, VNet-integrated on `snet-<workload>app-<env>`, internal-only ingress, no zone redundancy. |
+| `azurerm_container_app_environment` | `cae-<workload>-<env>-<region>` | Consumption-only, VNet-integrated on `snet-<workload>app-<env>`, internal-only ingress, no zone redundancy. |
 
 ## Inputs
 
@@ -20,7 +20,7 @@ owned by the caller — this module has no `backend` block.
 |------------------------------|---------------|----------|--------------------------------------------------------------------------------------------------------|
 | `env`                        | `string`      | yes      | Baked into the environment name. `^[a-z][a-z0-9]{1,9}$`.                                               |
 | `location`                   | `string`      | yes      | Azure region. Must match the RG and the subnet's VNet.                                                 |
-| `resource_group_name`        | `string`      | yes      | Caller passes `rg-<workload>app-<env>` (module 01 remote state).                                       |
+| `resource_group_name`        | `string`      | yes      | Caller passes `rg-<workload>app-<env>-<region>` (module 01 remote state).                                       |
 | `log_analytics_workspace_id` | `string`      | yes      | ARM resource ID of the LAW. Caller passes `law_id` (module 03 remote state).                           |
 | `infrastructure_subnet_id`   | `string`      | yes      | ARM resource ID of `snet-<workload>app-<env>`. Caller passes `subnet_app_id` (module 02 remote state). |
 | `tags`                       | `map(string)` | no       | Merged with `component = "container-app-environment"`.                                                 |
@@ -47,7 +47,7 @@ owned by the caller — this module has no `backend` block.
   it demands a subnet that spans all three AZs in the region; module
   02 provisions a single-AZ /23. Enabling here without fixing the
   subnet fails at apply time.
-- **Fixed name `cae-<workload>-<env>`.** Unlike LAW / KV / SA / PG,
+- **Fixed name `cae-<workload>-<env>-<region>`.** Unlike LAW / KV / SA / PG,
   Container App Environments have no soft-delete window —
   `terraform destroy` frees the name immediately. No random suffix
   needed. `name` is ForceNew, so changing `workload`/`env` on a live
@@ -64,5 +64,5 @@ Container Apps (module 12) attach to this environment. Azure refuses to
 delete a CAE while any Container App inside it still exists — always
 `terraform destroy` module 12 first, then this one. If a stuck app
 survives (e.g. a manually-created one outside Terraform), delete it via
-`az containerapp delete -g rg-<workload>app-<env> -n <app-name> --yes` before
-retrying destroy on this module.
+`az containerapp delete -g rg-<workload>app-<env>-<region> -n <app-name> --yes`
+before retrying destroy on this module.

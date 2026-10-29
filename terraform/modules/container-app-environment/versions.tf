@@ -14,7 +14,7 @@ terraform {
   required_providers {
     # `azurerm_container_app_environment` is an azurerm resource. No `random`
     # dependency here — the environment name is the deterministic
-    # `cae-<workload>-<env>`, and Container App Environments have no
+    # `cae-<workload>-<env>-<region>`, and Container App Environments have no
     # soft-delete recycle bin the way LAW and KV do, so the deterministic name
     # costs nothing on a rebuild either.
     azurerm = {

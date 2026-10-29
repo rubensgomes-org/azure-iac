@@ -63,7 +63,7 @@ WARNINGS:
 ### Verify Resources Are Gone
 
 - Verify that all the `rg-${TF_VAR_workload}*-${TF_VAR_env}` resource groups are
-  gone. Resource group names are `rg-<workload><purpose>-<env>`
+  gone. Resource group names are `rg-<workload><purpose>-<env>-<region>`
   (see [NAMING.md](NAMING.md)), so the workload leads and the environment
   trails — anchor **both** ends, or a parallel estate in the same subscription
   is swept into the answer.

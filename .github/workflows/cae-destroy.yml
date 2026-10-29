@@ -155,6 +155,15 @@ jobs:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
 
+      # Region code suffix of every composed resource name.
+      - name: Resolve region code
+        shell: bash
+        run: |
+          set -euo pipefail
+          region_code="$(scripts/region-code.sh "${TF_VAR_location}")"
+          echo "REGION_CODE=${region_code}" >> "$GITHUB_ENV"
+          echo "Region code: '${region_code}' (${TF_VAR_location})."
+
       # Runs BEFORE any credential is used, so a failed confirmation never
       # reaches Azure. Identical on both triggers: a workflow_call caller is
       # checked by the same two comparisons a human at the form is. Derives
@@ -208,11 +217,11 @@ jobs:
             exit 1
           fi
 
-          # Mirrors module 12's app RG naming: `rg-<workload>app-<env>`. Not
-          # a workflow input.
-          echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}" >> "$GITHUB_ENV"
+          # Mirrors module 12's app RG naming:
+          # `rg-<workload>app-<env>-<region>`. Not a workflow input.
+          echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}-${REGION_CODE}" >> "$GITHUB_ENV"
           echo "Safeguard passed. Target env: ${ENV_NAME}"
-          echo "(app RG rg-${TF_VAR_workload}app-${ENV_NAME})"
+          echo "(app RG rg-${TF_VAR_workload}app-${ENV_NAME}-${REGION_CODE})"
           echo "Scope: module 11 (container-app-environment) only. Modules"
           echo "01, 02 and 03 are not touched."
 
@@ -350,7 +359,7 @@ jobs:
 
           state_name="$(cd "${ROOTS_DIR}/11-container-app-environment" \
             && terraform output -raw cae_name 2>/dev/null || true)"
-          fallback="cae-${TF_VAR_workload}-${ENV_NAME}"
+          fallback="cae-${TF_VAR_workload}-${ENV_NAME}-${REGION_CODE}"
 
           if [ -z "${state_name}" ]; then
             resolved="${fallback}"
@@ -530,16 +539,16 @@ jobs:
           # too and is excluded by name: counting it would let the OK branch
           # be satisfied by the backend alone.
           query="[?starts_with(name, 'rg-${TF_VAR_workload}')"
-          query="${query} && ends_with(name, '-${ENV_NAME}')"
+          query="${query} && ends_with(name, '-${ENV_NAME}-${REGION_CODE}')"
           query="${query} && name !="
           query="${query} '${TF_VAR_backend_resource_group_name}'].name"
           remaining="$(az group list --query "${query}" -o tsv)"
           if [ -n "${remaining}" ]; then
-            echo "OK: rg-${TF_VAR_workload}*-${ENV_NAME} resource groups"
+            echo "OK: rg-${TF_VAR_workload}*-${ENV_NAME}-${REGION_CODE} resource groups"
             echo "still present (modules 01/02/03 untouched):"
             echo "${remaining}" | sed 's/^/  /'
           else
-            echo "WARNING: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
+            echo "WARNING: no rg-${TF_VAR_workload}*-${ENV_NAME}-${REGION_CODE} resource"
             echo "groups exist."
             echo "         This workflow does not destroy module 01. If"
             echo "         they were there before this run, the destroy"

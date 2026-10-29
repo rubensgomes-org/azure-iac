@@ -11,7 +11,7 @@ output "sa_id" {
 }
 
 output "sa_name" {
-  description = "Storage account name (`st<workload>app<env>`)."
+  description = "Storage account name (`st<workload>app<env><region>`)."
   value       = module.storage.sa_name
 }
 

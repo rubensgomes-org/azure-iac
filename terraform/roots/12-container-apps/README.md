@@ -81,7 +81,8 @@ quickly from `mcr.microsoft.com`. Real Java / Spring Boot images can add
 ```bash
 # Apps exist, provisioning state = Succeeded
 az containerapp list -g "rg-${TF_VAR_workload:-rgomes}app-${TF_VAR_env:-lab}" -o table
-# Expect one row per entry in var.apps (e.g. ca-api-dev, ca-worker-dev).
+# Expect one row per entry in var.apps (e.g. ca-api-dev-eus2,
+# ca-worker-dev-eus2).
 
 # Ingress FQDNs (matches terraform output app_fqdns). Internal-only by
 # default — resolvable and reachable only from the VNet.

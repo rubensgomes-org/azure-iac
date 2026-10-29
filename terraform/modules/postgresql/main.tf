@@ -20,6 +20,11 @@
 #     once the estate is stable.
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 # -----------------------------------------------------------------------------
 # Server posture (locals)
 # -----------------------------------------------------------------------------
@@ -53,8 +58,9 @@ locals {
 # -----------------------------------------------------------------------------
 # PostgreSQL Flexible Server (Entra-only auth)
 # -----------------------------------------------------------------------------
-# Name pattern: the plain CAF form psql-<workload>-<env> (e.g. "psql-rgomes-lab").
-# Worst case 31 chars against a 63-char ceiling, so no precondition is needed.
+# Name pattern: the plain CAF form psql-<workload>-<env>-<region>
+# (e.g. "psql-rgomes-lab-eus2"). Worst case 36 chars against a 63-char ceiling,
+# so no precondition is needed.
 #
 # No random suffix: names are deterministic estate-wide. Two consequences worth
 # knowing, both accepted in exchange for a name an operator can derive from
@@ -69,7 +75,7 @@ locals {
 # without them — no SQL admin ever exists on this server, so there is
 # nothing to leak or rotate.
 resource "azurerm_postgresql_flexible_server" "this" {
-  name                = "psql-${var.workload}-${var.env}"
+  name                = "psql-${var.workload}-${var.env}-${module.region_code.code}"
   location            = var.location
   resource_group_name = var.resource_group_name
 

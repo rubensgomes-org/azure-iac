@@ -161,6 +161,15 @@ jobs:
           fi
           exit $missing
 
+      # Region code suffix of every composed resource name.
+      - name: Resolve region code
+        shell: bash
+        run: |
+          set -euo pipefail
+          region_code="$(scripts/region-code.sh "${TF_VAR_location}")"
+          echo "REGION_CODE=${region_code}" >> "$GITHUB_ENV"
+          echo "Region code: '${region_code}' (${TF_VAR_location})."
+
       - name: GUARD - Validate Terraform inputs and naming variables
         shell: bash
         run: |
@@ -196,7 +205,7 @@ jobs:
             echo "alphanumeric/hyphen characters starting with alphanumeric."
             exit 1
           fi
-          echo "RG names: rg-${TF_VAR_workload}<purpose>-${ENV_NAME}"
+          echo "RG names: rg-${TF_VAR_workload}<purpose>-${ENV_NAME}-${REGION_CODE}"
 
       # Terraform reads ARM_* itself; az is for the inventory and verify steps.
       - name: Azure Login (Service Principal Secret)
@@ -223,13 +232,13 @@ jobs:
 
           # Both anchors also match the backend RG, which is never in scope.
           rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
-          ends_with(name, '-${ENV_NAME}') && \
+          ends_with(name, '-${ENV_NAME}-${REGION_CODE}') && \
           name != '${TF_VAR_backend_resource_group_name}'].name"
 
           groups="$(az group list --query "${rg_query}" \
             -o tsv 2>/dev/null || true)"
           if [ -z "${groups}" ]; then
-            echo "No rg-${TF_VAR_workload}*-${ENV_NAME} resource groups exist."
+            echo "No rg-${TF_VAR_workload}*-${ENV_NAME}-${REGION_CODE} resource groups exist."
             exit 0
           fi
 
@@ -271,7 +280,7 @@ jobs:
           rc=0
 
           rg_query="[?starts_with(name, 'rg-${TF_VAR_workload}') && \
-          ends_with(name, '-${ENV_NAME}') && \
+          ends_with(name, '-${ENV_NAME}-${REGION_CODE}') && \
           name != '${TF_VAR_backend_resource_group_name}'].name"
           remaining="$(az group list --query "${rg_query}" -o tsv)"
           if [ -n "${remaining}" ]; then
@@ -279,7 +288,7 @@ jobs:
             echo "${remaining}" | sed 's/^/  /'
             rc=1
           else
-            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
+            echo "OK: no rg-${TF_VAR_workload}*-${ENV_NAME}-${REGION_CODE} resource"
             echo "groups remain."
           fi
 

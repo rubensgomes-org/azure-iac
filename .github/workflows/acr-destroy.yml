@@ -171,6 +171,15 @@ jobs:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
 
+      # Region code suffix of every composed resource name.
+      - name: Resolve region code
+        shell: bash
+        run: |
+          set -euo pipefail
+          region_code="$(scripts/region-code.sh "${TF_VAR_location}")"
+          echo "REGION_CODE=${region_code}" >> "$GITHUB_ENV"
+          echo "Region code: '${region_code}' (${TF_VAR_location})."
+
       # Runs BEFORE any credential is used, so a failed confirmation never
       # reaches Azure. Identical on both triggers: a workflow_call caller is
       # checked by the same two comparisons a human at the form is.
@@ -235,10 +244,10 @@ jobs:
           fi
 
           # Mirrors module 12's naming: apps live in the app RG
-          # `rg-<workload>app-<env>`. Needed by the registry-dependents guard
-          # below; not a workflow input.
+          # `rg-<workload>app-<env>-<region>`. Needed by the
+          # registry-dependents guard below; not a workflow input.
           echo "ACR_NAME=${TYPED_ACR}" >> "$GITHUB_ENV"
-          echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}" >> "$GITHUB_ENV"
+          echo "APP_RG=rg-${TF_VAR_workload}app-${ENV_NAME}-${REGION_CODE}" >> "$GITHUB_ENV"
           echo "Safeguard passed."
           echo "Target registry: ${TYPED_ACR} (env ${ENV_NAME})"
           echo "Scope: module 07 (acr) only. Modules 04 and 01 are not touched."
@@ -581,8 +590,8 @@ jobs:
           # Their absence is not failed on -- they may legitimately never have
           # been applied -- but it is called out loudly, because the only
           # other way to reach that state is a scope leak here.
-          platform_rg="rg-${TF_VAR_workload}platform-${ENV_NAME}"
-          uami="id-${TF_VAR_workload}app-${ENV_NAME}"
+          platform_rg="rg-${TF_VAR_workload}platform-${ENV_NAME}-${REGION_CODE}"
+          uami="id-${TF_VAR_workload}app-${ENV_NAME}-${REGION_CODE}"
           identity="$(az identity show \
             --resource-group "${platform_rg}" \
             --name "${uami}" \
@@ -602,15 +611,15 @@ jobs:
           # too and is excluded by name: counting it would let the OK branch
           # be satisfied by the backend alone.
           query="[?starts_with(name, 'rg-${TF_VAR_workload}') &&"
-          query="${query} ends_with(name, '-${ENV_NAME}') &&"
+          query="${query} ends_with(name, '-${ENV_NAME}-${REGION_CODE}') &&"
           query="${query} name != '${TF_VAR_backend_resource_group_name}'].name"
           remaining="$(az group list --query "${query}" -o tsv)"
           if [ -n "${remaining}" ]; then
-            echo "OK: rg-${TF_VAR_workload}*-${ENV_NAME} resource groups still"
+            echo "OK: rg-${TF_VAR_workload}*-${ENV_NAME}-${REGION_CODE} resource groups still"
             echo "present (module 01 untouched):"
             echo "${remaining}" | sed 's/^/  /'
           else
-            echo "WARNING: no rg-${TF_VAR_workload}*-${ENV_NAME} resource"
+            echo "WARNING: no rg-${TF_VAR_workload}*-${ENV_NAME}-${REGION_CODE} resource"
             echo "         groups exist. This workflow does not destroy"
             echo "         module 01. If they were there before this run, the"
             echo "         destroy scope leaked — investigate."

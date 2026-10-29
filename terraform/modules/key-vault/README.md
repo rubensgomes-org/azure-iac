@@ -11,7 +11,7 @@ this module has no `backend` block.
 
 | Type | Name | Notes |
 |------|------|-------|
-| `azurerm_key_vault` | `kv-<workload>-<env>` | SKU `standard`, RBAC mode, public network enabled. |
+| `azurerm_key_vault` | `kv-<workload>-<env>-<region>` | SKU `standard`, RBAC mode, public network enabled. |
 | `azurerm_role_assignment` | Secrets User for UAMI | Role `Key Vault Secrets User` at vault scope. |
 | `azurerm_role_assignment` | Secrets User for App Configuration | Same role for the store identity (module 05). |
 
@@ -22,7 +22,7 @@ this module has no `backend` block.
 | `env` | `string` | yes | Baked into name and random keeper. `^[a-z][a-z0-9]{1,9}$`. |
 | `prefix` | `string` | yes | Owner/org token. `^[a-z][a-z0-9]{1,15}$`. Total name ≤ 24 chars. |
 | `location` | `string` | yes | Azure region. Must match the RG's location. |
-| `resource_group_name` | `string` | yes | Caller passes `rg-<workload>platform-<env>` (from module 01). |
+| `resource_group_name` | `string` | yes | Caller passes `rg-<workload>platform-<env>-<region>` (from module 01). |
 | `uami_principal_id` | `string` | yes | `principal_id` of the shared UAMI (from module 04). |
 | `app_configuration_principal_id` | `string` | yes | Store identity `principal_id` (from module 05). |
 | `tags` | `map(string)` | no | Merged with `component = "key-vault"`. |

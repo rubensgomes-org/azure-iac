@@ -17,8 +17,8 @@ makes the env vars below usable at runtime.
 
 | Name                           | Type         | Default                                    | Description                                                                  |
 |--------------------------------|--------------|--------------------------------------------|------------------------------------------------------------------------------|
-| `env`                          | string       | —                                          | Environment token in app names (`ca-<app>-<env>`). Injected as `APP_ENV`.    |
-| `resource_group_name`          | string       | —                                          | `rg-<workload>app-<env>` (from module 01).                                   |
+| `env`                          | string       | —                                          | Environment token in app names (`ca-<app>-<env>-<region>`). Injected as `APP_ENV`.    |
+| `resource_group_name`          | string       | —                                          | `rg-<workload>app-<env>-<region>` (from module 01).                                   |
 | `container_app_environment_id` | string       | —                                          | `cae_id` (from module 11).                                                   |
 | `apps`                         | list(string) | —                                          | Microservice names. Must match `var.apps` in `env.tfvars`.                   |
 | `uami_id`                      | string       | —                                          | Shared UAMI resource ID (from module 04). Used for identity + ACR pull.      |
@@ -42,7 +42,7 @@ makes the env vars below usable at runtime.
 | Name                   | Description                                                                   |
 |------------------------|-------------------------------------------------------------------------------|
 | `app_ids`              | Map app → full Azure Resource ID.                                             |
-| `app_names`            | Map app → deployed resource name (`ca-<app>-<env>`).                          |
+| `app_names`            | Map app → deployed resource name (`ca-<app>-<env>-<region>`).                          |
 | `app_fqdns`            | Map app → FQDN, or `null` when ingress is disabled. Internal-only by default. |
 | `app_latest_revisions` | Map app → latest revision name.                                               |
 

@@ -66,10 +66,11 @@ Follow the steps in
 ### Resource Naming
 
 Every resource follows the Microsoft Cloud Adoption Framework form
-`<resource type>-<workload>-<environment>` — `rg-rgomesapp-lab`,
-`kv-rgomes-lab`, `strgomesapplab`. Two inputs, `workload` and `env`, decide the
-whole namespace. See [NAMING](./docs/NAMING.md) for the name table, the
-length budgets, and the soft-delete purges a teardown-then-reprovision needs.
+`<resource type>-<workload>-<environment>-<region>` — `rg-rgomesapp-lab-eus2`,
+`kv-rgomes-lab-eus2`, `strgomesapplabeus2`. Three inputs, `workload`, `env`
+and `location` (as a short region code), decide the whole namespace. See
+[NAMING](./docs/NAMING.md) for the name table, the length budgets, and the
+soft-delete purges a teardown-then-reprovision needs.
 
 ### Tearing Everything Down
 

@@ -11,6 +11,11 @@
 # data-plane role for the Terraform SP.
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 # -----------------------------------------------------------------------------
 # Dev-friendly settings (locals)
 # -----------------------------------------------------------------------------
@@ -19,7 +24,7 @@
 #   - `local_auth_enabled = false`: access keys off; Entra ID RBAC only.
 #   - Public network access: RBAC is the auth gate, as for Key Vault.
 locals {
-  name                  = "appcs-${var.workload}-${var.env}"
+  name                  = "appcs-${var.workload}-${var.env}-${module.region_code.code}"
   sku                   = "free"
   local_auth_enabled    = false
   public_network_access = "Enabled"
@@ -29,8 +34,9 @@ locals {
 # -----------------------------------------------------------------------------
 # App Configuration store
 # -----------------------------------------------------------------------------
-# Name pattern: CAF `appcs-<workload>-<env>` (e.g. "appcs-rgomes-lab"). Names
-# are globally unique (`<name>.azconfig.io`); there is no random suffix.
+# Name pattern: CAF `appcs-<workload>-<env>-<region>` (e.g.
+# "appcs-rgomes-lab-eus2"). Names are globally unique (`<name>.azconfig.io`);
+# there is no random suffix.
 resource "azurerm_app_configuration" "this" {
   name                = local.name
   location            = var.location

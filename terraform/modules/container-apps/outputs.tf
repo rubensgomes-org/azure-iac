@@ -15,7 +15,7 @@ output "app_ids" {
 }
 
 output "app_names" {
-  description = "Map from app name → deployed resource name (`ca-<app>-<env>`). Convenience for `az containerapp show -n <this>`."
+  description = "Map from app name → deployed resource name (`ca-<app>-<env>-<region>`). Convenience for `az containerapp show -n <this>`."
   value       = { for k, a in azurerm_container_app.app : k => a.name }
 }
 

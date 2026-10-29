@@ -24,7 +24,8 @@
 #   02 does not provision today (single-AZ /23). Enabling it here without
 #   fixing the subnet fails at apply time with `SubnetNotZoneRedundant`.
 #
-# * **Fixed name `cae-<workload>-<env>`.** Container App Environments do
+# * **Fixed name `cae-<workload>-<env>-<region>`.** Container App Environments
+# do
 #   not use a soft-delete recycle bin, so `terraform destroy` frees the
 #   name for immediate reuse. No random suffix needed. `name` is
 #   ForceNew, so changing `workload`/`env` on a live environment is a
@@ -34,8 +35,13 @@
 # module README for how Container Apps (module 12) consume `cae_id`.
 # -----------------------------------------------------------------------------
 
+module "region_code" {
+  source   = "../region-code"
+  location = var.location
+}
+
 resource "azurerm_container_app_environment" "this" {
-  name                = "cae-${var.workload}-${var.env}"
+  name                = "cae-${var.workload}-${var.env}-${module.region_code.code}"
   location            = var.location
   resource_group_name = var.resource_group_name
 

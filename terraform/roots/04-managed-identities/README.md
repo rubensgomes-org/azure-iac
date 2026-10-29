@@ -84,7 +84,7 @@ Same commands as **Provision** — `terraform init` is idempotent.
   carry the difference. `make check-tfvars` refuses one. Every value comes from
   a `TF_VAR_*` environment variable; see
   [INITIAL_SETUP](../../../docs/INITIAL_SETUP.md#terraform-environment).
-- The set of identities is fixed at ONE (`id-<workload>app-<env>`). Per-app
-  identities are explicitly out of scope.
+- The set of identities is fixed at ONE (`id-<workload>app-<env>-<region>`).
+  Per-app identities are explicitly out of scope.
 - Every downstream RBAC role assignment lives in the module that owns the
   scope (KV, ACR, SA, SB). This module publishes only the identifiers.

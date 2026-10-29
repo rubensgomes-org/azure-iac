@@ -10,8 +10,8 @@ Called by `terraform/roots/14-app-gateway/`.
 | Type                            | Name                         | Notes                                       |
 |---------------------------------|------------------------------|---------------------------------------------|
 | `azurerm_network_security_rule` | on `nsg-<workload>agw-<env>` | GatewayManager 65200-65535; HTTP 80 inbound |
-| `azurerm_public_ip`             | `pip-<workload>agw-<env>`    | Standard, static, DNS label                 |
-| `azurerm_application_gateway`   | `agw-<workload>-<env>`       | Standard_v2, autoscale 0-2                  |
+| `azurerm_public_ip`             | `pip-<workload>agw-<env>-<region>`    | Standard, static, DNS label                 |
+| `azurerm_application_gateway`   | `agw-<workload>-<env>-<region>`       | Standard_v2, autoscale 0-2                  |
 
 ## Inputs
 

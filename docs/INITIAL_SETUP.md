@@ -409,8 +409,8 @@ section for what has to change to target it.
     export TF_VAR_location='centralus'
 
     # CAF workload token. With TF_VAR_env it names EVERY resource in the estate
-    # as <type>-<workload>-<env>: rg-rgomesapp-lab, kv-rgomes-lab,
-    # strgomesapplab, and so on.
+    # as <type>-<workload>-<env>: rg-rgomesapp-lab-eus2, kv-rgomes-lab-eus2,
+    # strgomesapplabeus2, and so on.
     export TF_VAR_workload='rgomes'
     # export TF_VAR_action_group_email='rubens.s.gomes@gmail.com'
     export TF_VAR_action_group_email='rubens.gomes@3cloudsolutions.com'

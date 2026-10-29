@@ -58,7 +58,7 @@ on:
         value: ${{ jobs.provision.outputs.app_ids }}
       app_names:
         description: >
-          JSON map from app name to deployed resource name, e.g. ca-api-lab.
+          JSON map from app name to deployed resource name, e.g. ca-api-lab-eus2.
         value: ${{ jobs.provision.outputs.app_names }}
       app_fqdns:
         description: >
@@ -283,6 +283,15 @@ jobs:
           echo "Validated: env='${ENV_NAME}' location='${TF_VAR_location}'"
           echo "apps='${TF_VAR_apps}' acr='${REQUESTED_ACR_NAME}'."
 
+      # Region code suffix of every composed resource name.
+      - name: Resolve region code
+        shell: bash
+        run: |
+          set -euo pipefail
+          region_code="$(scripts/region-code.sh "${TF_VAR_location}")"
+          echo "REGION_CODE=${region_code}" >> "$GITHUB_ENV"
+          echo "Region code: '${region_code}' (${TF_VAR_location})."
+
       # A repository variable is edited in the GitHub UI with no review and no
       # diff, so its shape is checked before it reaches Make or Terraform.
       - name: GUARD - Validate workload and backend coordinates
@@ -290,7 +299,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Resolved workload: '${TF_VAR_workload:-}' (RG names look"
-          echo "like rg-${TF_VAR_workload:-}app-${ENV_NAME})"
+          echo "like rg-${TF_VAR_workload:-}app-${ENV_NAME}-${REGION_CODE})"
           # Mirrors the `workload` validation every module declares:
           # 2-16 lowercase alnum, starting with a letter.
           if ! printf '%s' "${TF_VAR_workload:-}" \
@@ -351,7 +360,7 @@ jobs:
         run: |
           set -euo pipefail
           current="$(terraform output -raw rg_app_name 2>/dev/null || true)"
-          expected="rg-${TF_VAR_workload}app-${ENV_NAME}"
+          expected="rg-${TF_VAR_workload}app-${ENV_NAME}-${REGION_CODE}"
 
           if [ -z "$current" ]; then
             echo "Module 01 state is empty -- first provision."

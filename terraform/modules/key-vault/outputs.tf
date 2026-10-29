@@ -10,7 +10,7 @@ output "kv_id" {
 }
 
 output "kv_name" {
-  description = "Key Vault name (`kv-<workload>-<env>`). Deterministic, so a rebuild inside the soft-delete window needs `az keyvault purge --name <this>` first."
+  description = "Key Vault name (`kv-<workload>-<env>-<region>`). Deterministic, so a rebuild inside the soft-delete window needs `az keyvault purge --name <this>` first."
   value       = azurerm_key_vault.this.name
 }
 
