@@ -1,7 +1,7 @@
 # =============================================================================
 # Foundry Create All (reusable)
 #
-# Brings modules 01-07, 11, 12 and 15 to their desired state: the Container
+# Brings modules 01-08, 11, 12 and 15 to their desired state: the Container
 # Apps and their dependencies, then the Foundry resource, project and,
 # unless `app_insights` is off, its tracing Application Insights. Runs
 # aca-create.yml and aif-create.yml in sequence; foundry-destroy-all.yml is

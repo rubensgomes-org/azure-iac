@@ -1,10 +1,10 @@
 # =============================================================================
 # AIF Destroy (reusable)
 #
-# Destroys module 15 only: the Azure AI Foundry project and resource, with
-# every model deployment on it, and its Application Insights, then purges
-# the soft-deleted resource. The ai RG (module 01) and the workspace (module
-# 03) stay in place, so aif-create.yml can bring them back.
+# Destroys modules 15 and 08: the Azure AI Foundry project and resource,
+# with every model deployment on it, its Application Insights, and the
+# storage account with every blob in it. The ai RG (module 01) and the
+# workspace (module 03) stay in place, so aif-create.yml can bring them back.
 # =============================================================================
 
 name: AIF Destroy (reusable)
@@ -28,8 +28,9 @@ on:
 
       confirm:
         description: >
-          DESTROYS MODULE 15 ONLY — the Foundry project and resource, with
-          every model deployment on it. The resource is purged.
+          DESTROYS MODULES 15 AND 08 — the Foundry project and resource,
+          with every model deployment on it, and the storage account with
+          every blob in it.
         type: choice
         required: true
         default: "No"
@@ -53,7 +54,8 @@ on:
         default: ''
 
       confirm:
-        description: 'SAFEGUARD: must be exactly "Yes". Destroys module 15.'
+        description: >-
+          SAFEGUARD: must be exactly "Yes". Destroys modules 15 and 08.
         type: string
         required: true
 
@@ -212,3 +214,41 @@ jobs:
         shell: bash
         run: |
           make ENV="$ENV_NAME" destroy-foundry
+
+      - name: Plan the destroy - module 08 (storage)
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" plan-destroy-storage
+
+      # Aborts if the plan would delete any type module 08 does not own.
+      - name: GUARD - Assert the plan destroys only module 08 resources
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/08-storage
+        run: |
+          set -euo pipefail
+          # `make plan-destroy-<name>` writes no tfplan when the state is empty.
+          if [ ! -f tfplan ]; then
+            echo "OK: state is empty — already destroyed."
+            exit 0
+          fi
+          forbidden="$(terraform show -json tfplan | jq -r '
+            .resource_changes[]?
+            | select(.change.actions | index("delete"))
+            | select(.type | IN("azapi_resource",
+                                "azurerm_role_assignment",
+                                "azurerm_storage_account",
+                                "time_sleep") | not)
+            | .address')"
+          if [ -n "${forbidden}" ]; then
+            echo "DENIED: destroy plan reaches beyond module 08:"
+            while IFS= read -r address; do
+              echo "  ${address}"
+            done <<< "${forbidden}"
+            exit 1
+          fi
+          echo "OK: plan touches only module 08 resources."
+
+      - name: Destroy module 08 - storage
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" destroy-storage

@@ -26,7 +26,7 @@ A Microsoft Account and an "Owner" Subscription are required to provision
 resources in Azure Cloud. You should know your AZURE_TENANT_ID and "Owner"
 AZURE_SUBSCRIPTION_ID.
 
-- Below are the steps to sign in to Azure using your browser.
+- Below are the steps to sign in to Azure using `az cli` commands from your CLI prompt:
 
     ```bash
     # Login as a User (NOT Service Principal) from the browser, and make sure
@@ -41,26 +41,25 @@ AZURE_SUBSCRIPTION_ID.
 
 ## Register Resource Providers with the Subscription
 
-The Azure Services and corresponding Provider Namespaces below are being
-provisioned in this project.
+The Azure Service Resources listed in the table below are being provisioned in this project.  The Provider Namespaces below show the corresponding Resource Provider Namespaces for those Service Resources. 
 
-| Azure Service      |      Provider Namespace       | Provisioned by |
-| :----------------- | :---------------------------: | :------------- |
-| ACR                |  Microsoft.ContainerRegistry  | 07             |
-| App Configuration  |  Microsoft.AppConfiguration   | 05             |
-| Cognitive Services |  Microsoft.CognitiveServices  | 15             |
-| Container Apps     |         Microsoft.App         | 11, 12         |
-| Key Vault          |      Microsoft.KeyVault       | 06             |
-| Log Analytics      | Microsoft.OperationalInsights | 03             |
-| Managed Identities |   Microsoft.ManagedIdentity   | 04             |
-| Monitor            |      Microsoft.Insights       | 13             |
-| PostgreSQL         |   Microsoft.DBforPostgreSQL   | 10             |
-| Service Bus        |     Microsoft.ServiceBus      | 09             |
-| Storage Accounts   |       Microsoft.Storage       | 08             |
-| Virtual Networks   |       Microsoft.Network       | 02             |
+| Azure Service Resource |      Provider Namespace       | Provisioned by |
+| :--------------------- | :---------------------------: | :------------- |
+| ACR                    |  Microsoft.ContainerRegistry  | 07             |
+| App Configuration      |  Microsoft.AppConfiguration   | 05             |
+| Cognitive Services     |  Microsoft.CognitiveServices  | 15             |
+| Bot Service (Foundry)  |     Microsoft.BotService      | ??             |
+| Container Apps         |         Microsoft.App         | 11, 12         |
+| Key Vault              |      Microsoft.KeyVault       | 06             |
+| Log Analytics          | Microsoft.OperationalInsights | 03             |
+| Managed Identities     |   Microsoft.ManagedIdentity   | 04             |
+| Monitor                |      Microsoft.Insights       | 13             |
+| PostgreSQL             |   Microsoft.DBforPostgreSQL   | 10             |
+| Service Bus            |     Microsoft.ServiceBus      | 09             |
+| Storage Accounts       |       Microsoft.Storage       | 08             |
+| Virtual Networks       |       Microsoft.Network       | 02             |
 
-The above "Resource Providers" must be registered with the Subscription to be
-able to provision their corresponding resources in Azure cloud.
+The above "Resource Providers" must be registered with the Subscription.  This allows ARM (Azure Resource Manager) to find the corresponding resource's "Resource Provider" REST API settings associated with the Subscription during provisioning. Otherwise, ARM is not able to provision that resource in Azure cloud.
 
 - Register the resource providers with the subscription. These commands tell
   Azure that the subscription intends to use the providers below when running
@@ -75,6 +74,8 @@ able to provision their corresponding resources in Azure cloud.
     az provider register --verbose --namespace Microsoft.ContainerRegistry
     # App Configuration:
     az provider register --verbose --namespace Microsoft.AppConfiguration
+    # Azure Bot Service (required when publishing an AI agent in Foundry):
+    az provider register --verbose --namespace Microsoft.BotService
     # Cognitive Services:
     az provider register --verbose --namespace Microsoft.CognitiveServices
     # Container Apps + Container App Environment:
@@ -148,8 +149,9 @@ and `Contributor` cover only the control plane.
 
 #### `Foundry User` and `Foundry Owner`
 
-Using Foundry models and agents, and reading Foundry resources and projects,
-requires an Azure RBAC control-plane + data-plane role `Foundry User`.
+- During development a developer needs to build and test agents within Foundry.  That developer needs the "Foundry User" role
+- In order to publish the agent for consumption to the outside world, the "Foundry Project Manager" role is required.
+- In order to interact with the agent endpoint API, the "Foundry Agent Consumer" role is required.
 
 Creating, reading, and deleting Foundry resources, projects, models and agents, requires an Azure RBAC control-plane + data-plane role `Foundry Owner`.
 

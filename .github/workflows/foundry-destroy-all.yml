@@ -2,8 +2,8 @@
 # Foundry Destroy All (reusable)
 #
 # Destroys everything foundry-create-all.yml creates, in reverse dependency
-# order: 15, 12, 11, 07, 06, 05, 04, 03, 02, 01. Refuses to start while
-# modules 08, 09, 10, 13 or 14 hold resources. Registry images are NOT
+# order: 15, 08, 12, 11, 07, 06, 05, 04, 03, 02, 01. Refuses to start while
+# modules 09, 10, 13 or 14 hold resources. Registry images are NOT
 # recoverable. The Terraform state backend is never in scope.
 # =============================================================================
 
@@ -32,10 +32,10 @@ on:
 
       confirm:
         description: >
-          DESTROYS MODULES 15, 12, 11, 07, 06, 05, 04, 03, 02 AND 01 —
-          Foundry, the Container Apps and environment, the registry and its
-          images, Key Vault, App Configuration, the UAMI, Log Analytics, the
-          VNet and all six resource groups.
+          DESTROYS MODULES 15, 08, 12, 11, 07, 06, 05, 04, 03, 02 AND 01 —
+          Foundry, the storage account, the Container Apps and environment,
+          the registry and its images, Key Vault, App Configuration, the
+          UAMI, Log Analytics, the VNet and all six resource groups.
         type: choice
         required: true
         default: "No"
@@ -58,8 +58,8 @@ on:
 
       confirm:
         description: >
-          SAFEGUARD: must be exactly "Yes". Destroys modules 15, 12, 11, 07,
-          06, 05, 04, 03, 02 and 01.
+          SAFEGUARD: must be exactly "Yes". Destroys modules 15, 08, 12, 11,
+          07, 06, 05, 04, 03, 02 and 01.
         type: string
         required: true
 
@@ -178,7 +178,7 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          for module in 08-storage:storage 09-service-bus:service-bus \
+          for module in 09-service-bus:service-bus \
                         10-postgresql:postgresql 13-monitoring:monitoring \
                         14-app-gateway:app-gateway; do
             dir="${module%%:*}"

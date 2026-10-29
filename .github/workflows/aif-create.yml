@@ -2,9 +2,10 @@
 # AIF Create (reusable)
 #
 # Brings modules 01 (resource groups, for the ai RG), 03 (log analytics),
-# 04 (managed identities) and 15 (foundry) to their desired state: an Azure
-# AI Foundry resource, one project in it, and, unless `app_insights` is off,
-# the Application Insights it traces agents to.
+# 04 (managed identities), 08 (storage) and 15 (foundry) to their desired
+# state: a storage account, an Azure AI Foundry resource, one project in it,
+# and, unless `app_insights` is off, the Application Insights it traces
+# agents to.
 # Every recipe is a `make` target from the repo-root Makefile. Endpoints and
 # keys are never printed.
 # =============================================================================
@@ -201,6 +202,14 @@ jobs:
           make ENV="$ENV_NAME" \
             init-managed-identities plan-managed-identities \
             apply-managed-identities
+
+      # One blob container, cnt-<workload>app-<env>.
+      - name: Module 08 - storage
+        shell: bash
+        run: |
+          export TF_VAR_apps="[\"cnt-${TF_VAR_workload}app-${ENV_NAME}\"]"
+          make ENV="$ENV_NAME" \
+            init-storage plan-storage apply-storage
 
       - name: Module 15 - foundry
         shell: bash
