@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.62] - 2026-10-28
+
+### Added
+
+### Changed
+
 - `aif-create.yml` applies module 08 (storage) with one blob container,
   `cnt-<workload>app-<env>`; `aif-destroy.yml` destroys it after module 15.
   `foundry-destroy-all.yml` no longer refuses while module 08 holds
