@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.64] - 2026-10-29
+
+### Added
+
 - `modules/region-code` and `scripts/region-code.sh` map an Azure region to
   its short code (`docs/NAMING.md#region-codes`).
 
