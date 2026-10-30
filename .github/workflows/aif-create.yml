@@ -29,7 +29,7 @@ on:
           vars.TF_VAR_foundry_location, then vars.TF_VAR_location.
         type: string
         required: false
-        default: ''
+        default: ""
       app_insights:
         description: >-
           Create the Application Insights for agent tracing. false destroys
@@ -40,7 +40,7 @@ on:
 
     outputs:
       foundry_name:
-        description: 'Name of the Foundry resource.'
+        description: "Name of the Foundry resource."
         value: ${{ jobs.provision.outputs.foundry_name }}
 
     secrets:
@@ -50,25 +50,25 @@ on:
   workflow_dispatch:
     inputs:
       environment_name:
-        description: 'Estate environment to provision'
+        description: "Estate environment to provision"
         type: choice
         required: true
         options:
           - dev
           - lab
       location:
-        description: 'Region for Foundry. Empty uses TF_VAR_FOUNDRY_LOCATION.'
+        description: "Region for Foundry. Empty uses TF_VAR_FOUNDRY_LOCATION."
         type: string
         required: false
-        default: ''
+        default: ""
       app_insights:
-        description: 'Create Application Insights for agent tracing?'
+        description: "Create Application Insights for agent tracing?"
         type: choice
         required: true
-        default: 'yes'
+        default: "yes"
         options:
-          - 'yes'
-          - 'no'
+          - "yes"
+          - "no"
 
 permissions:
   contents: read
@@ -208,7 +208,7 @@ jobs:
           make ENV="$ENV_NAME" \
             init-storage plan-storage apply-storage
 
-      - name: Plan module 15 - foundry
+      - name: Plan module 15 - foundry resource
         shell: bash
         run: |
           make ENV="$ENV_NAME" init-foundry-resource plan-foundry-resource
@@ -234,7 +234,7 @@ jobs:
           echo "OK: plan destroys no Foundry resource."
 
       # Applies the guarded plan file, not a fresh plan.
-      - name: Apply module 15 - foundry
+      - name: Apply module 15 - foundry resource
         shell: bash
         working-directory: ${{ env.ROOTS_DIR }}/15-foundry-resource
         run: terraform apply -lock-timeout=10m tfplan

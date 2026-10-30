@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       environment_name:
-        description: 'Estate environment holding the Foundry resource'
+        description: "Estate environment holding the Foundry resource"
         type: choice
         required: true
         options:
@@ -24,10 +24,10 @@ on:
           - lab
 
       location:
-        description: 'Region for Foundry. Empty uses TF_VAR_FOUNDRY_LOCATION.'
+        description: "Region for Foundry. Empty uses TF_VAR_FOUNDRY_LOCATION."
         type: string
         required: false
-        default: ''
+        default: ""
 
       confirm:
         description: >
@@ -44,7 +44,7 @@ on:
   workflow_call:
     inputs:
       environment_name:
-        description: 'Estate environment holding the Foundry resource.'
+        description: "Estate environment holding the Foundry resource."
         type: string
         required: true
 
@@ -54,7 +54,7 @@ on:
           vars.TF_VAR_foundry_location, then vars.TF_VAR_location.
         type: string
         required: false
-        default: ''
+        default: ""
 
       confirm:
         description: >-
@@ -96,8 +96,7 @@ jobs:
         inputs.location || vars.TF_VAR_foundry_location }}
       TF_VAR_owner: ${{ vars.TF_VAR_owner }}
 
-      TF_VAR_backend_resource_group_name:
-        ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_backend_resource_group_name: ${{ vars.TF_VAR_backend_resource_group_name }}
       TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
       TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
 
@@ -255,7 +254,7 @@ jobs:
           fi
           echo "OK: plan touches only module 15 resources."
 
-      - name: Destroy module 15 - foundry
+      - name: Destroy module 15 - foundry resource
         shell: bash
         run: |
           make ENV="$ENV_NAME" destroy-foundry-resource
