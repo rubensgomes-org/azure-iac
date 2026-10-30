@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.68] - 2026-10-30
+
+### Added
+
+### Changed
+
 - **Breaking:** module `foundry` and root `15-foundry` are renamed to
   `foundry-resource` and `15-foundry-resource`, with make targets
   `*-foundry-resource` and state key `foundry-resource/<region>`. Destroy
