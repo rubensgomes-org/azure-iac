@@ -1,10 +1,10 @@
-# modules/foundry
+# modules/foundry-resource
 
 Child Terraform module that provisions an Azure AI Foundry resource and an
 optional Application Insights connected for agent tracing. Projects live in
 [`../foundry-project/`](../foundry-project/README.md).
 
-Called by `terraform/roots/15-foundry/`.
+Called by `terraform/roots/15-foundry-resource/`.
 
 ## Resources created
 

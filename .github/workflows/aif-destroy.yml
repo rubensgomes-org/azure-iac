@@ -222,15 +222,15 @@ jobs:
           fi
           echo "OK: no Foundry project remains in ${region}."
 
-      - name: Plan the destroy - module 15 (foundry)
+      - name: Plan the destroy - module 15 (foundry-resource)
         shell: bash
         run: |
-          make ENV="$ENV_NAME" plan-destroy-foundry
+          make ENV="$ENV_NAME" plan-destroy-foundry-resource
 
       # Aborts if the plan would delete any type module 15 does not own.
       - name: GUARD - Assert the plan destroys only module 15 resources
         shell: bash
-        working-directory: ${{ env.ROOTS_DIR }}/15-foundry
+        working-directory: ${{ env.ROOTS_DIR }}/15-foundry-resource
         run: |
           set -euo pipefail
           # `make plan-destroy-<name>` writes no tfplan when the state is empty.
@@ -258,7 +258,7 @@ jobs:
       - name: Destroy module 15 - foundry
         shell: bash
         run: |
-          make ENV="$ENV_NAME" destroy-foundry
+          make ENV="$ENV_NAME" destroy-foundry-resource
 
       # Module 08 storage is shared by every Foundry region in the env.
       - name: Check whether another Foundry region still holds resources
@@ -267,13 +267,13 @@ jobs:
         run: |
           set -euo pipefail
           region="${TF_VAR_foundry_location:-${TF_VAR_location}}"
-          own_blob="foundry/${region}/terraform.tfstate"
+          own_blob="foundry-resource/${region}/terraform.tfstate"
           state_file="${RUNNER_TEMP}/foundry.tfstate"
           in_use=false
           blobs="$(az storage blob list --auth-mode key \
             --account-name "${TF_VAR_storage_account_id}" \
             --container-name "${TF_VAR_container_name}" \
-            --prefix foundry/ --query '[].name' -o tsv)"
+            --prefix foundry-resource/ --query '[].name' -o tsv)"
           for blob in ${blobs}; do
             [ "${blob}" != "${own_blob}" ] || continue
             az storage blob download --auth-mode key --only-show-errors \

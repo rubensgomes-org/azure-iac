@@ -1,4 +1,4 @@
-# roots/15-foundry/variables.tf
+# roots/15-foundry-resource/variables.tf
 # -----------------------------------------------------------------------------
 # Root variables. Values come from `../../envs/<env>/env.tfvars` (shared,
 # passed via -var-file).

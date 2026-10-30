@@ -1,16 +1,16 @@
-# roots/15-foundry/backend.tf
+# roots/15-foundry-resource/backend.tf
 # -----------------------------------------------------------------------------
 # Empty azurerm backend block. Concrete values are supplied at `terraform init`
 # time via two `-backend-config` flags:
 #
 #   terraform init \
 #     -backend-config=../../envs/<env>/backend.hcl \
-#     -backend-config="key=foundry/<region>/terraform.tfstate"
+#     -backend-config="key=foundry-resource/<region>/terraform.tfstate"
 #
 # The shared `../../envs/<env>/backend.hcl` provides `resource_group_name`,
 # `storage_account_name`, `container_name`, and `use_azuread_auth`. The
 # per-module `key` puts this module's state at
-# `foundry/<region>/terraform.tfstate` inside the tfstate container.
+# `foundry-resource/<region>/terraform.tfstate` inside the tfstate container.
 #
 # Backend blocks cannot interpolate variables — that's why this file is
 # empty and the values live in backend.hcl instead.

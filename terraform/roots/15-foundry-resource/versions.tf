@@ -1,7 +1,10 @@
-# modules/foundry/versions.tf
+# roots/15-foundry-resource/versions.tf
 # -----------------------------------------------------------------------------
-# Terraform CLI and provider constraints. Child modules declare providers but
-# do not configure them; the calling root does.
+# Terraform CLI + provider version constraints for the foundry-resource root
+# config. Kept consistent with the rest of the estate.
+#
+# This root calls `../../modules/foundry-resource/` (azurerm only) and reads
+# state from 01 via `data.terraform_remote_state`.
 # -----------------------------------------------------------------------------
 
 terraform {

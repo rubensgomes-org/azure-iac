@@ -1,6 +1,6 @@
-# roots/15-foundry/providers.tf
+# roots/15-foundry-resource/providers.tf
 # -----------------------------------------------------------------------------
-# Provider configuration for the foundry root config.
+# Provider configuration for the foundry-resource root config.
 #
 # Authentication is supplied by the ARM_* environment variables:
 #   - ARM_CLIENT_ID

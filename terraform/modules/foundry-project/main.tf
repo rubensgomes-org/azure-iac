@@ -1,7 +1,7 @@
 # modules/foundry-project/main.tf
 # -----------------------------------------------------------------------------
 # Provisions one project under an existing Azure AI Foundry resource
-# (modules/foundry). The project's managed identity gets no roles here.
+# (modules/foundry-resource). The project's managed identity gets no roles here.
 # -----------------------------------------------------------------------------
 
 module "region_code" {

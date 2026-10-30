@@ -1,4 +1,4 @@
-# modules/foundry/main.tf
+# modules/foundry-resource/main.tf
 # -----------------------------------------------------------------------------
 # Provisions an Azure AI Foundry resource (`kind = AIServices`), a
 # "Cognitive Services OpenAI User" grant for the shared UAMI, an optional

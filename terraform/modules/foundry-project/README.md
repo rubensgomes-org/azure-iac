@@ -1,7 +1,7 @@
 # modules/foundry-project
 
 Child Terraform module that provisions one project under an existing Azure
-AI Foundry resource ([`../foundry/`](../foundry/README.md)).
+AI Foundry resource ([`../foundry-resource/`](../foundry-resource/README.md)).
 
 Called by `terraform/roots/16-foundry-project/`.
 

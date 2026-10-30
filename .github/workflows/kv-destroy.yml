@@ -229,7 +229,7 @@ jobs:
                         11-container-app-environment:container-app-environment \
                         12-container-apps:container-apps \
                         13-monitoring:monitoring 14-app-gateway:app-gateway \
-                        15-foundry:foundry; do
+                        15-foundry-resource:foundry-resource; do
             dir="${module%%:*}"
             short="${module##*:}"
             make ENV="$ENV_NAME" "init-${short}" >/dev/null

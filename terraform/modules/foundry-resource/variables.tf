@@ -1,4 +1,4 @@
-# modules/foundry/variables.tf
+# modules/foundry-resource/variables.tf
 # -----------------------------------------------------------------------------
 # Inputs consumed by main.tf. Kind, SKU and the role ID are hard-coded as
 # locals in main.tf.

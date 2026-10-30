@@ -111,14 +111,14 @@ FOUNDRY_PROJECT  = proj-$(WORKLOAD)ai$(TF_VAR_foundry_project_suffix)
 # Shell snippet: sets $$state to the backend key prefix of short name $$key.
 define SET_STATE_PREFIX
 state="$$key"; \
-case "$$key" in foundry|foundry-project) \
+case "$$key" in foundry-resource|foundry-project) \
   if [ -z "$(FOUNDRY_REGION)" ]; then \
     echo "ERROR: set TF_VAR_foundry_location or TF_VAR_location." >&2; \
     exit 1; \
   fi;; \
 esac; \
-if [ "$$key" = "foundry" ]; then \
-  state="foundry/$(FOUNDRY_REGION)"; \
+if [ "$$key" = "foundry-resource" ]; then \
+  state="foundry-resource/$(FOUNDRY_REGION)"; \
 elif [ "$$key" = "foundry-project" ]; then \
   state="foundry-project/$(FOUNDRY_REGION)/$(FOUNDRY_PROJECT)"; \
 fi
@@ -177,7 +177,7 @@ DIRS := \
   12-container-apps \
   13-monitoring \
   14-app-gateway \
-  15-foundry
+  15-foundry-resource
 
 # Destroy order is the strict reverse of DIRS. Reversing is
 # done in Make rather than the shell because `tac` is a GNU coreutils tool and
@@ -273,7 +273,7 @@ $(eval $(call MODULE_TARGETS,11-container-app-environment,container-app-environm
 # "Container Apps" section.
 $(eval $(call MODULE_TARGETS,13-monitoring,monitoring))
 $(eval $(call MODULE_TARGETS,14-app-gateway,app-gateway))
-$(eval $(call MODULE_TARGETS,15-foundry,foundry))
+$(eval $(call MODULE_TARGETS,15-foundry-resource,foundry-resource))
 
 # 16-foundry-project is NOT in DIRS: its state is per project, so the
 # whole-estate loops cannot reach every project. It is validated, though.

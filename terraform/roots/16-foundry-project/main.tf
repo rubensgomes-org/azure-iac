@@ -17,7 +17,7 @@ data "terraform_remote_state" "foundry" {
     resource_group_name  = var.backend_resource_group_name
     storage_account_name = var.storage_account_id
     container_name       = var.container_name
-    key                  = "foundry/${local.location}/terraform.tfstate"
+    key                  = "foundry-resource/${local.location}/terraform.tfstate"
     use_azuread_auth     = false
   }
 }

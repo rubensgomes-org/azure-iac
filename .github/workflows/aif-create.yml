@@ -2,8 +2,8 @@
 # AIF Create (reusable)
 #
 # Brings modules 01 (resource groups, for the ai RG), 03 (log analytics),
-# 04 (managed identities), 08 (storage) and 15 (foundry) to their desired
-# state: a storage account, an Azure AI Foundry resource and, unless
+# 04 (managed identities), 08 (storage) and 15 (foundry-resource) to their
+# desired state: a storage account, an Azure AI Foundry resource and, unless
 # `app_insights` is off, the Application Insights it traces agents to.
 # Projects come from aif-project-create.yml.
 # Module 15 state is per region: a new region adds a Foundry resource, and
@@ -211,11 +211,11 @@ jobs:
       - name: Plan module 15 - foundry
         shell: bash
         run: |
-          make ENV="$ENV_NAME" init-foundry plan-foundry
+          make ENV="$ENV_NAME" init-foundry-resource plan-foundry-resource
 
       - name: GUARD - Assert the plan destroys no Foundry resource
         shell: bash
-        working-directory: ${{ env.ROOTS_DIR }}/15-foundry
+        working-directory: ${{ env.ROOTS_DIR }}/15-foundry-resource
         run: |
           set -euo pipefail
           forbidden="$(terraform show -json tfplan | jq -r '
@@ -236,13 +236,13 @@ jobs:
       # Applies the guarded plan file, not a fresh plan.
       - name: Apply module 15 - foundry
         shell: bash
-        working-directory: ${{ env.ROOTS_DIR }}/15-foundry
+        working-directory: ${{ env.ROOTS_DIR }}/15-foundry-resource
         run: terraform apply -lock-timeout=10m tfplan
 
       - name: Publish AIF outputs
         id: aif_outputs
         shell: bash
-        working-directory: ${{ env.ROOTS_DIR }}/15-foundry
+        working-directory: ${{ env.ROOTS_DIR }}/15-foundry-resource
         run: |
           set -euo pipefail
           name="$(terraform output -raw foundry_name)"

@@ -1,6 +1,7 @@
-# roots/15-foundry/main.tf
+# roots/15-foundry-resource/main.tf
 # -----------------------------------------------------------------------------
-# Calls the foundry child module. This root reads three upstream states:
+# Calls the foundry-resource child module. This root reads three upstream
+# states:
 #   - 01-resource-groups → ai RG name (where the Foundry resource lives)
 #   - 03-log-analytics → workspace ID (backs the tracing App Insights)
 #   - 04-managed-identities → shared UAMI principal_id (target of the
@@ -45,8 +46,8 @@ data "terraform_remote_state" "managed_identities" {
   }
 }
 
-module "foundry" {
-  source = "../../modules/foundry"
+module "foundry_resource" {
+  source = "../../modules/foundry-resource"
 
   workload                   = var.workload
   env                        = var.env
