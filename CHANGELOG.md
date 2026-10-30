@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.66] - 2026-10-30
+
+### Added
+
+### Changed
+
 - **Breaking:** module 15 renames the Foundry resource and project to
   `aif-<workload>ai-<env>-<region>` and `proj-<workload>ai-<env>-<region>`,
   adding the `ai` purpose of their resource group. Run `aif-destroy.yml`
