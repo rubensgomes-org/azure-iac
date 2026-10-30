@@ -92,8 +92,10 @@ resources provisioned by this project.
 | `aca-destroy.yml`    | **destructive** — destroy module 12 only, the Container Apps                                            |
 | `agw-create.yml`     | apply modules 02 → 14 so one Container App is public through an Application Gateway                     |
 | `agw-destroy.yml`    | **destructive** — destroy module 14 only, the Application Gateway and its public IP                     |
-| `aif-create.yml`     | apply modules 01 → 03 → 04 → 08 → 15 so storage, a Foundry resource, project and optional App Insights exist |
-| `aif-destroy.yml`    | **destructive** — destroy module 15 in one region, then module 08 if no other region uses it        |
+| `aif-create.yml`     | apply modules 01 → 03 → 04 → 08 → 15 so storage, a Foundry resource and optional App Insights exist |
+| `aif-destroy.yml`    | **destructive** — destroy module 15 in one region, then module 08 if no other region uses it; refuses while a project remains |
+| `aif-project-create.yml` | apply module 16 so one Foundry project exists under the region's Foundry resource               |
+| `aif-project-destroy.yml` | **destructive** — destroy module 16 for one Foundry project                                    |
 | `foundry-create-all.yml` | apply modules 01–08, 11, 12, 15 via `aca-create.yml` then `aif-create.yml`                         |
 | `foundry-destroy-all.yml` | **destructive** — destroy modules 15, 08, 12, 11, 07, 06 → 01; refuses while 09, 10, 13, 14 exist |
 | `rg-create-all.yml`  | apply module 01, all six resource groups; plans only unless `dry_run` is cleared                        |

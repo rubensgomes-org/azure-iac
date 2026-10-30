@@ -13,16 +13,6 @@ output "foundry_name" {
   value       = module.foundry.foundry_name
 }
 
-output "foundry_project_id" {
-  description = "Resource ID of proj-<workload>ai-<env>-<region>."
-  value       = module.foundry.foundry_project_id
-}
-
-output "foundry_project_name" {
-  description = "Name of the Foundry project."
-  value       = module.foundry.foundry_project_name
-}
-
 output "app_insights_id" {
   description = "Resource ID of appi-<workload>ai-<env>-<region>. Null when disabled."
   value       = module.foundry.app_insights_id

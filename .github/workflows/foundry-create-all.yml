@@ -2,8 +2,8 @@
 # Foundry Create All (reusable)
 #
 # Brings modules 01-08, 11, 12 and 15 to their desired state: the Container
-# Apps and their dependencies, then the Foundry resource, project and,
-# unless `app_insights` is off, its tracing Application Insights. Runs
+# Apps and their dependencies, then the Foundry resource and, unless
+# `app_insights` is off, its tracing Application Insights. Runs
 # aca-create.yml and aif-create.yml in sequence; foundry-destroy-all.yml is
 # its counterpart.
 # =============================================================================
@@ -68,9 +68,6 @@ on:
       foundry_name:
         description: 'Name of the Foundry resource.'
         value: ${{ jobs.aif.outputs.foundry_name }}
-      foundry_project_name:
-        description: 'Name of the Foundry project.'
-        value: ${{ jobs.aif.outputs.foundry_project_name }}
 
     secrets:
       AZURE_CLIENT_SECRET:

@@ -45,7 +45,7 @@ ENV     ?= dev
 
 # The two halves of the layout, and the whole point of the split:
 #
-#   ROOTS_DIR  the fifteen module roots. ONE copy, shared by every environment.
+#   ROOTS_DIR  the sixteen module roots. ONE copy, shared by every environment.
 #              Nothing in here names an environment -- `var.env` carries it.
 #   ENV_DIR    per-environment configuration ONLY: backend.hcl, tags.json and
 #              the gitignored env.tfvars. Three files, not 4,350 lines.
@@ -102,19 +102,25 @@ BACKEND_OVERRIDES := \
   $(if $(TF_VAR_container_name),-backend-config="container_name=$(TF_VAR_container_name)")
 
 # Module 15 keeps one state per Foundry region, so a new region adds a
-# resource and project instead of replacing the existing ones. Same fallback
-# as the root's `coalesce(var.foundry_location, var.location)`.
-FOUNDRY_REGION := $(or $(TF_VAR_foundry_location),$(TF_VAR_location))
+# resource instead of replacing the existing one, and module 16 one state per
+# project in that region. Same fallback as the roots'
+# `coalesce(var.foundry_location, var.location)`.
+FOUNDRY_REGION  := $(or $(TF_VAR_foundry_location),$(TF_VAR_location))
+FOUNDRY_PROJECT  = proj-$(WORKLOAD)ai$(TF_VAR_foundry_project_suffix)
 
 # Shell snippet: sets $$state to the backend key prefix of short name $$key.
 define SET_STATE_PREFIX
 state="$$key"; \
-if [ "$$key" = "foundry" ]; then \
+case "$$key" in foundry|foundry-project) \
   if [ -z "$(FOUNDRY_REGION)" ]; then \
     echo "ERROR: set TF_VAR_foundry_location or TF_VAR_location." >&2; \
     exit 1; \
-  fi; \
+  fi;; \
+esac; \
+if [ "$$key" = "foundry" ]; then \
   state="foundry/$(FOUNDRY_REGION)"; \
+elif [ "$$key" = "foundry-project" ]; then \
+  state="foundry-project/$(FOUNDRY_REGION)/$(FOUNDRY_PROJECT)"; \
 fi
 endef
 
@@ -209,7 +215,7 @@ endef
 
 # For each DIRS entry, generate init-/plan-/apply-/destroy-<short-name>.
 # Backend key is the short name (`key-vault/terraform.tfstate`), matching
-# what every module README documents, except for module 15 (see
+# what every module README documents, except for modules 15 and 16 (see
 # SET_STATE_PREFIX).
 define MODULE_TARGETS
 .PHONY: init-$(2) plan-$(2) plan-destroy-$(2) apply-$(2) destroy-$(2)
@@ -268,6 +274,10 @@ $(eval $(call MODULE_TARGETS,11-container-app-environment,container-app-environm
 $(eval $(call MODULE_TARGETS,13-monitoring,monitoring))
 $(eval $(call MODULE_TARGETS,14-app-gateway,app-gateway))
 $(eval $(call MODULE_TARGETS,15-foundry,foundry))
+
+# 16-foundry-project is NOT in DIRS: its state is per project, so the
+# whole-estate loops cannot reach every project. It is validated, though.
+$(eval $(call MODULE_TARGETS,16-foundry-project,foundry-project))
 
 # -----------------------------------------------------------------------------
 # Single resource group (module 01) — targets scoped to PURPOSE
@@ -949,7 +959,7 @@ check-tfvars:
 # pre-commit gate: a guard nothing runs locally is half a guard.
 .PHONY: validate
 validate: check-tfvars
-	@set -e; for d in $(DIRS); do \
+	@set -e; for d in $(DIRS) 16-foundry-project; do \
 	  echo "=== VALIDATE $$d ==="; \
 	  ( cd $(ROOTS_DIR)/$$d \
 	    && terraform init -reconfigure -backend=false >/dev/null \
@@ -1094,6 +1104,8 @@ help:
 	@echo ""
 	@echo "  container-apps is the exception: its plan/apply/destroy targets"
 	@echo "  act ONLY on the apps named in TF_VAR_apps, one -target each."
+	@echo "  foundry-project acts on the project named by"
+	@echo "  TF_VAR_foundry_project_suffix; it is outside the whole-estate loops."
 	@echo ""
 	@echo "  plan-|plan-destroy-|apply-|destroy-resource-group PURPOSE=<p>"
 	@echo "                    act on ONE resource group (module 01)"

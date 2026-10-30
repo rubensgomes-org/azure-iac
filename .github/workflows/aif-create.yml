@@ -3,11 +3,11 @@
 #
 # Brings modules 01 (resource groups, for the ai RG), 03 (log analytics),
 # 04 (managed identities), 08 (storage) and 15 (foundry) to their desired
-# state: a storage account, an Azure AI Foundry resource, one project in it,
-# and, unless `app_insights` is off, the Application Insights it traces
-# agents to.
-# Module 15 state is per region: a new region adds a Foundry resource and
-# project, and an existing one is never destroyed (only aif-destroy.yml does).
+# state: a storage account, an Azure AI Foundry resource and, unless
+# `app_insights` is off, the Application Insights it traces agents to.
+# Projects come from aif-project-create.yml.
+# Module 15 state is per region: a new region adds a Foundry resource, and
+# an existing one is never destroyed (only aif-destroy.yml does).
 # Every recipe is a `make` target from the repo-root Makefile. Endpoints and
 # keys are never printed.
 # =============================================================================
@@ -25,7 +25,7 @@ on:
         required: true
       location:
         description: >-
-          Azure region for the Foundry resource and project. Empty uses
+          Azure region for the Foundry resource. Empty uses
           vars.TF_VAR_foundry_location, then vars.TF_VAR_location.
         type: string
         required: false
@@ -42,9 +42,6 @@ on:
       foundry_name:
         description: 'Name of the Foundry resource.'
         value: ${{ jobs.provision.outputs.foundry_name }}
-      foundry_project_name:
-        description: 'Name of the Foundry project.'
-        value: ${{ jobs.provision.outputs.foundry_project_name }}
 
     secrets:
       AZURE_CLIENT_SECRET:
@@ -89,8 +86,6 @@ jobs:
 
     outputs:
       foundry_name: ${{ steps.aif_outputs.outputs.foundry_name }}
-      foundry_project_name: >-
-        ${{ steps.aif_outputs.outputs.foundry_project_name }}
 
     env:
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
@@ -218,7 +213,7 @@ jobs:
         run: |
           make ENV="$ENV_NAME" init-foundry plan-foundry
 
-      - name: GUARD - Assert the plan destroys no Foundry resource or project
+      - name: GUARD - Assert the plan destroys no Foundry resource
         shell: bash
         working-directory: ${{ env.ROOTS_DIR }}/15-foundry
         run: |
@@ -226,18 +221,17 @@ jobs:
           forbidden="$(terraform show -json tfplan | jq -r '
             .resource_changes[]?
             | select(.change.actions | index("delete"))
-            | select(.type | IN("azurerm_cognitive_account",
-                                "azurerm_cognitive_account_project"))
+            | select(.type == "azurerm_cognitive_account")
             | .address')"
           if [ -n "${forbidden}" ]; then
-            echo "DENIED: plan destroys or replaces a Foundry resource or"
-            echo "project. Use aif-destroy.yml to remove one:"
+            echo "DENIED: plan destroys or replaces a Foundry resource."
+            echo "Use aif-destroy.yml to remove one:"
             while IFS= read -r address; do
               echo "  ${address}"
             done <<< "${forbidden}"
             exit 1
           fi
-          echo "OK: plan destroys no Foundry resource or project."
+          echo "OK: plan destroys no Foundry resource."
 
       # Applies the guarded plan file, not a fresh plan.
       - name: Apply module 15 - foundry
@@ -252,10 +246,5 @@ jobs:
         run: |
           set -euo pipefail
           name="$(terraform output -raw foundry_name)"
-          project="$(terraform output -raw foundry_project_name)"
-          {
-            echo "foundry_name=${name}"
-            echo "foundry_project_name=${project}"
-          } >> "$GITHUB_OUTPUT"
+          echo "foundry_name=${name}" >> "$GITHUB_OUTPUT"
           echo "Foundry resource: ${name}"
-          echo "Foundry project:  ${project}"

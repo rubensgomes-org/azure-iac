@@ -1,9 +1,10 @@
 # modules/foundry/main.tf
 # -----------------------------------------------------------------------------
-# Provisions an Azure AI Foundry resource (`kind = AIServices`), one project
-# under it, a "Cognitive Services OpenAI User" grant for the shared UAMI, an
-# optional "Foundry User" grant for a human user, and an optional Application
-# Insights connected to the resource for agent tracing.
+# Provisions an Azure AI Foundry resource (`kind = AIServices`), a
+# "Cognitive Services OpenAI User" grant for the shared UAMI, an optional
+# "Foundry User" grant for a human user, and an optional Application Insights
+# connected to the resource for agent tracing. Projects live in
+# modules/foundry-project.
 #
 # Design decisions (fixed here, not variables):
 #
@@ -29,7 +30,6 @@ module "region_code" {
 locals {
   region            = module.region_code.code
   account_name      = "aif-${var.workload}ai-${var.env}-${local.region}"
-  project_name      = "proj-${var.workload}ai-${var.env}-${local.region}"
   app_insights_name = "appi-${var.workload}ai-${var.env}-${local.region}"
 
   kind     = "AIServices"
@@ -49,21 +49,6 @@ resource "azurerm_cognitive_account" "this" {
   sku_name                   = local.sku_name
   custom_subdomain_name      = local.account_name
   project_management_enabled = true
-
-  identity {
-    type = "SystemAssigned"
-  }
-
-  tags = merge(
-    var.tags,
-    { component = "foundry" },
-  )
-}
-
-resource "azurerm_cognitive_account_project" "this" {
-  name                 = local.project_name
-  cognitive_account_id = azurerm_cognitive_account.this.id
-  location             = var.location
 
   identity {
     type = "SystemAssigned"

@@ -26,7 +26,19 @@ premise.
 
 ### Added
 
+- `aif-project-create.yml` and `aif-project-destroy.yml` manage one Foundry
+  project, `proj-<workload>ai<name>-<env>-<region>`, under the region's
+  Foundry resource (module 16, state per project).
+- `make init-|plan-|apply-|destroy-foundry-project` targets for module 16,
+  scoped by `TF_VAR_foundry_project_suffix`.
+
 ### Changed
+
+- **Breaking:** module 15 and `aif-create.yml` no longer create a Foundry
+  project; the `foundry_project_*` outputs are removed from module 15,
+  `aif-create.yml` and `foundry-create-all.yml`. Run `aif-project-create.yml`
+  after `aif-create.yml`.
+- `aif-destroy.yml` refuses while a project remains in the region.
 
 ### Fixed
 

@@ -13,16 +13,6 @@ output "foundry_name" {
   value       = azurerm_cognitive_account.this.name
 }
 
-output "foundry_project_id" {
-  description = "Resource ID of proj-<workload>ai-<env>-<region>."
-  value       = azurerm_cognitive_account_project.this.id
-}
-
-output "foundry_project_name" {
-  description = "Name of the Foundry project."
-  value       = azurerm_cognitive_account_project.this.name
-}
-
 output "app_insights_id" {
   description = "Resource ID of appi-<workload>ai-<env>-<region>. Null when disabled."
   value       = one(azurerm_application_insights.this[*].id)

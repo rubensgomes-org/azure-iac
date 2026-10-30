@@ -1,0 +1,214 @@
+# =============================================================================
+# AIF Project Create (reusable)
+#
+# Brings module 16 to its desired state: one Azure AI Foundry project,
+# proj-<workload>ai<name>-<env>-<region>, under the Foundry resource that
+# aif-create.yml created in the same region. Each project has its own state,
+# so an existing project is never replaced (only aif-project-destroy.yml
+# removes one).
+# =============================================================================
+
+name: AIF Project Create (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: >-
+          Estate environment holding the Foundry resource. Maps to the
+          Makefile ENV variable and selects terraform/envs/<env>.
+        type: string
+        required: true
+      location:
+        description: >-
+          Azure region of the Foundry resource. Empty uses
+          vars.TF_VAR_foundry_location, then vars.TF_VAR_location.
+        type: string
+        required: false
+        default: ''
+      name:
+        description: >-
+          Appended to <workload>ai in the project name. Empty adds nothing.
+        type: string
+        required: false
+        default: ''
+
+    outputs:
+      foundry_project_name:
+        description: 'Name of the Foundry project.'
+        value: ${{ jobs.provision.outputs.foundry_project_name }}
+
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: true
+
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: 'Estate environment holding the Foundry resource'
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
+      location:
+        description: 'Region for Foundry. Empty uses TF_VAR_FOUNDRY_LOCATION.'
+        type: string
+        required: false
+        default: ''
+      name:
+        description: 'Appended to <workload>ai in the project name.'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    name: provision
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Shares aif-create.yml's group so a project never races its resource.
+    concurrency:
+      group: aif-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    outputs:
+      foundry_project_name: >-
+        ${{ steps.project_outputs.outputs.foundry_project_name }}
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      TF_IN_AUTOMATION: "true"
+
+      ROOTS_DIR: terraform/roots
+
+      # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
+      ENV_NAME: ${{ inputs.environment_name }}
+
+      # Same fallback as every other workflow; see aca-create.yml.
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      # Same fallback as aif-create.yml; selects the Foundry resource.
+      TF_VAR_foundry_location: ${{
+        inputs.location || vars.TF_VAR_foundry_location }}
+      TF_VAR_foundry_project_suffix: ${{ inputs.name }}
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      TF_VAR_backend_resource_group_name: ${{
+        vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
+    steps:
+      # See aca-create.yml for why job.workflow_* is used here.
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+
+      - name: Verify required Azure configuration is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_env TF_VAR_location \
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: GUARD - Validate Terraform inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "FAIL: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_workload}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "FAIL: TF_VAR_workload must be 2-16 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if [ -n "${TF_VAR_foundry_location}" ] \
+              && ! printf '%s' "${TF_VAR_foundry_location}" \
+                | grep -qE '^[a-z][a-z0-9]{1,30}$'; then
+            echo "FAIL: location must be an Azure region name such as"
+            echo "'eastus2' (lowercase alphanumeric)."
+            exit 1
+          fi
+          if [ -n "${TF_VAR_foundry_project_suffix}" ] \
+              && ! printf '%s' "${TF_VAR_foundry_project_suffix}" \
+                | grep -qE '^[a-z0-9]{2,16}$'; then
+            echo "FAIL: name must be empty or 2-16 lowercase alphanumeric"
+            echo "characters."
+            exit 1
+          fi
+          echo "Validated: env='${ENV_NAME}' workload='${TF_VAR_workload}'" \
+            "name='${TF_VAR_foundry_project_suffix}'" \
+            "foundry_location='${TF_VAR_foundry_location:-${TF_VAR_location}}'."
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      - name: Plan module 16 - foundry project
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" init-foundry-project plan-foundry-project
+
+      - name: GUARD - Assert the plan destroys nothing
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/16-foundry-project
+        run: |
+          set -euo pipefail
+          forbidden="$(terraform show -json tfplan | jq -r '
+            .resource_changes[]?
+            | select(.change.actions | index("delete"))
+            | .address')"
+          if [ -n "${forbidden}" ]; then
+            echo "DENIED: plan destroys or replaces a Foundry project."
+            echo "Use aif-project-destroy.yml to remove one:"
+            while IFS= read -r address; do
+              echo "  ${address}"
+            done <<< "${forbidden}"
+            exit 1
+          fi
+          echo "OK: plan destroys nothing."
+
+      # Applies the guarded plan file, not a fresh plan.
+      - name: Apply module 16 - foundry project
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/16-foundry-project
+        run: terraform apply -lock-timeout=10m tfplan
+
+      - name: Publish project outputs
+        id: project_outputs
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/16-foundry-project
+        run: |
+          set -euo pipefail
+          project="$(terraform output -raw foundry_project_name)"
+          echo "foundry_project_name=${project}" >> "$GITHUB_OUTPUT"
+          echo "Foundry project: ${project}"

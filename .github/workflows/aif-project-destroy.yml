@@ -1,0 +1,230 @@
+# =============================================================================
+# AIF Project Destroy (reusable)
+#
+# Destroys module 16 for one Azure AI Foundry project,
+# proj-<workload>ai<name>-<env>-<region>, with every agent in it. The Foundry
+# resource and its other projects stay in place.
+# =============================================================================
+
+name: AIF Project Destroy (reusable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: 'Estate environment holding the Foundry project'
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
+
+      location:
+        description: 'Region for Foundry. Empty uses TF_VAR_FOUNDRY_LOCATION.'
+        type: string
+        required: false
+        default: ''
+
+      name:
+        description: 'Appended to <workload>ai in the project name.'
+        type: string
+        required: false
+        default: ''
+
+      confirm:
+        description: >
+          DESTROYS THE FOUNDRY PROJECT, with every agent in it.
+        type: choice
+        required: true
+        default: "No"
+        options:
+          - "No"
+          - "Yes"
+
+  workflow_call:
+    inputs:
+      environment_name:
+        description: 'Estate environment holding the Foundry project.'
+        type: string
+        required: true
+
+      location:
+        description: >-
+          Azure region of the Foundry resource. Empty uses
+          vars.TF_VAR_foundry_location, then vars.TF_VAR_location.
+        type: string
+        required: false
+        default: ''
+
+      name:
+        description: >-
+          Appended to <workload>ai in the project name. Empty adds nothing.
+        type: string
+        required: false
+        default: ''
+
+      confirm:
+        description: >-
+          SAFEGUARD: must be exactly "Yes". Destroys the Foundry project.
+        type: string
+        required: true
+
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  destroy:
+    name: destroy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    environment: AZURE
+
+    # Must share this group string verbatim with aif-create.yml.
+    concurrency:
+      group: aif-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      # Same fallback as aif-project-create.yml; selects the project state.
+      TF_VAR_foundry_location: ${{
+        inputs.location || vars.TF_VAR_foundry_location }}
+      TF_VAR_foundry_project_suffix: ${{ inputs.name }}
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      TF_VAR_backend_resource_group_name:
+        ${{ vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
+      TF_IN_AUTOMATION: "true"
+
+      ROOTS_DIR: terraform/roots
+
+      ENV_NAME: ${{ inputs.environment_name }}
+
+      ALLOWED_ACTORS: "rubensgomes rubens-gomes_3CC"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+
+      - name: SAFEGUARD - Validate actor, confirmation and inputs
+        shell: bash
+        env:
+          ACTOR: ${{ github.actor }}
+          TYPED_CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+
+          allowed=false
+          for allowed_actor in ${ALLOWED_ACTORS}; do
+            if [ "${ACTOR}" = "${allowed_actor}" ]; then
+              allowed=true
+              break
+            fi
+          done
+          if [ "${allowed}" != "true" ]; then
+            echo "Denied: actor '${ACTOR}' is not allowed."
+            exit 1
+          fi
+
+          if [ "$(printf '%s' "${TYPED_CONFIRM}" | tr -d '[:space:]')" \
+              != "Yes" ]; then
+            echo "Denied: confirm must be exactly 'Yes' to proceed."
+            exit 1
+          fi
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "Denied: environment_name must be 2-10 lowercase"
+            echo "alphanumeric characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_workload}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "Denied: TF_VAR_workload must be 2-16 lowercase"
+            echo "alphanumeric characters starting with a letter."
+            exit 1
+          fi
+          if [ -n "${TF_VAR_foundry_location}" ] \
+              && ! printf '%s' "${TF_VAR_foundry_location}" \
+                | grep -qE '^[a-z][a-z0-9]{1,30}$'; then
+            echo "Denied: location must be an Azure region name such as"
+            echo "'eastus2' (lowercase alphanumeric)."
+            exit 1
+          fi
+          if [ -n "${TF_VAR_foundry_project_suffix}" ] \
+              && ! printf '%s' "${TF_VAR_foundry_project_suffix}" \
+                | grep -qE '^[a-z0-9]{2,16}$'; then
+            echo "Denied: name must be empty or 2-16 lowercase alphanumeric"
+            echo "characters."
+            exit 1
+          fi
+
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_location \
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      - name: Plan the destroy - module 16 (foundry project)
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" plan-destroy-foundry-project
+
+      # Aborts if the plan would delete anything but the project.
+      - name: GUARD - Assert the plan destroys only the Foundry project
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/16-foundry-project
+        run: |
+          set -euo pipefail
+          # `make plan-destroy-<name>` writes no tfplan when the state is empty.
+          if [ ! -f tfplan ]; then
+            echo "OK: state is empty — already destroyed."
+            exit 0
+          fi
+          forbidden="$(terraform show -json tfplan | jq -r '
+            .resource_changes[]?
+            | select(.change.actions | index("delete"))
+            | select(.type != "azurerm_cognitive_account_project")
+            | .address')"
+          if [ -n "${forbidden}" ]; then
+            echo "DENIED: destroy plan reaches beyond module 16:"
+            while IFS= read -r address; do
+              echo "  ${address}"
+            done <<< "${forbidden}"
+            exit 1
+          fi
+          echo "OK: plan touches only the Foundry project."
+
+      - name: Destroy module 16 - foundry project
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" destroy-foundry-project

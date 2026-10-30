@@ -1,8 +1,8 @@
 # modules/foundry
 
-Child Terraform module that provisions an Azure AI Foundry resource, one
-project under it, and an optional Application Insights connected for agent
-tracing.
+Child Terraform module that provisions an Azure AI Foundry resource and an
+optional Application Insights connected for agent tracing. Projects live in
+[`../foundry-project/`](../foundry-project/README.md).
 
 Called by `terraform/roots/15-foundry/`.
 
@@ -11,7 +11,6 @@ Called by `terraform/roots/15-foundry/`.
 | Type                                           | Name                             | Notes                                      |
 |------------------------------------------------|----------------------------------|--------------------------------------------|
 | `azurerm_cognitive_account`                    | `aif-<workload>ai-<env>-<region>`   | `AIServices`, S0, custom subdomain = name  |
-| `azurerm_cognitive_account_project`            | `proj-<workload>ai-<env>-<region>`  | System-assigned identity                   |
 | `azurerm_role_assignment`                      | —                                | UAMI "Cognitive Services OpenAI User"      |
 | `azurerm_role_assignment`                      | —                                | "Foundry User"; only when a user ID is set |
 | `azurerm_application_insights`                 | `appi-<workload>ai-<env>-<region>`        | Only when `app_insights_enabled`           |
@@ -47,12 +46,11 @@ every `Microsoft.CognitiveServices/*` data action.
 ## Outputs
 
 - `foundry_id`, `foundry_name`
-- `foundry_project_id`, `foundry_project_name`
 - `app_insights_id`, `app_insights_name` (null when disabled)
 
 ## Caveats
 
 - **Soft delete:** a deleted resource keeps its subdomain until purged. The
   root purges on destroy.
-- **Model deployments** are managed outside this module and are deleted
-  with the resource.
+- **Model deployments** and **projects** are managed outside this module
+  and are deleted with the resource.
