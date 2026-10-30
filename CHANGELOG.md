@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.69] - 2026-10-30
+
+### Added
+
+### Changed
+
 - `aif-create.yml` and `aif-destroy.yml` name their module 15 steps
   `foundry resource` and use double-quoted YAML strings.
 
