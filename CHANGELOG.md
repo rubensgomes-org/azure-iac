@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.67] - 2026-10-30
+
+### Added
+
 - `aif-project-create.yml` and `aif-project-destroy.yml` manage one Foundry
   project, `proj-<workload>ai<name>-<env>-<region>`, under the region's
   Foundry resource (module 16, state per project).
