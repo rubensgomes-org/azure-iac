@@ -4,7 +4,7 @@
 # -----------------------------------------------------------------------------
 
 output "foundry_id" {
-  description = "Resource ID of aif-<workload>-<env>-<region>."
+  description = "Resource ID of aif-<workload>ai-<env>-<region>."
   value       = azurerm_cognitive_account.this.id
 }
 
@@ -14,7 +14,7 @@ output "foundry_name" {
 }
 
 output "foundry_project_id" {
-  description = "Resource ID of proj-<workload>-<env>-<region>."
+  description = "Resource ID of proj-<workload>ai-<env>-<region>."
   value       = azurerm_cognitive_account_project.this.id
 }
 

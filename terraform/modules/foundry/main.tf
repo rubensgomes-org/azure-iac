@@ -28,8 +28,8 @@ module "region_code" {
 
 locals {
   region            = module.region_code.code
-  account_name      = "aif-${var.workload}-${var.env}-${local.region}"
-  project_name      = "proj-${var.workload}-${var.env}-${local.region}"
+  account_name      = "aif-${var.workload}ai-${var.env}-${local.region}"
+  project_name      = "proj-${var.workload}ai-${var.env}-${local.region}"
   app_insights_name = "appi-${var.workload}ai-${var.env}-${local.region}"
 
   kind     = "AIServices"

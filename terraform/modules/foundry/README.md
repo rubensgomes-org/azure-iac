@@ -10,8 +10,8 @@ Called by `terraform/roots/15-foundry/`.
 
 | Type                                           | Name                             | Notes                                      |
 |------------------------------------------------|----------------------------------|--------------------------------------------|
-| `azurerm_cognitive_account`                    | `aif-<workload>-<env>-<region>`  | `AIServices`, S0, custom subdomain = name  |
-| `azurerm_cognitive_account_project`            | `proj-<workload>-<env>-<region>` | System-assigned identity                   |
+| `azurerm_cognitive_account`                    | `aif-<workload>ai-<env>-<region>`   | `AIServices`, S0, custom subdomain = name  |
+| `azurerm_cognitive_account_project`            | `proj-<workload>ai-<env>-<region>`  | System-assigned identity                   |
 | `azurerm_role_assignment`                      | —                                | UAMI "Cognitive Services OpenAI User"      |
 | `azurerm_role_assignment`                      | —                                | "Foundry User"; only when a user ID is set |
 | `azurerm_application_insights`                 | `appi-<workload>ai-<env>-<region>`        | Only when `app_insights_enabled`           |

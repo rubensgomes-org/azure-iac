@@ -27,11 +27,11 @@ make apply-foundry
 
 ```bash
 az cognitiveservices account show \
-  -g rg-<workload>ai-<env>-<region> -n aif-<workload>-<env>-<region> \
+  -g rg-<workload>ai-<env>-<region> -n aif-<workload>ai-<env>-<region> \
   --query properties.provisioningState -o tsv
 az cognitiveservices account project show \
-  -g rg-<workload>ai-<env>-<region> -n aif-<workload>-<env>-<region> \
-  --project-name proj-<workload>-<env>-<region> \
+  -g rg-<workload>ai-<env>-<region> -n aif-<workload>ai-<env>-<region> \
+  --project-name proj-<workload>ai-<env>-<region> \
   --query properties.provisioningState -o tsv
 ```
 
