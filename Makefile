@@ -177,7 +177,8 @@ DIRS := \
   12-container-apps \
   13-monitoring \
   14-app-gateway \
-  15-foundry-resource
+  15-foundry-resource \
+  17-document-intelligence
 
 # Destroy order is the strict reverse of DIRS. Reversing is
 # done in Make rather than the shell because `tac` is a GNU coreutils tool and
@@ -278,6 +279,7 @@ $(eval $(call MODULE_TARGETS,15-foundry-resource,foundry-resource))
 # 16-foundry-project is NOT in DIRS: its state is per project, so the
 # whole-estate loops cannot reach every project. It is validated, though.
 $(eval $(call MODULE_TARGETS,16-foundry-project,foundry-project))
+$(eval $(call MODULE_TARGETS,17-document-intelligence,document-intelligence))
 
 # -----------------------------------------------------------------------------
 # Single resource group (module 01) — targets scoped to PURPOSE
@@ -453,7 +455,7 @@ destroy-container-apps: init-container-apps
 	   $(ENV_VARFILE) $$targets
 
 # -----------------------------------------------------------------------------
-# Whole-estate: apply (01 → 15)
+# Whole-estate: apply (01 → 17)
 # -----------------------------------------------------------------------------
 # Kept in a shell for-loop so ordering is strictly serial regardless of
 # `make -jN`.
@@ -526,7 +528,7 @@ purge-orphans:
 	@$(SWEEP_ORPHANS)
 
 # -----------------------------------------------------------------------------
-# Whole-estate: destroy (15 → 01) + post-destroy Key Vault check
+# Whole-estate: destroy (17 → 01) + post-destroy Key Vault check
 # -----------------------------------------------------------------------------
 # KV_NAME is captured BEFORE the loop, because module 06's state gets emptied
 # by its own destroy step. The capture re-inits against the REAL backend first:
@@ -1111,8 +1113,8 @@ help:
 	@echo "                    act on ONE resource group (module 01)"
 	@echo ""
 	@echo "Whole-estate:"
-	@echo "  apply             Apply all modules 01 -> 15"
-	@echo "  destroy           Destroy all modules 15 -> 01, sweeping Azure-generated"
+	@echo "  apply             Apply all modules 01 -> 17"
+	@echo "  destroy           Destroy all modules 17 -> 01, sweeping Azure-generated"
 	@echo "                    orphans before 01 and verifying the KV is purged"
 	@echo "  purge-orphans     Delete Azure-generated leftovers (Smart Detection"
 	@echo "                    action group) that block the RG delete in module 01"

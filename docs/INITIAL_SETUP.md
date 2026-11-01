@@ -26,7 +26,8 @@ A Microsoft Account and an "Owner" Subscription are required to provision
 resources in Azure Cloud. You should know your AZURE_TENANT_ID and "Owner"
 AZURE_SUBSCRIPTION_ID.
 
-- Below are the steps to sign in to Azure using `az cli` commands from your CLI prompt:
+- Below are the steps to sign in to Azure using `az cli` commands from your
+  CLI prompt:
 
     ```bash
     # Login as a User (NOT Service Principal) from the browser, and make sure
@@ -41,14 +42,16 @@ AZURE_SUBSCRIPTION_ID.
 
 ## Register Resource Providers with the Subscription
 
-The Azure Service Resources listed in the table below are being provisioned in this project.  The Provider Namespaces below show the corresponding Resource Provider Namespaces for those Service Resources. 
+The Azure Service Resources listed in the table below are being provisioned in
+this project. The Provider Namespaces below show the corresponding Resource
+Provider Namespaces for those Service Resources.
 
 | Azure Service Resource |      Provider Namespace       | Provisioned by |
 | :--------------------- | :---------------------------: | :------------- |
 | ACR                    |  Microsoft.ContainerRegistry  | 07             |
 | App Configuration      |  Microsoft.AppConfiguration   | 05             |
-| Cognitive Services     |  Microsoft.CognitiveServices  | 15             |
-| Bot Service (Foundry)  |     Microsoft.BotService      | ??             |
+| Bot Service (Foundry)  |     Microsoft.BotService      | —              |
+| Cognitive Services     |  Microsoft.CognitiveServices  | 15, 17         |
 | Container Apps         |         Microsoft.App         | 11, 12         |
 | Key Vault              |      Microsoft.KeyVault       | 06             |
 | Log Analytics          | Microsoft.OperationalInsights | 03             |
@@ -59,7 +62,11 @@ The Azure Service Resources listed in the table below are being provisioned in t
 | Storage Accounts       |       Microsoft.Storage       | 08             |
 | Virtual Networks       |       Microsoft.Network       | 02             |
 
-The above "Resource Providers" must be registered with the Subscription.  This allows ARM (Azure Resource Manager) to find the corresponding resource's "Resource Provider" REST API settings associated with the Subscription during provisioning. Otherwise, ARM is not able to provision that resource in Azure cloud.
+The above "Resource Providers" must be registered with the Subscription. This
+allows ARM (Azure Resource Manager) to find the corresponding resource's
+"Resource Provider" REST API settings associated with the Subscription during
+provisioning. Otherwise, ARM is not able to provision that resource in Azure
+cloud.
 
 - Register the resource providers with the subscription. These commands tell
   Azure that the subscription intends to use the providers below when running
@@ -145,15 +152,60 @@ and `Contributor` cover only the control plane.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
+#### `Cognitive Services User`
+
+This RBAC role needs to be granted to a `Principal` to allow it to perform
+"data-plane" operations on a `Document Intelligence` resource (e.g., call the
+respective DI resource API).
+
+- Grant your user `Cognitive Services User` on the subscription:
+
+    ```bash
+    az login --tenant "${AZURE_TENANT_ID}"
+    az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
+    USER_ID=$(az ad signed-in-user show --query id -o tsv)
+    az role assignment create \
+      --assignee-object-id "${USER_ID}" \
+      --assignee-principal-type User \
+      --role "Cognitive Services User" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
+### Control-Plane Role
+
+#### `Cognitive Services Contributor`
+
+This RBAC role needs to be granted to a `Principal` to allow it to perform
+"control-plane" operations on a `Document Intelligence` resource (e.g.,
+managing, configuring, deleting the respective DI resource).
+
+- Grant your user `Cognitive Services Contributor` on the subscription:
+
+    ```bash
+    az login --tenant "${AZURE_TENANT_ID}"
+    az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
+    USER_ID=$(az ad signed-in-user show --query id -o tsv)
+    az role assignment create \
+      --assignee-object-id "${USER_ID}" \
+      --assignee-principal-type User \
+      --role "Cognitive Services Contributor" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
 ### Control-Plane and Data-Plane Role
 
 #### `Foundry User` and `Foundry Owner`
 
-- During development a developer needs to build and test agents within Foundry.  That developer needs the "Foundry User" role
-- In order to publish the agent for consumption to the outside world, the "Foundry Project Manager" role is required.
-- In order to interact with the agent endpoint API, the "Foundry Agent Consumer" role is required.
+- During development a developer needs to build and test agents within
+  Foundry. That developer needs the "Foundry User" role.
+- In order to publish the agent for consumption to the outside world, the
+  "Foundry Project Manager" role is required.
+- In order to interact with the agent endpoint API, the "Foundry Agent
+  Consumer" role is required.
 
-Creating, reading, and deleting Foundry resources, projects, models and agents, requires an Azure RBAC control-plane + data-plane role `Foundry Owner`.
+Creating, reading, and deleting Foundry resources, projects, models and
+agents, requires an Azure RBAC control-plane + data-plane role
+`Foundry Owner`.
 
 - Grant your user `Foundry Owner` on the subscription:
 
@@ -208,12 +260,13 @@ data-plane role `Key Vault Secrets Officer`.
 
 We are using a `Service Principal + Service Principal Secret` to allow Terraform
 to authenticate against Azure and provision resources. The Service Principal
-holds SIX roles at subscription scope:
+holds EIGHT roles at subscription scope:
 
 - `Contributor` — creates, updates and deletes the resources themselves.
 - `User Access Administrator` — creates the RBAC role assignments this project
   hands to the shared managed identity (`AcrPull`, `Key Vault Secrets User`,
-  `Storage Blob Data Contributor`, the two Service Bus data roles).
+  `Storage Blob Data Contributor`, the two Service Bus data roles,
+  `Cognitive Services OpenAI User`, `Cognitive Services User`).
 - `App Configuration Data Owner` — writes key-values to the App Configuration
   store from GitHub Actions.
 - `Key Vault Secrets Officer` — manages Key Vault secrets from GitHub Actions.
@@ -221,6 +274,10 @@ holds SIX roles at subscription scope:
   account is ready when shared keys are disabled.
 - `Foundry Owner` — not needed; `Contributor` already manages the Foundry
   resource and project.
+- `Cognitive Services User` — calls the Document Intelligence API from the
+  local CLI prompt.
+- `Cognitive Services Contributor` — not needed; `Contributor` already
+  manages the Document Intelligence resource.
 
 `Owner` covers `Contributor` and `User Access Administrator` and is a valid
 alternative on a personal subscription.
@@ -266,6 +323,42 @@ alternative on a personal subscription.
     ```
 
 ## Grant RBAC Role to `Service Principal`
+
+### `Cognitive Services User`
+
+This RBAC role needs to be granted to the SP (`Service Principal`) to allow it
+to perform "data-plane" operations on a `Document Intelligence` resource
+(e.g., call the respective DI resource API). This is required to run AI
+applications from the local CLI prompt using the SP account.
+
+- Grant your SP `Cognitive Services User` on the subscription:
+
+    ```bash
+    az role assignment create \
+      --assignee-object-id "${SP_OBJ_ID}" \
+      --assignee-principal-type ServicePrincipal \
+      --role "Cognitive Services User" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
+### `Cognitive Services Contributor`
+
+This RBAC role needs to be granted to a `Principal` to allow it to perform
+"control-plane" operations on a `Document Intelligence` resource (e.g.,
+managing, configuring, deleting the respective DI resource).
+
+Not needed by Terraform: `Contributor` already creates and deletes the
+Document Intelligence resource.
+
+- Grant your SP `Cognitive Services Contributor` on the subscription:
+
+    ```bash
+    az role assignment create \
+      --assignee-object-id "${SP_OBJ_ID}" \
+      --assignee-principal-type ServicePrincipal \
+      --role "Cognitive Services Contributor" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
 
 ### `App Configuration Data Owner`
 
@@ -352,7 +445,7 @@ alternative on a personal subscription.
 
 ### Verify Azure Service Principal Roles
 
-- Verify the Service Principal holds all SIX roles listed above for its
+- Verify the Service Principal holds all EIGHT roles listed above for its
   Subscription ID:
 
     ```bash
@@ -445,7 +538,7 @@ section for what has to change to target it.
 
 ### Selecting an environment
 
-`terraform/roots/` holds one copy of the fifteen module roots, shared by every
+`terraform/roots/` holds one copy of the seventeen module roots, shared by every
 environment. What makes a run `dev` or `lab` is `terraform/envs/<env>/` plus
 the exports — no HCL names an environment.
 

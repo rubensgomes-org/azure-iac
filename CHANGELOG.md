@@ -26,9 +26,22 @@ premise.
 
 ### Added
 
+- Module 17 `document-intelligence`: an Azure AI Document Intelligence
+  resource in the ai RG, Entra ID only, with the shared UAMI granted
+  "Cognitive Services User".
+- `docs/INITIAL_SETUP.md`: "Cognitive Services User" and "Cognitive Services
+  Contributor" grants for the user and the SP.
+
 ### Changed
 
+- `make apply`, `make destroy` and `make validate` include module 17.
+- `kv-destroy.yml` and `foundry-destroy-all.yml` refuse to start while module
+  17 holds resources; `all-destroy.yml` plans its destroy.
+
 ### Fixed
+
+- `docs/INITIAL_SETUP.md`: stale module and role counts, the Bot Service
+  provider row, and lines over 80 characters.
 
 ## [0.0.69] - 2026-10-30
 
