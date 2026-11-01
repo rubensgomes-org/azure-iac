@@ -2,7 +2,8 @@
 
 Root Terraform config that provisions an Azure AI Search service and the
 storage account it indexes in the ai resource group. State lives at key
-`ai-search/terraform.tfstate` in the backend blob container.
+`ai-search/<region>/terraform.tfstate` in the backend blob container, one
+per region.
 
 Wraps [`../../modules/ai-search/`](../../modules/ai-search/README.md).
 

@@ -101,7 +101,7 @@ BACKEND_OVERRIDES := \
   $(if $(TF_VAR_storage_account_id),-backend-config="storage_account_name=$(TF_VAR_storage_account_id)") \
   $(if $(TF_VAR_container_name),-backend-config="container_name=$(TF_VAR_container_name)")
 
-# Module 15 keeps one state per Foundry region, so a new region adds a
+# Modules 15, 17 and 18 keep one state per region, so a new region adds a
 # resource instead of replacing the existing one, and module 16 one state per
 # project in that region. Same fallback as the roots'
 # `coalesce(var.foundry_location, var.location)`.
@@ -111,17 +111,19 @@ FOUNDRY_PROJECT  = proj-$(WORKLOAD)ai$(TF_VAR_foundry_project_suffix)
 # Shell snippet: sets $$state to the backend key prefix of short name $$key.
 define SET_STATE_PREFIX
 state="$$key"; \
-case "$$key" in foundry-resource|foundry-project) \
+case "$$key" in \
+  foundry-resource|foundry-project|document-intelligence|ai-search) \
   if [ -z "$(FOUNDRY_REGION)" ]; then \
     echo "ERROR: set TF_VAR_foundry_location or TF_VAR_location." >&2; \
     exit 1; \
   fi;; \
 esac; \
-if [ "$$key" = "foundry-resource" ]; then \
-  state="foundry-resource/$(FOUNDRY_REGION)"; \
-elif [ "$$key" = "foundry-project" ]; then \
-  state="foundry-project/$(FOUNDRY_REGION)/$(FOUNDRY_PROJECT)"; \
-fi
+case "$$key" in \
+  foundry-resource|document-intelligence|ai-search) \
+    state="$$key/$(FOUNDRY_REGION)";; \
+  foundry-project) \
+    state="foundry-project/$(FOUNDRY_REGION)/$(FOUNDRY_PROJECT)";; \
+esac
 endef
 
 # CAF workload token, mirroring the `workload` input every module takes.

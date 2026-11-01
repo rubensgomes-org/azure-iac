@@ -97,9 +97,9 @@ resources provisioned by this project.
 | `aif-project-create.yml` | apply module 16 so one Foundry project exists under the region's Foundry resource               |
 | `aif-project-destroy.yml` | **destructive** — destroy module 16 for one Foundry project                                    |
 | `di-create.yml`      | apply modules 01 → 04 → 17 so a Document Intelligence resource and its training storage exist           |
-| `di-destroy.yml`     | **destructive** — destroy module 17 only, the Document Intelligence resource and its training storage   |
+| `di-destroy.yml`     | **destructive** — destroy module 17 in one region, the Document Intelligence resource and its training storage |
 | `srch-create.yml`    | apply modules 01 → 04 → 18 so an AI Search service and its storage account exist                        |
-| `srch-destroy.yml`   | **destructive** — destroy module 18 only, the AI Search service and its storage account                 |
+| `srch-destroy.yml`   | **destructive** — destroy module 18 in one region, the AI Search service and its storage account |
 | `foundry-create-all.yml` | apply modules 01–08, 11, 12, 15 via `aca-create.yml` then `aif-resource-create.yml`                |
 | `foundry-destroy-all.yml` | **destructive** — destroy modules 15, 08, 12, 11, 07, 06 → 01; refuses while 09, 10, 13, 14, 17, 18 exist |
 | `rg-create-all.yml`  | apply module 01, all six resource groups; plans only unless `dry_run` is cleared                        |

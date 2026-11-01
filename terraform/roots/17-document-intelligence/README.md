@@ -3,7 +3,8 @@
 Root Terraform config that provisions an Azure AI Document Intelligence
 resource in the ai resource group, grants the shared UAMI "Cognitive
 Services User" on it, and creates its training storage account. State lives at key
-`document-intelligence/terraform.tfstate` in the backend blob container.
+`document-intelligence/<region>/terraform.tfstate` in the backend blob
+container, one per region.
 
 Wraps
 [`../../modules/document-intelligence/`](../../modules/document-intelligence/README.md).

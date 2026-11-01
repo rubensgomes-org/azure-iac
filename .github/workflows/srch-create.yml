@@ -3,8 +3,9 @@
 #
 # Brings modules 01 (resource groups, for the ai RG), 04 (managed
 # identities) and 18 (ai-search) to their desired state: an Azure AI Search
-# service in the ai RG and its storage account. An existing service or
-# storage account is never destroyed (only srch-destroy.yml does). Every
+# service in the ai RG and its storage account. Module 18 state is per
+# region: a new region adds a service, and an existing one is never
+# destroyed (only srch-destroy.yml does). Every
 # recipe is a `make` target from the repo-root Makefile. Endpoints and keys
 # are never printed.
 # =============================================================================
@@ -20,6 +21,13 @@ on:
           variable and selects terraform/envs/<env>.
         type: string
         required: true
+      location:
+        description: >-
+          Azure region of the AI Search service. Empty uses
+          vars.TF_VAR_foundry_location, then vars.TF_VAR_location.
+        type: string
+        required: false
+        default: ""
 
     outputs:
       search_service_name:
@@ -39,6 +47,11 @@ on:
         options:
           - dev
           - lab
+      location:
+        description: "Region for AI Search. Empty uses TF_VAR_FOUNDRY_LOCATION."
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -76,9 +89,10 @@ jobs:
 
       TF_VAR_env: ${{ inputs.environment_name }}
       TF_VAR_location: ${{ vars.TF_VAR_location }}
-      # Optional. Overrides TF_VAR_location for this module, as in
-      # aif-resource-create.yml.
-      TF_VAR_foundry_location: ${{ vars.TF_VAR_foundry_location }}
+      # Optional. Empty falls back to TF_VAR_location. The region is part
+      # of the name and the state key, as in aif-resource-create.yml.
+      TF_VAR_foundry_location: ${{
+        inputs.location || vars.TF_VAR_foundry_location }}
       TF_VAR_owner: ${{ vars.TF_VAR_owner }}
 
       # Optional. Unset skips the portal user grants.
@@ -132,8 +146,8 @@ jobs:
           if [ -n "${TF_VAR_foundry_location}" ] \
               && ! printf '%s' "${TF_VAR_foundry_location}" \
                 | grep -qE '^[a-z][a-z0-9]{1,30}$'; then
-            echo "FAIL: TF_VAR_foundry_location must be an Azure region name"
-            echo "such as 'eastus2' (lowercase alphanumeric)."
+            echo "FAIL: location must be an Azure region name such as"
+            echo "'eastus2' (lowercase alphanumeric)."
             exit 1
           fi
           echo "Validated: env='${ENV_NAME}' workload='${TF_VAR_workload}'" \

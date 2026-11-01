@@ -5,12 +5,13 @@
 #
 #   terraform init \
 #     -backend-config=../../envs/<env>/backend.hcl \
-#     -backend-config="key=document-intelligence/terraform.tfstate"
+#     -backend-config="key=document-intelligence/<region>/terraform.tfstate"
 #
 # The shared `../../envs/<env>/backend.hcl` provides `resource_group_name`,
 # `storage_account_name`, `container_name`, and `use_azuread_auth`. The
 # per-module `key` puts this module's state at
-# `document-intelligence/terraform.tfstate` inside the tfstate container.
+# `document-intelligence/<region>/terraform.tfstate` inside the tfstate
+# container.
 #
 # Backend blocks cannot interpolate variables — that's why this file is
 # empty and the values live in backend.hcl instead.

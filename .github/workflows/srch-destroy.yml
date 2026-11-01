@@ -1,7 +1,8 @@
 # =============================================================================
 # Search Destroy (reusable)
 #
-# Destroys module 18: the Azure AI Search service, its storage account with
+# Destroys module 18 in the given region: the Azure AI Search service, its
+# storage account with
 # every blob in it, and their role assignments. The ai RG (module 01) and the
 # managed identities (module 04) stay in place, so srch-create.yml can bring
 # it back.
@@ -20,6 +21,12 @@ on:
           - dev
           - lab
 
+      location:
+        description: "Region for AI Search. Empty uses TF_VAR_FOUNDRY_LOCATION."
+        type: string
+        required: false
+        default: ""
+
       confirm:
         description: >
           DESTROYS MODULE 18 — the AI Search service and the storage
@@ -37,6 +44,14 @@ on:
         description: "Estate environment holding AI Search."
         type: string
         required: true
+
+      location:
+        description: >-
+          Azure region of the AI Search service. Empty uses
+          vars.TF_VAR_foundry_location, then vars.TF_VAR_location.
+        type: string
+        required: false
+        default: ""
 
       confirm:
         description: >-
@@ -73,9 +88,10 @@ jobs:
 
       TF_VAR_env: ${{ inputs.environment_name }}
       TF_VAR_location: ${{ vars.TF_VAR_location }}
-      # Optional. Overrides TF_VAR_location for this module, as in
-      # aif-resource-create.yml.
-      TF_VAR_foundry_location: ${{ vars.TF_VAR_foundry_location }}
+      # Optional. Empty falls back to TF_VAR_location. The region is part
+      # of the name and the state key, as in aif-resource-create.yml.
+      TF_VAR_foundry_location: ${{
+        inputs.location || vars.TF_VAR_foundry_location }}
       TF_VAR_owner: ${{ vars.TF_VAR_owner }}
 
       TF_VAR_backend_resource_group_name: ${{ vars.TF_VAR_backend_resource_group_name }}
@@ -132,6 +148,13 @@ jobs:
               | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
             echo "Denied: TF_VAR_workload must be 2-16 lowercase"
             echo "alphanumeric characters starting with a letter."
+            exit 1
+          fi
+          if [ -n "${TF_VAR_foundry_location}" ] \
+              && ! printf '%s' "${TF_VAR_foundry_location}" \
+                | grep -qE '^[a-z][a-z0-9]{1,30}$'; then
+            echo "Denied: location must be an Azure region name such as"
+            echo "'eastus2' (lowercase alphanumeric)."
             exit 1
           fi
 

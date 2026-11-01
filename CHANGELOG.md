@@ -28,6 +28,13 @@ premise.
 
 ### Changed
 
+- **Breaking:** module 17 and 18 state moves to
+  `document-intelligence/<region>` and `ai-search/<region>`, so a new region
+  adds a resource instead of replacing the existing one. Destroy existing
+  Document Intelligence and AI Search resources before upgrading.
+- `di-create.yml`, `di-destroy.yml`, `srch-create.yml` and
+  `srch-destroy.yml` take an optional `location` input.
+
 ### Fixed
 
 ## [0.0.74] - 2026-11-01
