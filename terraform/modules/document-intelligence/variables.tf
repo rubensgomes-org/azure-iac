@@ -48,6 +48,20 @@ variable "uami_principal_id" {
   type        = string
 }
 
+variable "di_user_object_id" {
+  description = "Entra object ID of a user granted \"Storage Blob Data Contributor\" on the training storage, for Studio labeling. Null skips the grant."
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.di_user_object_id == null || can(regex(
+      "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      var.di_user_object_id,
+    ))
+    error_message = "di_user_object_id must be a lowercase GUID."
+  }
+}
+
 variable "tags" {
   description = "Tags applied to every resource. Merged with `component = \"document-intelligence\"`."
   type        = map(string)

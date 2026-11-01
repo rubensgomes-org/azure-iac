@@ -55,6 +55,7 @@ Workload `rgomes`, environment `lab`.
 | Foundry project           | `proj-<workload>ai<name>-<env>-<region>`              | `proj-rgomesai-lab-eus2`                                                                                                                                                          | `modules/foundry-project`           |
 | Foundry App Insights      | `appi-<workload>ai-<env>-<region>`                    | `appi-rgomesai-lab-eus2`                                                                                                                                                          | `modules/foundry-resource`           |
 | Document Intelligence     | `di-<workload>ai-<env>-<region>`                      | `di-rgomesai-lab-eus2`                                                                                                                                                            | `modules/document-intelligence`      |
+| DI training storage       | `st<workload>di<env><region>`                         | `strgomesdilabeus2`                                                                                                                                                               | `modules/document-intelligence`      |
 
 The storage account is the one name with no dashes — Azure forbids them there —
 so its four tokens simply run together in the same order.

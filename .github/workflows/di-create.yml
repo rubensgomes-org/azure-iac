@@ -3,8 +3,9 @@
 #
 # Brings modules 01 (resource groups, for the ai RG), 04 (managed
 # identities) and 17 (document-intelligence) to their desired state: an
-# Azure AI Document Intelligence resource in the ai RG. An existing one is
-# never destroyed (only di-destroy.yml does). Every recipe is a `make`
+# Azure AI Document Intelligence resource in the ai RG and its training
+# storage. An existing resource is never destroyed (only di-destroy.yml
+# does). Every recipe is a `make`
 # target from the repo-root Makefile. Endpoints and keys are never printed.
 # =============================================================================
 
@@ -76,6 +77,9 @@ jobs:
       TF_VAR_env: ${{ inputs.environment_name }}
       TF_VAR_location: ${{ vars.TF_VAR_location }}
       TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      # Optional. Unset skips the Studio labeling grant.
+      TF_VAR_di_user_object_id: ${{ vars.TF_VAR_di_user_object_id }}
 
       TF_VAR_backend_resource_group_name: ${{
         vars.TF_VAR_backend_resource_group_name }}

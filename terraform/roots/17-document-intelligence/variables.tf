@@ -60,6 +60,14 @@ variable "owner" {
   default     = null
 }
 
+# Supplied as TF_VAR_di_user_object_id, not from env.tfvars, which is
+# shared by every root.
+variable "di_user_object_id" {
+  description = "Entra object ID of a user granted blob access for Studio labeling. Null skips the grant."
+  type        = string
+  default     = null
+}
+
 # ---- Declared for env.tfvars parity, unused by this module -----------------
 
 variable "apps" {

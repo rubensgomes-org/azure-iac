@@ -3,7 +3,7 @@
 # Terraform CLI + provider version constraints for the document-intelligence
 # root config. Kept consistent with the rest of the estate.
 #
-# This root calls `../../modules/document-intelligence/` (azurerm only) and
+# This root calls `../../modules/document-intelligence/` and
 # reads state from 01 and 04 via `data.terraform_remote_state`.
 # -----------------------------------------------------------------------------
 
@@ -14,6 +14,14 @@ terraform {
     azurerm = {
       source  = "hashicorp/azurerm"
       version = "~> 5.4"
+    }
+    azapi = {
+      source  = "Azure/azapi"
+      version = "~> 2.12"
+    }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.14"
     }
   }
 }

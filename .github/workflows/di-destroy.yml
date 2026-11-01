@@ -1,8 +1,9 @@
 # =============================================================================
 # DI Destroy (reusable)
 #
-# Destroys module 17: the Azure AI Document Intelligence resource and its
-# role assignment. The ai RG (module 01) and the managed identities
+# Destroys module 17: the Azure AI Document Intelligence resource, its
+# training storage account with every blob in it, and their role
+# assignments. The ai RG (module 01) and the managed identities
 # (module 04) stay in place, so di-create.yml can bring it back.
 # =============================================================================
 
@@ -21,7 +22,8 @@ on:
 
       confirm:
         description: >
-          DESTROYS MODULE 17 — the Document Intelligence resource.
+          DESTROYS MODULE 17 — the Document Intelligence resource and the
+          training storage account with every blob in it.
         type: choice
         required: true
         default: "No"
@@ -167,8 +169,11 @@ jobs:
           forbidden="$(terraform show -json tfplan | jq -r '
             .resource_changes[]?
             | select(.change.actions | index("delete"))
-            | select(.type | IN("azurerm_cognitive_account",
-                                "azurerm_role_assignment") | not)
+            | select(.type | IN("azapi_resource",
+                                "azurerm_cognitive_account",
+                                "azurerm_role_assignment",
+                                "azurerm_storage_account",
+                                "time_sleep") | not)
             | .address')"
           if [ -n "${forbidden}" ]; then
             echo "DENIED: destroy plan reaches beyond module 17:"

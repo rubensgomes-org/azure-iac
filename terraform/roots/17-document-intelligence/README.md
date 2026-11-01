@@ -1,8 +1,8 @@
 # 17-document-intelligence (terraform/roots)
 
 Root Terraform config that provisions an Azure AI Document Intelligence
-resource in the ai resource group, and grants the shared UAMI "Cognitive
-Services User" on it. State lives at key
+resource in the ai resource group, grants the shared UAMI "Cognitive
+Services User" on it, and creates its training storage account. State lives at key
 `document-intelligence/terraform.tfstate` in the backend blob container.
 
 Wraps
@@ -33,5 +33,6 @@ az cognitiveservices account show \
 make destroy-document-intelligence
 ```
 
-Removes the resource, then purges the soft-deleted resource. The RG stays in
+Removes the resource and the training storage with every blob in it, then
+purges the soft-deleted resource. The RG stays in
 module 01.
