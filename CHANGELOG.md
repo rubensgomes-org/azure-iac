@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.73] - 2026-11-01
+
+### Added
+
 - Module 18 (`ai-search`): an AI Search service in the ai RG and its Blob
   (LRS) storage account. Run `make apply-ai-search`.
 - `srch-create.yml` and `srch-destroy.yml` reusable workflows for module 18.
