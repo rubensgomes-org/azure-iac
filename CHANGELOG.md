@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.71] - 2026-10-31
+
+### Added
+
 - `di-create.yml` and `di-destroy.yml` workflows apply or destroy module 17
   `document-intelligence`.
 
