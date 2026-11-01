@@ -96,6 +96,8 @@ resources provisioned by this project.
 | `aif-destroy.yml`    | **destructive** — destroy module 15 in one region, then module 08 if no other region uses it; refuses while a project remains |
 | `aif-project-create.yml` | apply module 16 so one Foundry project exists under the region's Foundry resource               |
 | `aif-project-destroy.yml` | **destructive** — destroy module 16 for one Foundry project                                    |
+| `di-create.yml`      | apply modules 01 → 04 → 17 so a Document Intelligence resource exists                                   |
+| `di-destroy.yml`     | **destructive** — destroy module 17 only, the Document Intelligence resource                            |
 | `foundry-create-all.yml` | apply modules 01–08, 11, 12, 15 via `aca-create.yml` then `aif-create.yml`                         |
 | `foundry-destroy-all.yml` | **destructive** — destroy modules 15, 08, 12, 11, 07, 06 → 01; refuses while 09, 10, 13, 14, 17 exist |
 | `rg-create-all.yml`  | apply module 01, all six resource groups; plans only unless `dry_run` is cleared                        |
