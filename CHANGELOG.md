@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.70] - 2026-10-31
+
+### Added
+
 - Module 17 `document-intelligence`: an Azure AI Document Intelligence
   resource in the ai RG, Entra ID only, with the shared UAMI granted
   "Cognitive Services User".
