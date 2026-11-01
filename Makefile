@@ -45,7 +45,7 @@ ENV     ?= dev
 
 # The two halves of the layout, and the whole point of the split:
 #
-#   ROOTS_DIR  the sixteen module roots. ONE copy, shared by every environment.
+#   ROOTS_DIR  the seventeen module roots. ONE copy, shared by every environment.
 #              Nothing in here names an environment -- `var.env` carries it.
 #   ENV_DIR    per-environment configuration ONLY: backend.hcl, tags.json and
 #              the gitignored env.tfvars. Three files, not 4,350 lines.
@@ -178,7 +178,8 @@ DIRS := \
   13-monitoring \
   14-app-gateway \
   15-foundry-resource \
-  17-document-intelligence
+  17-document-intelligence \
+  18-ai-search
 
 # Destroy order is the strict reverse of DIRS. Reversing is
 # done in Make rather than the shell because `tac` is a GNU coreutils tool and
@@ -280,12 +281,15 @@ $(eval $(call MODULE_TARGETS,15-foundry-resource,foundry-resource))
 # whole-estate loops cannot reach every project. It is validated, though.
 $(eval $(call MODULE_TARGETS,16-foundry-project,foundry-project))
 $(eval $(call MODULE_TARGETS,17-document-intelligence,document-intelligence))
+$(eval $(call MODULE_TARGETS,18-ai-search,ai-search))
 
 # -----------------------------------------------------------------------------
 # Single resource group (module 01) — targets scoped to PURPOSE
 # -----------------------------------------------------------------------------
 # All six RGs share one state, so acting on one needs -target. PURPOSE is
-# validated against the fixed set before it reaches terraform's argv.
+# validated against the fixed set before it reaches terraform's argv. The ai
+# RG also targets the Terraform SP blob grant; elsewhere `grant_target`
+# repeats `target`, which is harmless.
 define RESOURCE_GROUP_TARGET_FLAG
 case '$(PURPOSE)' in \
   platform|network|data|app|observability|ai) ;; \
@@ -295,6 +299,8 @@ case '$(PURPOSE)' in \
      exit 1;; \
 esac; \
 target='-target=module.resource_groups.azurerm_resource_group.this["$(PURPOSE)"]'; \
+grant_target="$$target"; \
+if [ '$(PURPOSE)' = ai ]; then grant_target=-target=time_sleep.wait_for_ai_rbac; fi; \
 echo "  purpose in scope: $(PURPOSE)"
 endef
 
@@ -305,25 +311,25 @@ plan-resource-group: init-resource-groups
 	@echo "=== PLAN 01-resource-groups ($(PURPOSE)) ==="
 	@$(RESOURCE_GROUP_TARGET_FLAG); \
 	 cd $(ROOTS_DIR)/01-resource-groups && terraform plan \
-	   $(ENV_VARFILE) "$$target" -out=tfplan
+	   $(ENV_VARFILE) "$$target" "$$grant_target" -out=tfplan
 
 plan-destroy-resource-group: init-resource-groups
 	@echo "=== PLAN -destroy 01-resource-groups ($(PURPOSE)) ==="
 	@$(RESOURCE_GROUP_TARGET_FLAG); \
 	 cd $(ROOTS_DIR)/01-resource-groups && terraform plan -destroy \
-	   $(ENV_VARFILE) "$$target" -out=tfplan
+	   $(ENV_VARFILE) "$$target" "$$grant_target" -out=tfplan
 
 apply-resource-group: init-resource-groups
 	@echo "=== APPLY 01-resource-groups ($(PURPOSE)) ==="
 	@$(RESOURCE_GROUP_TARGET_FLAG); \
 	 cd $(ROOTS_DIR)/01-resource-groups && terraform apply -auto-approve \
-	   $(ENV_VARFILE) "$$target"
+	   $(ENV_VARFILE) "$$target" "$$grant_target"
 
 destroy-resource-group: init-resource-groups
 	@echo "=== DESTROY 01-resource-groups ($(PURPOSE)) ==="
 	@$(RESOURCE_GROUP_TARGET_FLAG); \
 	 cd $(ROOTS_DIR)/01-resource-groups && terraform destroy -auto-approve \
-	   $(ENV_VARFILE) "$$target"
+	   $(ENV_VARFILE) "$$target" "$$grant_target"
 
 # -----------------------------------------------------------------------------
 # Container Apps (module 12) — targets scoped to TF_VAR_apps
@@ -455,7 +461,7 @@ destroy-container-apps: init-container-apps
 	   $(ENV_VARFILE) $$targets
 
 # -----------------------------------------------------------------------------
-# Whole-estate: apply (01 → 17)
+# Whole-estate: apply (01 → 18)
 # -----------------------------------------------------------------------------
 # Kept in a shell for-loop so ordering is strictly serial regardless of
 # `make -jN`.
@@ -528,7 +534,7 @@ purge-orphans:
 	@$(SWEEP_ORPHANS)
 
 # -----------------------------------------------------------------------------
-# Whole-estate: destroy (17 → 01) + post-destroy Key Vault check
+# Whole-estate: destroy (18 → 01) + post-destroy Key Vault check
 # -----------------------------------------------------------------------------
 # KV_NAME is captured BEFORE the loop, because module 06's state gets emptied
 # by its own destroy step. The capture re-inits against the REAL backend first:
@@ -1113,8 +1119,8 @@ help:
 	@echo "                    act on ONE resource group (module 01)"
 	@echo ""
 	@echo "Whole-estate:"
-	@echo "  apply             Apply all modules 01 -> 17"
-	@echo "  destroy           Destroy all modules 17 -> 01, sweeping Azure-generated"
+	@echo "  apply             Apply all modules 01 -> 18"
+	@echo "  destroy           Destroy all modules 18 -> 01, sweeping Azure-generated"
 	@echo "                    orphans before 01 and verifying the KV is purged"
 	@echo "  purge-orphans     Delete Azure-generated leftovers (Smart Detection"
 	@echo "                    action group) that block the RG delete in module 01"

@@ -1,18 +1,15 @@
 # =============================================================================
-# AIF Create (reusable)
+# Search Create (reusable)
 #
-# Brings modules 01 (resource groups, for the ai RG), 03 (log analytics),
-# 04 (managed identities), 08 (storage) and 15 (foundry-resource) to their
-# desired state: a storage account, an Azure AI Foundry resource and, unless
-# `app_insights` is off, the Application Insights it traces agents to.
-# Projects come from aif-project-create.yml.
-# Module 15 state is per region: a new region adds a Foundry resource, and
-# an existing one is never destroyed (only aif-destroy.yml does).
-# Every recipe is a `make` target from the repo-root Makefile. Endpoints and
-# keys are never printed.
+# Brings modules 01 (resource groups, for the ai RG), 04 (managed
+# identities) and 18 (ai-search) to their desired state: an Azure AI Search
+# service in the ai RG and its storage account. An existing service or
+# storage account is never destroyed (only srch-destroy.yml does). Every
+# recipe is a `make` target from the repo-root Makefile. Endpoints and keys
+# are never printed.
 # =============================================================================
 
-name: AIF Create (reusable)
+name: Search Create (reusable)
 
 on:
   workflow_call:
@@ -23,25 +20,11 @@ on:
           variable and selects terraform/envs/<env>.
         type: string
         required: true
-      location:
-        description: >-
-          Azure region for the Foundry resource. Empty uses
-          vars.TF_VAR_foundry_location, then vars.TF_VAR_location.
-        type: string
-        required: false
-        default: ""
-      app_insights:
-        description: >-
-          Create the Application Insights for agent tracing. false destroys
-          an existing one.
-        type: boolean
-        required: false
-        default: true
 
     outputs:
-      foundry_name:
-        description: "Name of the Foundry resource."
-        value: ${{ jobs.provision.outputs.foundry_name }}
+      search_service_name:
+        description: "Name of the AI Search service."
+        value: ${{ jobs.provision.outputs.search_service_name }}
 
     secrets:
       AZURE_CLIENT_SECRET:
@@ -56,19 +39,6 @@ on:
         options:
           - dev
           - lab
-      location:
-        description: "Region for Foundry. Empty uses TF_VAR_FOUNDRY_LOCATION."
-        type: string
-        required: false
-        default: ""
-      app_insights:
-        description: "Create Application Insights for agent tracing?"
-        type: choice
-        required: true
-        default: "yes"
-        options:
-          - "yes"
-          - "no"
 
 permissions:
   contents: read
@@ -79,13 +49,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    # Must share this group string verbatim with aif-destroy.yml.
+    # Must share this group string verbatim with srch-destroy.yml.
     concurrency:
-      group: aif-lifecycle-${{ inputs.environment_name }}
+      group: srch-lifecycle-${{ inputs.environment_name }}
       cancel-in-progress: false
 
     outputs:
-      foundry_name: ${{ steps.aif_outputs.outputs.foundry_name }}
+      search_service_name: ${{
+        steps.srch_outputs.outputs.search_service_name }}
 
     env:
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
@@ -105,17 +76,10 @@ jobs:
 
       TF_VAR_env: ${{ inputs.environment_name }}
       TF_VAR_location: ${{ vars.TF_VAR_location }}
-      # Optional. Empty falls back to TF_VAR_location in module 15.
-      TF_VAR_foundry_location: ${{
-        inputs.location || vars.TF_VAR_foundry_location }}
       TF_VAR_owner: ${{ vars.TF_VAR_owner }}
 
-      # workflow_call passes a boolean; workflow_dispatch passes 'yes'/'no'.
-      TF_VAR_app_insights_enabled: ${{
-        inputs.app_insights == true || inputs.app_insights == 'yes' }}
-
-      # Optional. Unset skips the "Foundry User" grant.
-      TF_VAR_foundry_user_object_id: ${{ vars.TF_VAR_foundry_user_object_id }}
+      # Optional. Unset skips the portal user grants.
+      TF_VAR_search_user_object_id: ${{ vars.TF_VAR_search_user_object_id }}
 
       TF_VAR_backend_resource_group_name: ${{
         vars.TF_VAR_backend_resource_group_name }}
@@ -162,15 +126,8 @@ jobs:
             echo "characters starting with a letter."
             exit 1
           fi
-          if [ -n "${TF_VAR_foundry_location}" ] \
-              && ! printf '%s' "${TF_VAR_foundry_location}" \
-                | grep -qE '^[a-z][a-z0-9]{1,30}$'; then
-            echo "FAIL: location must be an Azure region name such as"
-            echo "'eastus2' (lowercase alphanumeric)."
-            exit 1
-          fi
           echo "Validated: env='${ENV_NAME}' workload='${TF_VAR_workload}'" \
-            "foundry_location='${TF_VAR_foundry_location:-${TF_VAR_location}}'."
+            "location='${TF_VAR_location}'."
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -185,14 +142,7 @@ jobs:
           make ENV="$ENV_NAME" \
             init-resource-groups plan-resource-groups apply-resource-groups
 
-      # Module 15 reads the workspace ID even when app_insights is off.
-      - name: Module 03 - log analytics
-        shell: bash
-        run: |
-          make ENV="$ENV_NAME" \
-            init-log-analytics plan-log-analytics apply-log-analytics
-
-      # Module 15 grants this identity "Cognitive Services OpenAI User".
+      # Module 18 grants this identity search and blob data roles.
       - name: Module 04 - managed identities
         shell: bash
         run: |
@@ -200,51 +150,45 @@ jobs:
             init-managed-identities plan-managed-identities \
             apply-managed-identities
 
-      # One blob container, cnt-<workload>app-<env>.
-      - name: Module 08 - storage
+      - name: Plan module 18 - AI Search
         shell: bash
         run: |
-          export TF_VAR_apps="[\"cnt-${TF_VAR_workload}app-${ENV_NAME}\"]"
           make ENV="$ENV_NAME" \
-            init-storage plan-storage apply-storage
+            init-ai-search plan-ai-search
 
-      - name: Plan module 15 - foundry resource
+      - name: GUARD - Assert the plan destroys no search service or storage
         shell: bash
-        run: |
-          make ENV="$ENV_NAME" init-foundry-resource plan-foundry-resource
-
-      - name: GUARD - Assert the plan destroys no Foundry resource
-        shell: bash
-        working-directory: ${{ env.ROOTS_DIR }}/15-foundry-resource
+        working-directory: ${{ env.ROOTS_DIR }}/18-ai-search
         run: |
           set -euo pipefail
           forbidden="$(terraform show -json tfplan | jq -r '
             .resource_changes[]?
             | select(.change.actions | index("delete"))
-            | select(.type == "azurerm_cognitive_account")
+            | select(.type | IN("azurerm_search_service",
+                               "azurerm_storage_account"))
             | .address')"
           if [ -n "${forbidden}" ]; then
-            echo "DENIED: plan destroys or replaces a Foundry resource."
-            echo "Use aif-destroy.yml to remove one:"
+            echo "DENIED: plan destroys or replaces AI Search or its storage."
+            echo "Use srch-destroy.yml to remove it:"
             while IFS= read -r address; do
               echo "  ${address}"
             done <<< "${forbidden}"
             exit 1
           fi
-          echo "OK: plan destroys no Foundry resource."
+          echo "OK: plan destroys no AI Search or storage resource."
 
       # Applies the guarded plan file, not a fresh plan.
-      - name: Apply module 15 - foundry resource
+      - name: Apply module 18 - AI Search
         shell: bash
-        working-directory: ${{ env.ROOTS_DIR }}/15-foundry-resource
+        working-directory: ${{ env.ROOTS_DIR }}/18-ai-search
         run: terraform apply -lock-timeout=10m tfplan
 
-      - name: Publish AIF outputs
-        id: aif_outputs
+      - name: Publish AI Search outputs
+        id: srch_outputs
         shell: bash
-        working-directory: ${{ env.ROOTS_DIR }}/15-foundry-resource
+        working-directory: ${{ env.ROOTS_DIR }}/18-ai-search
         run: |
           set -euo pipefail
-          name="$(terraform output -raw foundry_name)"
-          echo "foundry_name=${name}" >> "$GITHUB_OUTPUT"
-          echo "Foundry resource: ${name}"
+          name="$(terraform output -raw search_service_name)"
+          echo "search_service_name=${name}" >> "$GITHUB_OUTPUT"
+          echo "AI Search service: ${name}"

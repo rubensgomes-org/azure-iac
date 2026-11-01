@@ -56,6 +56,8 @@ Workload `rgomes`, environment `lab`.
 | Foundry App Insights      | `appi-<workload>ai-<env>-<region>`                    | `appi-rgomesai-lab-eus2`                                                                                                                                                          | `modules/foundry-resource`           |
 | Document Intelligence     | `di-<workload>ai-<env>-<region>`                      | `di-rgomesai-lab-eus2`                                                                                                                                                            | `modules/document-intelligence`      |
 | DI training storage       | `st<workload>di<env><region>`                         | `strgomesdilabeus2`                                                                                                                                                               | `modules/document-intelligence`      |
+| AI Search                 | `srch-<workload>ai-<env>-<region>`                    | `srch-rgomesai-lab-eus2`                                                                                                                                                          | `modules/ai-search`                 |
+| AI Search storage         | `st<workload>srch<env><region>`                       | `strgomessrchlabeus2`                                                                                                                                                             | `modules/ai-search`                 |
 
 The storage account is the one name with no dashes — Azure forbids them there —
 so its four tokens simply run together in the same order.
@@ -140,7 +142,7 @@ token.
 
 `name` is ForceNew on every resource here. Changing either value against a live
 estate is a **destroy and recreate**, not a rename — and because the estate
-spans seventeen state files that only know each other through remote-state
+spans eighteen state files that only know each other through remote-state
 reads, the result is a broken estate rather than a renamed one. Change it at
 first provision, or after a full teardown.
 
@@ -206,7 +208,7 @@ Three further things about these names, unlike the rest of the estate:
   literals, because a `terraform { backend }` block cannot interpolate — the
   values live in `bootstrap-backend/backend.tf`, `bootstrap-backend/variables.tf`
   and both `envs/<env>/backend.hcl`, and all four must agree by hand.
-- `bootstrap/backend.tfstate` shares the container with the seventeen estate
+- `bootstrap/backend.tfstate` shares the container with the eighteen estate
   state blobs, and stays there. The backend's own state spans environments.
 - **Renaming them is a state migration, not an edit.** An Azure resource group
   and storage account cannot be renamed in place, and Terraform will not follow

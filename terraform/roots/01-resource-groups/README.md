@@ -1,7 +1,8 @@
 # 01-resource-groups (terraform/roots)
 
 Root Terraform config that provisions the 6 lifecycle-aligned Resource
-Groups for the target environment. State lives at key
+Groups for the target environment, and grants the Terraform SP "Storage
+Blob Data Contributor" on the ai RG. State lives at key
 `resource-groups/terraform.tfstate` in the backend blob container.
 
 Wraps [`../../modules/resource-groups/`](../../modules/resource-groups/README.md).

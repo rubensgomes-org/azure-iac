@@ -85,26 +85,28 @@ resources provisioned by this project.
 | `acr-create.yml`     | apply modules 01 → 04 → 07 so a registry exists and is writable                                         |
 | `acr-destroy.yml`    | **destructive** — destroy module 07 only, the registry and every image in it                            |
 | `kv-create.yml`      | apply modules 01 → 04 → 05 → 06 so a Key Vault exists and the shared UAMI can read it                   |
-| `kv-destroy.yml`     | **destructive** — destroy modules 06, 05, 04, 01; refuses while 02, 03 or 07–15, 17 hold resources        |
+| `kv-destroy.yml`     | **destructive** — destroy modules 06, 05, 04, 01; refuses while 02, 03 or 07–15, 17, 18 hold resources    |
 | `cae-create.yml`     | apply modules 01 → 02 → 03 → 11 so a Container App Environment exists                                   |
 | `cae-destroy.yml`    | **destructive** — destroy module 11 only, the Container App Environment                                 |
 | `aca-create.yml`     | apply modules 01 → 02 → 03 → 04 → 05 → 06 → 07 → 11 → 12 so the Container Apps exist                    |
 | `aca-destroy.yml`    | **destructive** — destroy module 12 only, the Container Apps                                            |
 | `agw-create.yml`     | apply modules 02 → 14 so one Container App is public through an Application Gateway                     |
 | `agw-destroy.yml`    | **destructive** — destroy module 14 only, the Application Gateway and its public IP                     |
-| `aif-create.yml`     | apply modules 01 → 03 → 04 → 08 → 15 so storage, a Foundry resource and optional App Insights exist |
-| `aif-destroy.yml`    | **destructive** — destroy module 15 in one region, then module 08 if no other region uses it; refuses while a project remains |
+| `aif-resource-create.yml` | apply modules 01 → 03 → 04 → 08 → 15 so storage, a Foundry resource and optional App Insights exist |
+| `aif-resource-destroy.yml` | **destructive** — destroy module 15 in one region, then module 08 if no other region uses it; refuses while a project remains |
 | `aif-project-create.yml` | apply module 16 so one Foundry project exists under the region's Foundry resource               |
 | `aif-project-destroy.yml` | **destructive** — destroy module 16 for one Foundry project                                    |
 | `di-create.yml`      | apply modules 01 → 04 → 17 so a Document Intelligence resource and its training storage exist           |
 | `di-destroy.yml`     | **destructive** — destroy module 17 only, the Document Intelligence resource and its training storage   |
-| `foundry-create-all.yml` | apply modules 01–08, 11, 12, 15 via `aca-create.yml` then `aif-create.yml`                         |
-| `foundry-destroy-all.yml` | **destructive** — destroy modules 15, 08, 12, 11, 07, 06 → 01; refuses while 09, 10, 13, 14, 17 exist |
+| `srch-create.yml`    | apply modules 01 → 04 → 18 so an AI Search service and its storage account exist                        |
+| `srch-destroy.yml`   | **destructive** — destroy module 18 only, the AI Search service and its storage account                 |
+| `foundry-create-all.yml` | apply modules 01–08, 11, 12, 15 via `aca-create.yml` then `aif-resource-create.yml`                |
+| `foundry-destroy-all.yml` | **destructive** — destroy modules 15, 08, 12, 11, 07, 06 → 01; refuses while 09, 10, 13, 14, 17, 18 exist |
 | `rg-create-all.yml`  | apply module 01, all six resource groups; plans only unless `dry_run` is cleared                        |
 | `rg-destroy-all.yml` | **destructive** — destroy module 01 only, after modules 02–15; plans only unless `dry_run` is cleared   |
 | `rg-create.yml`      | apply ONE module 01 resource group, chosen by `purpose`; plans only unless `dry_run` is cleared         |
 | `rg-destroy.yml`     | **destructive** — destroy ONE module 01 resource group; plans only unless `dry_run` is cleared          |
-| `all-destroy.yml`    | **destructive** — destroy the whole estate, modules 17 → 01; plans only unless `dry_run` is cleared     |
+| `all-destroy.yml`    | **destructive** — destroy the whole estate, modules 18 → 01; plans only unless `dry_run` is cleared     |
 | `main-verify.yml`    | manual checks on `main` — `terraform` and `workflows` always, `sonar` when `run_sonar` is true          |
 | `release.yml`        | fires on a `v*.*.*` tag push — validate the tag against `VERSION` + `CHANGELOG.md`, publish the release |
 

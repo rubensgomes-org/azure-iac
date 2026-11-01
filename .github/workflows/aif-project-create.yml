@@ -3,9 +3,9 @@
 #
 # Brings module 16 to its desired state: one Azure AI Foundry project,
 # proj-<workload>ai<name>-<env>-<region>, under the Foundry resource that
-# aif-create.yml created in the same region. Each project has its own state,
-# so an existing project is never replaced (only aif-project-destroy.yml
-# removes one).
+# aif-resource-create.yml created in the same region. Each project has its
+# own state, so an existing project is never replaced (only
+# aif-project-destroy.yml removes one).
 # =============================================================================
 
 name: AIF Project Create (reusable)
@@ -71,7 +71,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
-    # Shares aif-create.yml's group so a project never races its resource.
+    # Shares aif-resource-create.yml's group so a project never races its
+    # resource.
     concurrency:
       group: aif-lifecycle-${{ inputs.environment_name }}
       cancel-in-progress: false
@@ -98,7 +99,7 @@ jobs:
 
       TF_VAR_env: ${{ inputs.environment_name }}
       TF_VAR_location: ${{ vars.TF_VAR_location }}
-      # Same fallback as aif-create.yml; selects the Foundry resource.
+      # Same fallback as aif-resource-create.yml; selects the Foundry resource.
       TF_VAR_foundry_location: ${{
         inputs.location || vars.TF_VAR_foundry_location }}
       TF_VAR_foundry_project_suffix: ${{ inputs.name }}

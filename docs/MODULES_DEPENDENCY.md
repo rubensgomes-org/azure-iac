@@ -1,10 +1,10 @@
 # Module Dependency Reference
 
-What each of the seventeen module roots under `terraform/roots/` needs applied
+What each of the eighteen module roots under `terraform/roots/` needs applied
 before it. Derived from the `data "terraform_remote_state"` blocks at the top of
 each root's `main.tf` — that is the only thing wiring the roots together.
 
-`terraform/bootstrap-backend/` is the prerequisite for all seventeen: until it
+`terraform/bootstrap-backend/` is the prerequisite for all eighteen: until it
 exists, no root can `init`.
 
 ## Tree
@@ -25,7 +25,8 @@ since most modules have more than one parent.
 │   ├── 10-postgresql                   ← 01, 04
 │   ├── 15-foundry-resource             ← 01, 03, 04
 │   │   └── 16-foundry-project          ← 15
-│   └── 17-document-intelligence        ← 01, 04
+│   ├── 17-document-intelligence        ← 01, 04
+│   └── 18-ai-search                    ← 01, 04
 ├── 11-container-app-environment        ← 01, 02, 03
 ├── 12-container-apps                   ← 01, 04, 05, 06, 07, 11
 │   └── 14-app-gateway                  ← 01, 02, 11, 12
@@ -53,14 +54,15 @@ since most modules have more than one parent.
 | `15-foundry-resource`          | 01, 03, 04                 | RG placement; workspace for tracing; UAMI "Cognitive Services OpenAI User".          |
 | `16-foundry-project`           | 15                         | Foundry resource ID in the same region.                                              |
 | `17-document-intelligence`     | 01, 04                     | RG placement; UAMI "Cognitive Services User".                                        |
+| `18-ai-search`                 | 01, 04                     | RG placement; UAMI search and blob data roles.                                       |
 
 ## Notes
 
 - **A missing upstream fails at plan with *Unsupported attribute***, which does
   not name the real cause. The dependency is on the upstream's *state*, not its
   Azure resources.
-- **01 and 04 are the two hubs.** 01 feeds all sixteen except 16; 04 feeds every module
-  granting the shared UAMI a data-plane role (05–10, 12, 15, 17).
+- **01 and 04 are the two hubs.** 01 feeds all seventeen except 16; 04 feeds every module
+  granting the shared UAMI a data-plane role (05–10, 12, 15, 17, 18).
 - **10 does not depend on 02.** The `pg` subnet exists but is unused — PG runs
   in public-access mode. The delegated-subnet destroy hazard is 11/12 vs 02.
 - **13 is a leaf**, and reads neither 11 nor 12.

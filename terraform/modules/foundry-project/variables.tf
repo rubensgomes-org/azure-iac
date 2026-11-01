@@ -54,7 +54,7 @@ variable "foundry_id" {
 
   validation {
     condition     = var.foundry_id != null
-    error_message = "No Foundry resource in this region; run aif-create.yml first."
+    error_message = "No Foundry resource in this region; run aif-resource-create.yml first."
   }
 }
 

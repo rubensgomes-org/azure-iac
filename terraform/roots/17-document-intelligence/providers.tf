@@ -26,5 +26,3 @@ provider "azurerm" {
 }
 
 provider "azapi" {}
-
-provider "time" {}

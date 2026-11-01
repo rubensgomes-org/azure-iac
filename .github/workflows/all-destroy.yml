@@ -2,7 +2,7 @@
 # Destroy All
 #
 # Tears down every Terraform root for one environment, in reverse dependency
-# order (17 -> 01), by invoking `make destroy`. THE BLAST RADIUS IS THE WHOLE
+# order (18 -> 01), by invoking `make destroy`. THE BLAST RADIUS IS THE WHOLE
 # ESTATE, and most of it is irreversible: registry images and storage blobs
 # not under retention are gone for good. The Terraform state backend survives
 # and is torn down only by docs/TF_BOOTSTRAP_DESTROY.md.
@@ -352,7 +352,8 @@ jobs:
           rc=0
           failed=""
 
-          for short in document-intelligence foundry app-gateway monitoring \
+          for short in ai-search document-intelligence foundry app-gateway \
+                       monitoring \
                        container-apps \
                        container-app-environment \
                        postgresql service-bus storage acr key-vault \
@@ -400,7 +401,7 @@ jobs:
       # If a module fails, `set -e` inside the recipe aborts the remaining
       # modules. Re-dispatching is the documented recovery: destroy on an
       # emptied state is a no-op, so the loop resumes where it stopped.
-      - name: Destroy all modules (17 -> 01)
+      - name: Destroy all modules (18 -> 01)
         if: ${{ !inputs.dry_run }}
         shell: bash
         run: make ENV="$ENV_NAME" destroy

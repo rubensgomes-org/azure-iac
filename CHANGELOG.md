@@ -26,7 +26,19 @@ premise.
 
 ### Added
 
+- Module 18 (`ai-search`): an AI Search service in the ai RG and its Blob
+  (LRS) storage account. Run `make apply-ai-search`.
+- `srch-create.yml` and `srch-destroy.yml` reusable workflows for module 18.
+
 ### Changed
+
+- Root 01, not root 17, grants the Terraform SP "Storage Blob Data
+  Contributor" on the ai RG, including `make apply-resource-group
+  PURPOSE=ai`.
+- `all-destroy.yml`, `kv-destroy.yml` and `foundry-destroy-all.yml` cover
+  module 18.
+- Renamed `aif-create.yml` and `aif-destroy.yml` to `aif-resource-create.yml`
+  and `aif-resource-destroy.yml`. Callers must update their `uses:` paths.
 
 ### Fixed
 

@@ -4,8 +4,8 @@
 # Brings modules 01-08, 11, 12 and 15 to their desired state: the Container
 # Apps and their dependencies, then the Foundry resource and, unless
 # `app_insights` is off, its tracing Application Insights. Runs
-# aca-create.yml and aif-create.yml in sequence; foundry-destroy-all.yml is
-# its counterpart.
+# aca-create.yml and aif-resource-create.yml in sequence;
+# foundry-destroy-all.yml is its counterpart.
 # =============================================================================
 
 name: Foundry Create All (reusable)
@@ -136,7 +136,7 @@ jobs:
   aif:
     name: aif
     needs: aca
-    uses: rubensgomes-org/azure-iac/.github/workflows/aif-create.yml@v0
+    uses: rubensgomes-org/azure-iac/.github/workflows/aif-resource-create.yml@v0
     with:
       environment_name: ${{ inputs.environment_name }}
       # workflow_call passes a boolean; workflow_dispatch passes 'yes'/'no'.

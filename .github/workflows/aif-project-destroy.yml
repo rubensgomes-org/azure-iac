@@ -84,7 +84,7 @@ jobs:
 
     environment: AZURE
 
-    # Must share this group string verbatim with aif-create.yml.
+    # Must share this group string verbatim with aif-resource-create.yml.
     concurrency:
       group: aif-lifecycle-${{ inputs.environment_name }}
       cancel-in-progress: false
