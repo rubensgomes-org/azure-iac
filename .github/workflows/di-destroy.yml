@@ -73,6 +73,9 @@ jobs:
 
       TF_VAR_env: ${{ inputs.environment_name }}
       TF_VAR_location: ${{ vars.TF_VAR_location }}
+      # Optional. Overrides TF_VAR_location for this module, as in
+      # aif-resource-create.yml.
+      TF_VAR_foundry_location: ${{ vars.TF_VAR_foundry_location }}
       TF_VAR_owner: ${{ vars.TF_VAR_owner }}
 
       TF_VAR_backend_resource_group_name: ${{ vars.TF_VAR_backend_resource_group_name }}

@@ -28,6 +28,9 @@ premise.
 
 ### Changed
 
+- Modules 17 and 18 use `TF_VAR_foundry_location` when set, falling back to
+  `TF_VAR_location`. Their workflows read it from the Actions variables.
+
 ### Fixed
 
 ## [0.0.73] - 2026-11-01

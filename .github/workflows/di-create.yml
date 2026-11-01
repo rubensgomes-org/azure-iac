@@ -76,6 +76,9 @@ jobs:
 
       TF_VAR_env: ${{ inputs.environment_name }}
       TF_VAR_location: ${{ vars.TF_VAR_location }}
+      # Optional. Overrides TF_VAR_location for this module, as in
+      # aif-resource-create.yml.
+      TF_VAR_foundry_location: ${{ vars.TF_VAR_foundry_location }}
       TF_VAR_owner: ${{ vars.TF_VAR_owner }}
 
       # Optional. Unset skips the Studio labeling grant.
@@ -126,8 +129,15 @@ jobs:
             echo "characters starting with a letter."
             exit 1
           fi
+          if [ -n "${TF_VAR_foundry_location}" ] \
+              && ! printf '%s' "${TF_VAR_foundry_location}" \
+                | grep -qE '^[a-z][a-z0-9]{1,30}$'; then
+            echo "FAIL: TF_VAR_foundry_location must be an Azure region name"
+            echo "such as 'eastus2' (lowercase alphanumeric)."
+            exit 1
+          fi
           echo "Validated: env='${ENV_NAME}' workload='${TF_VAR_workload}'" \
-            "location='${TF_VAR_location}'."
+            "location='${TF_VAR_foundry_location:-${TF_VAR_location}}'."
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4

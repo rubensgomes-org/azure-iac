@@ -37,8 +37,16 @@ variable "workload" {
 }
 
 variable "location" {
-  description = "Azure region for the AI Search service. Sourced from ../../envs/<env>/env.tfvars."
+  description = "Azure region for the AI Search service when `foundry_location` is unset. Sourced from ../../envs/<env>/env.tfvars."
   type        = string
+}
+
+# Supplied as TF_VAR_foundry_location. Shared with root 15, so the AI
+# services land in the Foundry region.
+variable "foundry_location" {
+  description = "Azure region for the resources in this root. Null or \"\" uses `location`."
+  type        = string
+  default     = null
 }
 
 variable "tags" {

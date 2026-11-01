@@ -41,7 +41,7 @@ module "ai_search" {
 
   workload              = var.workload
   env                   = var.env
-  location              = var.location
+  location              = coalesce(var.foundry_location, var.location)
   resource_group_name   = data.terraform_remote_state.resource_groups.outputs.rg_ai_name
   uami_principal_id     = data.terraform_remote_state.managed_identities.outputs.uami_app_principal_id
   search_user_object_id = var.search_user_object_id == "" ? null : var.search_user_object_id

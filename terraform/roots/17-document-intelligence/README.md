@@ -12,6 +12,7 @@ Wraps
 
 - Modules 01 (the ai RG) and 04 (the shared UAMI) applied.
 - Same credentials and `TF_VAR_*` / `env.tfvars` setup as every other root.
+- Region: `TF_VAR_foundry_location`, else `TF_VAR_location`.
 
 ## Provision
 
