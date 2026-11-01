@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.72] - 2026-11-01
+
+### Added
+
 - Module 17: a `st<workload>di<env><region>` storage account with a
   `training` container for custom models, CORS for Document Intelligence
   Studio, and blob grants for the resource identity, the shared UAMI and the
