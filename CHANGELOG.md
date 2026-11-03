@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.76] - 2026-11-03
+
+### Added
+
 - Module 19 (`web-iq`): a global Microsoft Web IQ account in the ai RG.
   Run `make apply-web-iq`. Requires a subscription enabled for Web IQ and
   the `Microsoft.WebIQ` provider registered.
