@@ -61,6 +61,7 @@ Provider Namespaces for those Service Resources.
 | Service Bus            |     Microsoft.ServiceBus      | 09             |
 | Storage Accounts       |       Microsoft.Storage       | 08             |
 | Virtual Networks       |       Microsoft.Network       | 02             |
+| Web IQ                 |        Microsoft.WebIQ        | 19             |
 
 The above "Resource Providers" must be registered with the Subscription. This
 allows ARM (Azure Resource Manager) to find the corresponding resource's
@@ -103,6 +104,8 @@ cloud.
     az provider register --verbose --namespace Microsoft.Storage
     # Virtual Network, NSGs, private DNS:
     az provider register --verbose --namespace Microsoft.Network
+    # WebIQ:
+    az provider register --verbose --namespace Microsoft.WebIQ
     ```
 
 - To check the subscription's registration status for a provider:
@@ -152,7 +155,7 @@ and `Contributor` cover only the control plane.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-#### `Cognitive Services User`
+#### `Cognitive Services User` User RBAC
 
 This RBAC role needs to be granted to a `Principal` to allow it to perform
 "data-plane" operations on a `Document Intelligence` resource (e.g., call the
@@ -173,7 +176,7 @@ respective DI resource API).
 
 ### Control-Plane Role
 
-#### `Cognitive Services Contributor`
+#### `Cognitive Services Contributor` User RBAC
 
 This RBAC role needs to be granted to a `Principal` to allow it to perform
 "control-plane" operations on a `Document Intelligence` resource (e.g.,
@@ -324,7 +327,7 @@ alternative on a personal subscription.
 
 ## Grant RBAC Role to `Service Principal`
 
-### `Cognitive Services User`
+### `Cognitive Services User` SP RBAC
 
 This RBAC role needs to be granted to the SP (`Service Principal`) to allow it
 to perform "data-plane" operations on a `Document Intelligence` resource
@@ -341,7 +344,7 @@ applications from the local CLI prompt using the SP account.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-### `Cognitive Services Contributor`
+### `Cognitive Services Contributor` SP RBAC
 
 This RBAC role needs to be granted to a `Principal` to allow it to perform
 "control-plane" operations on a `Document Intelligence` resource (e.g.,
@@ -360,7 +363,7 @@ Document Intelligence resource.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-### `App Configuration Data Owner`
+### `App Configuration Data Owner` SP RBAC
 
 - Add `App Configuration Data Owner` so that GitHub Actions can import
   key-values into the App Configuration store:
@@ -373,7 +376,7 @@ Document Intelligence resource.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-### `Foundry Owner`
+### `Foundry Owner` SP RBAC
 
 - Add `Foundry Owner` for full Foundry management. Not needed by Terraform:
   `Contributor` already creates and deletes the Foundry resource and project.
@@ -386,7 +389,7 @@ Document Intelligence resource.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-### `Key Vault Secrets Officer`
+### `Key Vault Secrets Officer` SP RBAC
 
 - Add `Key Vault Secrets Officer` so that GitHub Actions can create, delete
   and manage secrets in Key Vault:
@@ -399,7 +402,7 @@ Document Intelligence resource.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-### `Storage Blob Data Contributor`
+### `Storage Blob Data Contributor` SP RBAC
 
 - Add `Storage Blob Data Contributor` so that Terraform can check a new
   storage account is ready when shared keys are disabled. Module 08 also

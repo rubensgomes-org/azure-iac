@@ -3,7 +3,7 @@
 #
 # Destroys everything foundry-create-all.yml creates, in reverse dependency
 # order: 15, 08, 12, 11, 07, 06, 05, 04, 03, 02, 01. Refuses to start while
-# modules 09, 10, 13, 14, 17 or 18 hold resources. Registry images are NOT
+# modules 09, 10, 13, 14, 17, 18 or 19 hold resources. Registry images are NOT
 # recoverable. The Terraform state backend is never in scope.
 # =============================================================================
 
@@ -182,7 +182,8 @@ jobs:
                         10-postgresql:postgresql 13-monitoring:monitoring \
                         14-app-gateway:app-gateway \
                         17-document-intelligence:document-intelligence \
-                        18-ai-search:ai-search; do
+                        18-ai-search:ai-search \
+                        19-web-iq:web-iq; do
             dir="${module%%:*}"
             short="${module##*:}"
             make ENV="$ENV_NAME" "init-${short}" >/dev/null

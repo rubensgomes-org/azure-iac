@@ -26,7 +26,17 @@ premise.
 
 ### Added
 
+- Module 19 (`web-iq`): a global Microsoft Web IQ account in the ai RG.
+  Run `make apply-web-iq`. Requires a subscription enabled for Web IQ and
+  the `Microsoft.WebIQ` provider registered.
+- `wiq-create.yml` and `wiq-destroy.yml` reusable workflows for module 19.
+
 ### Changed
+
+- `all-destroy.yml` destroys module 19. `kv-destroy.yml` and
+  `foundry-destroy-all.yml` refuse to start while module 19 holds resources.
+- `docs/INITIAL_SETUP.md`: registers the `Microsoft.WebIQ` provider and
+  labels each RBAC heading as user or SP.
 
 ### Fixed
 

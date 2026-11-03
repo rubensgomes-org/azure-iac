@@ -58,6 +58,7 @@ Workload `rgomes`, environment `lab`.
 | DI training storage       | `st<workload>di<env><region>`                         | `strgomesdilabeus2`                                                                                                                                                               | `modules/document-intelligence`      |
 | AI Search                 | `srch-<workload>ai-<env>-<region>`                    | `srch-rgomesai-lab-eus2`                                                                                                                                                          | `modules/ai-search`                 |
 | AI Search storage         | `st<workload>srch<env><region>`                       | `strgomessrchlabeus2`                                                                                                                                                             | `modules/ai-search`                 |
+| Web IQ                    | `wiq-<workload>ai-<env>`                              | `wiq-rgomesai-lab`                                                                                                                                                                | `modules/web-iq`                    |
 
 The storage account is the one name with no dashes — Azure forbids them there —
 so its four tokens simply run together in the same order.
@@ -142,7 +143,7 @@ token.
 
 `name` is ForceNew on every resource here. Changing either value against a live
 estate is a **destroy and recreate**, not a rename — and because the estate
-spans eighteen state files that only know each other through remote-state
+spans nineteen state files that only know each other through remote-state
 reads, the result is a broken estate rather than a renamed one. Change it at
 first provision, or after a full teardown.
 
@@ -208,7 +209,7 @@ Three further things about these names, unlike the rest of the estate:
   literals, because a `terraform { backend }` block cannot interpolate — the
   values live in `bootstrap-backend/backend.tf`, `bootstrap-backend/variables.tf`
   and both `envs/<env>/backend.hcl`, and all four must agree by hand.
-- `bootstrap/backend.tfstate` shares the container with the eighteen estate
+- `bootstrap/backend.tfstate` shares the container with the nineteen estate
   state blobs, and stays there. The backend's own state spans environments.
 - **Renaming them is a state migration, not an edit.** An Azure resource group
   and storage account cannot be renamed in place, and Terraform will not follow

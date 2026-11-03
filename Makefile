@@ -45,7 +45,7 @@ ENV     ?= dev
 
 # The two halves of the layout, and the whole point of the split:
 #
-#   ROOTS_DIR  the seventeen module roots. ONE copy, shared by every environment.
+#   ROOTS_DIR  the nineteen module roots. ONE copy, shared by every environment.
 #              Nothing in here names an environment -- `var.env` carries it.
 #   ENV_DIR    per-environment configuration ONLY: backend.hcl, tags.json and
 #              the gitignored env.tfvars. Three files, not 4,350 lines.
@@ -181,7 +181,8 @@ DIRS := \
   14-app-gateway \
   15-foundry-resource \
   17-document-intelligence \
-  18-ai-search
+  18-ai-search \
+  19-web-iq
 
 # Destroy order is the strict reverse of DIRS. Reversing is
 # done in Make rather than the shell because `tac` is a GNU coreutils tool and
@@ -284,6 +285,7 @@ $(eval $(call MODULE_TARGETS,15-foundry-resource,foundry-resource))
 $(eval $(call MODULE_TARGETS,16-foundry-project,foundry-project))
 $(eval $(call MODULE_TARGETS,17-document-intelligence,document-intelligence))
 $(eval $(call MODULE_TARGETS,18-ai-search,ai-search))
+$(eval $(call MODULE_TARGETS,19-web-iq,web-iq))
 
 # -----------------------------------------------------------------------------
 # Single resource group (module 01) — targets scoped to PURPOSE
@@ -536,7 +538,7 @@ purge-orphans:
 	@$(SWEEP_ORPHANS)
 
 # -----------------------------------------------------------------------------
-# Whole-estate: destroy (18 → 01) + post-destroy Key Vault check
+# Whole-estate: destroy (19 → 01) + post-destroy Key Vault check
 # -----------------------------------------------------------------------------
 # KV_NAME is captured BEFORE the loop, because module 06's state gets emptied
 # by its own destroy step. The capture re-inits against the REAL backend first:
