@@ -30,6 +30,11 @@ premise.
 
 ### Fixed
 
+- Module 08 (`storage`): set the storage firewall to `Deny` with the
+  `AzureServices` bypass. Tenant policies requiring restricted network access
+  rejected the create with `RequestDisallowedByPolicy`. Existing accounts
+  update in place.
+
 ## [0.0.76] - 2026-11-03
 
 ### Added

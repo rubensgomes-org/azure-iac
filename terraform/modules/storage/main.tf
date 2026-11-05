@@ -32,6 +32,8 @@ module "region_code" {
 # - `public_network_access_enabled = true`: matches the playground posture.
 #   Move to `false` + a PE against `privatelink.blob.core.windows.net`
 #   (zone from module 02) later if we want network isolation.
+# - `network_default_action = "Deny"`: required by tenant policy "Storage
+#   accounts should restrict network access". Trusted Azure services bypass.
 # - `allow_nested_items_to_be_public = false`: even if a container were
 #   accidentally created with public access, blobs stay private.
 # - Soft delete = 2 days for both blobs AND containers: shortest tolerable
@@ -44,6 +46,8 @@ locals {
   min_tls_version                 = "TLS1_2"
   https_traffic_only_enabled      = true
   public_network_access_enabled   = true
+  network_default_action          = "Deny"
+  network_bypass                  = ["AzureServices"]
   shared_access_key_enabled       = false
   allow_nested_items_to_be_public = false
   soft_delete_retention_days      = 2
@@ -86,6 +90,11 @@ resource "azurerm_storage_account" "this" {
   public_network_access_enabled   = local.public_network_access_enabled
   shared_access_key_enabled       = local.shared_access_key_enabled
   allow_nested_items_to_be_public = local.allow_nested_items_to_be_public
+
+  network_rules {
+    default_action = local.network_default_action
+    bypass         = local.network_bypass
+  }
 
   blob_properties {
     delete_retention_policy {
