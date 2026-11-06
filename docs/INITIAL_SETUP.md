@@ -51,7 +51,7 @@ Provider Namespaces for those Service Resources.
 | ACR                    |  Microsoft.ContainerRegistry  | 07             |
 | App Configuration      |  Microsoft.AppConfiguration   | 05             |
 | Bot Service (Foundry)  |     Microsoft.BotService      | —              |
-| Cognitive Services     |  Microsoft.CognitiveServices  | 15, 17         |
+| Cognitive Services     |  Microsoft.CognitiveServices  | 15, 17, 20     |
 | Container Apps         |         Microsoft.App         | 11, 12         |
 | Key Vault              |      Microsoft.KeyVault       | 06             |
 | Log Analytics          | Microsoft.OperationalInsights | 03             |
@@ -402,16 +402,28 @@ Document Intelligence resource.
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
 
-### `Storage Blob Data Contributor` SP RBAC
+### `Storage Blob Data Contributor` SP and User RBAC
 
 - Add `Storage Blob Data Contributor` so that Terraform can check a new
   storage account is ready when shared keys are disabled. Module 08 also
   grants it on the data resource group:
 
+- Service Principal:
+
     ```bash
     az role assignment create \
       --assignee-object-id "${SP_OBJ_ID}" \
       --assignee-principal-type ServicePrincipal \
+      --role "Storage Blob Data Contributor" \
+      --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
+    ```
+
+- User:
+
+    ```bash
+    az role assignment create \
+      --assignee-object-id "${USER_OBJ_ID}" \
+      --assignee-principal-type User \
       --role "Storage Blob Data Contributor" \
       --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}"
     ```
@@ -458,6 +470,29 @@ Document Intelligence resource.
       --scope "${SCOPE}" \
       -o table
     ```
+
+## Storage Account Container `cnt-rgomesapp-lab`
+
+I had security issues accessing `cnt-rgomesapp-lab` under the storage account `strgomesapplabcus` located in the resource group `rg-rgomesdata-lab-cus`.  I had to run the following commands to access the container from the Azure Portal using the SP account:
+
+- Change firewall to allow public network access:
+  
+  ```bash
+  az storage account update \
+    -g rg-rgomesdata-lab-cus \
+    -n strgomesapplabcus   \
+    --public-network-access Enabled \
+    --default-action Deny
+  ```
+
+- Allow my IP to access the container:
+
+  ```bash
+  az storage account network-rule add \
+    -g rg-rgomesdata-lab-cus   \
+    --account-name strgomesapplabcus   \
+    --ip-address 35.147.152.3
+  ```
 
 ## Terraform Environment
 

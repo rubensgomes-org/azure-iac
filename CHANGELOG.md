@@ -26,7 +26,14 @@ premise.
 
 ### Added
 
+- Module 20 (`language`): an Azure AI Language resource in the ai RG, with
+  "Cognitive Services User" for the shared UAMI. Run `make apply-language`.
+- `lang-create.yml` and `lang-destroy.yml` reusable workflows for module 20.
+
 ### Changed
+
+- `all-destroy.yml` destroys module 20. `kv-destroy.yml` and
+  `foundry-destroy-all.yml` refuse to start while module 20 holds resources.
 
 ### Fixed
 

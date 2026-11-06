@@ -1,0 +1,212 @@
+# =============================================================================
+# Lang Create (reusable)
+#
+# Brings modules 01 (resource groups, for the ai RG), 04 (managed
+# identities) and 20 (language) to their desired state: an Azure AI
+# Language resource in the ai RG. Module 20 state is per region: a new
+# region adds a resource, and an existing one is never destroyed (only
+# lang-destroy.yml does). Every recipe is a `make` target from the
+# repo-root Makefile. Endpoints and keys are never printed.
+# =============================================================================
+
+name: Lang Create (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: >-
+          Estate environment to provision. Maps to the Makefile ENV
+          variable and selects terraform/envs/<env>.
+        type: string
+        required: true
+      location:
+        description: >-
+          Azure region of the Language resource. Empty uses
+          vars.TF_VAR_foundry_location, then vars.TF_VAR_location.
+        type: string
+        required: false
+        default: ""
+
+    outputs:
+      language_name:
+        description: "Name of the Language resource."
+        value: ${{ jobs.provision.outputs.language_name }}
+
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: true
+
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: "Estate environment to provision"
+        type: choice
+        required: true
+        options:
+          - dev
+          - lab
+      location:
+        description: "Region for Language. Empty uses TF_VAR_FOUNDRY_LOCATION."
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    name: provision
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Must share this group string verbatim with lang-destroy.yml.
+    concurrency:
+      group: lang-lifecycle-${{ inputs.environment_name }}
+      cancel-in-progress: false
+
+    outputs:
+      language_name: ${{ steps.lang_outputs.outputs.language_name }}
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      TF_IN_AUTOMATION: "true"
+
+      ROOTS_DIR: terraform/roots
+
+      # Reference "$ENV_NAME" from run blocks; never `${{ inputs.* }}`.
+      ENV_NAME: ${{ inputs.environment_name }}
+
+      # Same fallback as every other workflow; see aca-create.yml.
+      TF_VAR_workload: ${{ vars.TF_VAR_workload || 'rgomes' }}
+
+      TF_VAR_env: ${{ inputs.environment_name }}
+      TF_VAR_location: ${{ vars.TF_VAR_location }}
+      # Optional. Empty falls back to TF_VAR_location. The region is part
+      # of the name and the state key, as in aif-resource-create.yml.
+      TF_VAR_foundry_location: ${{
+        inputs.location || vars.TF_VAR_foundry_location }}
+      TF_VAR_owner: ${{ vars.TF_VAR_owner }}
+
+      TF_VAR_backend_resource_group_name: ${{
+        vars.TF_VAR_backend_resource_group_name }}
+      TF_VAR_storage_account_id: ${{ vars.TF_VAR_storage_account_id }}
+      TF_VAR_container_name: ${{ vars.TF_VAR_container_name }}
+
+    steps:
+      # See aca-create.yml for why job.workflow_* is used here.
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+
+      - name: Verify required Azure configuration is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID \
+                   ARM_SUBSCRIPTION_ID TF_VAR_env TF_VAR_location \
+                   TF_VAR_backend_resource_group_name \
+                   TF_VAR_storage_account_id TF_VAR_container_name; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret/env var: ${v}"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: GUARD - Validate Terraform inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "${ENV_NAME}" | grep -qE '^[a-z][a-z0-9]{1,9}$'; then
+            echo "FAIL: environment_name must be 2-10 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if ! printf '%s' "${TF_VAR_workload}" \
+              | grep -qE '^[a-z][a-z0-9]{1,15}$'; then
+            echo "FAIL: TF_VAR_workload must be 2-16 lowercase alphanumeric"
+            echo "characters starting with a letter."
+            exit 1
+          fi
+          if [ -n "${TF_VAR_foundry_location}" ] \
+              && ! printf '%s' "${TF_VAR_foundry_location}" \
+                | grep -qE '^[a-z][a-z0-9]{1,30}$'; then
+            echo "FAIL: location must be an Azure region name such as"
+            echo "'eastus2' (lowercase alphanumeric)."
+            exit 1
+          fi
+          echo "Validated: env='${ENV_NAME}' workload='${TF_VAR_workload}'" \
+            "location='${TF_VAR_foundry_location:-${TF_VAR_location}}'."
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.0"
+          terraform_wrapper: false
+
+      # Creates the ai RG on first run; a no-op afterwards.
+      - name: Module 01 - resource groups
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-resource-groups plan-resource-groups apply-resource-groups
+
+      # Module 20 grants this identity "Cognitive Services User".
+      - name: Module 04 - managed identities
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-managed-identities plan-managed-identities \
+            apply-managed-identities
+
+      - name: Plan module 20 - language
+        shell: bash
+        run: |
+          make ENV="$ENV_NAME" \
+            init-language plan-language
+
+      - name: GUARD - Assert the plan destroys no Language resource
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/20-language
+        run: |
+          set -euo pipefail
+          forbidden="$(terraform show -json tfplan | jq -r '
+            .resource_changes[]?
+            | select(.change.actions | index("delete"))
+            | select(.type == "azurerm_cognitive_account")
+            | .address')"
+          if [ -n "${forbidden}" ]; then
+            echo "DENIED: plan destroys or replaces the Language resource."
+            echo "Use lang-destroy.yml to remove it:"
+            while IFS= read -r address; do
+              echo "  ${address}"
+            done <<< "${forbidden}"
+            exit 1
+          fi
+          echo "OK: plan destroys no Language resource."
+
+      # Applies the guarded plan file, not a fresh plan.
+      - name: Apply module 20 - language
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/20-language
+        run: terraform apply -lock-timeout=10m tfplan
+
+      - name: Publish Language outputs
+        id: lang_outputs
+        shell: bash
+        working-directory: ${{ env.ROOTS_DIR }}/20-language
+        run: |
+          set -euo pipefail
+          name="$(terraform output -raw language_name)"
+          echo "language_name=${name}" >> "$GITHUB_OUTPUT"
+          echo "Language resource: ${name}"

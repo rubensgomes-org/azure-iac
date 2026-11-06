@@ -85,7 +85,7 @@ resources provisioned by this project.
 | `acr-create.yml`     | apply modules 01 → 04 → 07 so a registry exists and is writable                                         |
 | `acr-destroy.yml`    | **destructive** — destroy module 07 only, the registry and every image in it                            |
 | `kv-create.yml`      | apply modules 01 → 04 → 05 → 06 so a Key Vault exists and the shared UAMI can read it                   |
-| `kv-destroy.yml`     | **destructive** — destroy modules 06, 05, 04, 01; refuses while 02, 03 or 07–15, 17–19 hold resources    |
+| `kv-destroy.yml`     | **destructive** — destroy modules 06, 05, 04, 01; refuses while 02, 03 or 07–15, 17–20 hold resources    |
 | `cae-create.yml`     | apply modules 01 → 02 → 03 → 11 so a Container App Environment exists                                   |
 | `cae-destroy.yml`    | **destructive** — destroy module 11 only, the Container App Environment                                 |
 | `aca-create.yml`     | apply modules 01 → 02 → 03 → 04 → 05 → 06 → 07 → 11 → 12 so the Container Apps exist                    |
@@ -102,8 +102,10 @@ resources provisioned by this project.
 | `srch-destroy.yml`   | **destructive** — destroy module 18 in one region, the AI Search service and its storage account |
 | `wiq-create.yml`     | apply modules 01 → 19 so a Web IQ account exists                                                        |
 | `wiq-destroy.yml`    | **destructive** — destroy module 19 only, the Web IQ account                                            |
+| `lang-create.yml`    | apply modules 01 → 04 → 20 so a Language resource exists                                                |
+| `lang-destroy.yml`   | **destructive** — destroy module 20 in one region, the Language resource                                |
 | `foundry-create-all.yml` | apply modules 01–08, 11, 12, 15 via `aca-create.yml` then `aif-resource-create.yml`                |
-| `foundry-destroy-all.yml` | **destructive** — destroy modules 15, 08, 12, 11, 07, 06 → 01; refuses while 09, 10, 13, 14, 17–19 exist |
+| `foundry-destroy-all.yml` | **destructive** — destroy modules 15, 08, 12, 11, 07, 06 → 01; refuses while 09, 10, 13, 14, 17–20 exist |
 | `rg-create-all.yml`  | apply module 01, all six resource groups; plans only unless `dry_run` is cleared                        |
 | `rg-destroy-all.yml` | **destructive** — destroy module 01 only, after modules 02–15; plans only unless `dry_run` is cleared   |
 | `rg-create.yml`      | apply ONE module 01 resource group, chosen by `purpose`; plans only unless `dry_run` is cleared         |

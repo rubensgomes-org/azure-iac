@@ -45,7 +45,7 @@ ENV     ?= dev
 
 # The two halves of the layout, and the whole point of the split:
 #
-#   ROOTS_DIR  the nineteen module roots. ONE copy, shared by every environment.
+#   ROOTS_DIR  the twenty module roots. ONE copy, shared by every environment.
 #              Nothing in here names an environment -- `var.env` carries it.
 #   ENV_DIR    per-environment configuration ONLY: backend.hcl, tags.json and
 #              the gitignored env.tfvars. Three files, not 4,350 lines.
@@ -101,7 +101,7 @@ BACKEND_OVERRIDES := \
   $(if $(TF_VAR_storage_account_id),-backend-config="storage_account_name=$(TF_VAR_storage_account_id)") \
   $(if $(TF_VAR_container_name),-backend-config="container_name=$(TF_VAR_container_name)")
 
-# Modules 15, 17 and 18 keep one state per region, so a new region adds a
+# Modules 15, 17, 18 and 20 keep one state per region, so a new region adds a
 # resource instead of replacing the existing one, and module 16 one state per
 # project in that region. Same fallback as the roots'
 # `coalesce(var.foundry_location, var.location)`.
@@ -112,14 +112,14 @@ FOUNDRY_PROJECT  = proj-$(WORKLOAD)ai$(TF_VAR_foundry_project_suffix)
 define SET_STATE_PREFIX
 state="$$key"; \
 case "$$key" in \
-  foundry-resource|foundry-project|document-intelligence|ai-search) \
+  foundry-resource|foundry-project|document-intelligence|ai-search|language) \
   if [ -z "$(FOUNDRY_REGION)" ]; then \
     echo "ERROR: set TF_VAR_foundry_location or TF_VAR_location." >&2; \
     exit 1; \
   fi;; \
 esac; \
 case "$$key" in \
-  foundry-resource|document-intelligence|ai-search) \
+  foundry-resource|document-intelligence|ai-search|language) \
     state="$$key/$(FOUNDRY_REGION)";; \
   foundry-project) \
     state="foundry-project/$(FOUNDRY_REGION)/$(FOUNDRY_PROJECT)";; \
@@ -182,7 +182,8 @@ DIRS := \
   15-foundry-resource \
   17-document-intelligence \
   18-ai-search \
-  19-web-iq
+  19-web-iq \
+  20-language
 
 # Destroy order is the strict reverse of DIRS. Reversing is
 # done in Make rather than the shell because `tac` is a GNU coreutils tool and
@@ -286,6 +287,7 @@ $(eval $(call MODULE_TARGETS,16-foundry-project,foundry-project))
 $(eval $(call MODULE_TARGETS,17-document-intelligence,document-intelligence))
 $(eval $(call MODULE_TARGETS,18-ai-search,ai-search))
 $(eval $(call MODULE_TARGETS,19-web-iq,web-iq))
+$(eval $(call MODULE_TARGETS,20-language,language))
 
 # -----------------------------------------------------------------------------
 # Single resource group (module 01) — targets scoped to PURPOSE
@@ -538,7 +540,7 @@ purge-orphans:
 	@$(SWEEP_ORPHANS)
 
 # -----------------------------------------------------------------------------
-# Whole-estate: destroy (19 → 01) + post-destroy Key Vault check
+# Whole-estate: destroy (20 → 01) + post-destroy Key Vault check
 # -----------------------------------------------------------------------------
 # KV_NAME is captured BEFORE the loop, because module 06's state gets emptied
 # by its own destroy step. The capture re-inits against the REAL backend first:

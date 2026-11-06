@@ -4,7 +4,7 @@
 # Destroys everything kv-create.yml creates, in reverse dependency order:
 # 06 (key vault), 05 (app configuration), 04 (managed identities) and 01
 # (all six resource groups). Refuses to start while modules 02, 03, 07-15,
-# 17, 18 or 19 hold resources. Vault secrets are NOT recoverable: the
+# 17-20 hold resources. Vault secrets are NOT recoverable: the
 # soft-deleted vault is purged so its name can be reused. The Terraform
 # state backend is never in scope.
 # =============================================================================
@@ -232,7 +232,8 @@ jobs:
                         15-foundry-resource:foundry-resource \
                         17-document-intelligence:document-intelligence \
                         18-ai-search:ai-search \
-                        19-web-iq:web-iq; do
+                        19-web-iq:web-iq \
+                        20-language:language; do
             dir="${module%%:*}"
             short="${module##*:}"
             make ENV="$ENV_NAME" "init-${short}" >/dev/null
