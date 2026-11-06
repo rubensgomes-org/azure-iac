@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.78] - 2026-11-06
+
+### Added
+
 - Module 20 (`language`): an Azure AI Language resource in the ai RG, with
   "Cognitive Services User" for the shared UAMI. Run `make apply-language`.
 - `lang-create.yml` and `lang-destroy.yml` reusable workflows for module 20.
