@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.79] - 2026-11-09
+
+### Added
+
 - Module 15 (`foundry-resource`): a storage account
   `st<workload>ai<env><region>` per Foundry resource, in the same region,
   with "Storage Blob Data Contributor" for the shared UAMI.
