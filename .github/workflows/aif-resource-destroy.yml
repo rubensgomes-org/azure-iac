@@ -3,8 +3,8 @@
 #
 # Destroys modules 15 and 08: the Azure AI Foundry resource in the given
 # region, with every model deployment on it, its Application Insights and
-# storage account, and the module 08 storage account, with every blob in
-# each. Refuses while a project from
+# storage account (with container cnt-<workload>ai), and the module 08
+# storage account, with every blob in each. Refuses while a project from
 # aif-project-create.yml remains in that region. The module 08 storage
 # account is kept while another region's Foundry state holds resources. The
 # ai RG (module 01) and the workspace (module 03) stay in place, so
@@ -246,7 +246,8 @@ jobs:
                                 "azurerm_cognitive_account",
                                 "azurerm_cognitive_account_connection_api_key",
                                 "azurerm_role_assignment",
-                                "azurerm_storage_account") | not)
+                                "azurerm_storage_account",
+                                "azurerm_storage_container") | not)
             | .address')"
           if [ -n "${forbidden}" ]; then
             echo "DENIED: destroy plan reaches beyond module 15:"

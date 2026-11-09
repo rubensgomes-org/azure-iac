@@ -27,3 +27,8 @@ output "storage_account_name" {
   description = "Name of st<workload>ai<env><region>."
   value       = module.foundry_resource.storage_account_name
 }
+
+output "storage_container_name" {
+  description = "Name of the cnt-<workload>ai blob container."
+  value       = module.foundry_resource.storage_container_name
+}

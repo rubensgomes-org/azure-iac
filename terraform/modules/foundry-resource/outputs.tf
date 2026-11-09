@@ -27,3 +27,8 @@ output "storage_account_name" {
   description = "Name of st<workload>ai<env><region>."
   value       = azurerm_storage_account.this.name
 }
+
+output "storage_container_name" {
+  description = "Name of the cnt-<workload>ai blob container."
+  value       = azurerm_storage_container.this.name
+}

@@ -15,6 +15,7 @@ Called by `terraform/roots/15-foundry-resource/`.
 | `azurerm_role_assignment`                      | —                                | UAMI "Cognitive Services OpenAI User"      |
 | `azurerm_role_assignment`                      | —                                | "Foundry User"; only when a user ID is set |
 | `azurerm_storage_account`                      | `st<workload>ai<env><region>`    | Same posture as `modules/storage`          |
+| `azurerm_storage_container`                    | `cnt-<workload>ai`               | Private; created via ARM                   |
 | `azurerm_role_assignment`                      | —                                | UAMI "Storage Blob Data Contributor"       |
 | `azurerm_application_insights`                 | `appi-<workload>ai-<env>-<region>`        | Only when `app_insights_enabled`           |
 | `azurerm_cognitive_account_connection_api_key` | `appi-<workload>ai-<env>-<region>`        | Only when `app_insights_enabled`           |
@@ -48,7 +49,8 @@ every `Microsoft.CognitiveServices/*` data action.
 
 ## Outputs
 
-- `foundry_id`, `foundry_name`, `storage_account_name`
+- `foundry_id`, `foundry_name`, `storage_account_name`,
+  `storage_container_name`
 - `app_insights_id`, `app_insights_name` (null when disabled)
 
 ## Caveats

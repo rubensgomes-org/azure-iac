@@ -26,6 +26,10 @@ premise.
 
 ### Added
 
+- Module 15 (`foundry-resource`): blob container `cnt-<workload>ai` in
+  the Foundry storage account, output as `storage_container_name`.
+  `aif-resource-destroy.yml` deletes it with the account.
+
 ### Changed
 
 ### Fixed

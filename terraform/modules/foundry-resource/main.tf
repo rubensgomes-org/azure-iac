@@ -4,7 +4,8 @@
 # "Cognitive Services OpenAI User" grant for the shared UAMI, an optional
 # "Foundry User" grant for a human user, an optional Application Insights
 # connected to the resource for agent tracing, and a storage account in the
-# same region. Projects live in modules/foundry-project.
+# same region with blob container cnt-<workload>ai. Projects live in
+# modules/foundry-project.
 #
 # Design decisions (fixed here, not variables):
 #
@@ -35,6 +36,7 @@ locals {
   account_name      = "aif-${var.workload}ai-${var.env}-${local.region}"
   app_insights_name = "appi-${var.workload}ai-${var.env}-${local.region}"
   storage_name      = "st${var.workload}ai${var.env}${local.region}"
+  container_name    = "cnt-${var.workload}ai"
 
   kind     = "AIServices"
   sku_name = "S0"
@@ -156,6 +158,14 @@ resource "azurerm_storage_account" "this" {
       error_message = "Storage account name ${local.storage_name} exceeds 24 chars. Shorten workload or env."
     }
   }
+}
+
+# `storage_account_id` routes the container through the ARM control plane,
+# which the network Deny rule and disabled shared keys do not block.
+resource "azurerm_storage_container" "this" {
+  name                  = local.container_name
+  storage_account_id    = azurerm_storage_account.this.id
+  container_access_type = "private"
 }
 
 resource "azurerm_role_assignment" "uami_blob_contributor" {
