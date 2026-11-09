@@ -2,9 +2,9 @@
 # -----------------------------------------------------------------------------
 # Provisions an Azure AI Foundry resource (`kind = AIServices`), a
 # "Cognitive Services OpenAI User" grant for the shared UAMI, an optional
-# "Foundry User" grant for a human user, and an optional Application Insights
-# connected to the resource for agent tracing. Projects live in
-# modules/foundry-project.
+# "Foundry User" grant for a human user, an optional Application Insights
+# connected to the resource for agent tracing, and a storage account in the
+# same region. Projects live in modules/foundry-project.
 #
 # Design decisions (fixed here, not variables):
 #
@@ -20,6 +20,9 @@
 # * **UAMI gets "Cognitive Services OpenAI User", not "Foundry User".** It
 #   covers model inference (including the Responses API) without granting
 #   every `Microsoft.CognitiveServices/*` data action.
+#
+# * **Storage.** Same posture as modules/storage (no shared keys, no public
+#   blobs, network default Deny).
 # -----------------------------------------------------------------------------
 
 module "region_code" {
@@ -31,9 +34,12 @@ locals {
   region            = module.region_code.code
   account_name      = "aif-${var.workload}ai-${var.env}-${local.region}"
   app_insights_name = "appi-${var.workload}ai-${var.env}-${local.region}"
+  storage_name      = "st${var.workload}ai${var.env}${local.region}"
 
   kind     = "AIServices"
   sku_name = "S0"
+
+  soft_delete_retention_days = 2
 
   foundry_user_role_id = "53ca6127-db72-4b80-b1b0-d745d6d5456d"
   openai_user_role_id  = "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd"
@@ -107,4 +113,54 @@ resource "azurerm_cognitive_account_connection_api_key" "app_insights" {
     ApiType    = "Azure"
     ResourceId = azurerm_application_insights.this[0].id
   }
+}
+
+resource "azurerm_storage_account" "this" {
+  name                = local.storage_name
+  location            = var.location
+  resource_group_name = var.resource_group_name
+
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+  account_kind             = "StorageV2"
+  access_tier              = "Hot"
+
+  min_tls_version                 = "TLS1_2"
+  https_traffic_only_enabled      = true
+  public_network_access_enabled   = true
+  shared_access_key_enabled       = false
+  allow_nested_items_to_be_public = false
+
+  network_rules {
+    default_action = "Deny"
+    bypass         = ["AzureServices"]
+  }
+
+  blob_properties {
+    delete_retention_policy {
+      days = local.soft_delete_retention_days
+    }
+    container_delete_retention_policy {
+      days = local.soft_delete_retention_days
+    }
+  }
+
+  tags = merge(
+    var.tags,
+    { component = "foundry" },
+  )
+
+  lifecycle {
+    precondition {
+      condition     = length(local.storage_name) <= 24
+      error_message = "Storage account name ${local.storage_name} exceeds 24 chars. Shorten workload or env."
+    }
+  }
+}
+
+resource "azurerm_role_assignment" "uami_blob_contributor" {
+  scope                = azurerm_storage_account.this.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = var.uami_principal_id
+  principal_type       = "ServicePrincipal"
 }

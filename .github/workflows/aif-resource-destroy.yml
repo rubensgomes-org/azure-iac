@@ -2,9 +2,10 @@
 # AIF Resource Destroy (reusable)
 #
 # Destroys modules 15 and 08: the Azure AI Foundry resource in the given
-# region, with every model deployment on it, its Application Insights, and
-# the storage account with every blob in it. Refuses while a project from
-# aif-project-create.yml remains in that region. The storage
+# region, with every model deployment on it, its Application Insights and
+# storage account, and the module 08 storage account, with every blob in
+# each. Refuses while a project from
+# aif-project-create.yml remains in that region. The module 08 storage
 # account is kept while another region's Foundry state holds resources. The
 # ai RG (module 01) and the workspace (module 03) stay in place, so
 # aif-resource-create.yml can bring them back.
@@ -32,8 +33,8 @@ on:
       confirm:
         description: >
           DESTROYS MODULES 15 AND 08 — the Foundry resource, with every
-          model deployment on it, and the storage account with
-          every blob in it.
+          model deployment on it, and the storage accounts with
+          every blob in them.
         type: choice
         required: true
         default: "No"
@@ -244,7 +245,8 @@ jobs:
             | select(.type | IN("azurerm_application_insights",
                                 "azurerm_cognitive_account",
                                 "azurerm_cognitive_account_connection_api_key",
-                                "azurerm_role_assignment") | not)
+                                "azurerm_role_assignment",
+                                "azurerm_storage_account") | not)
             | .address')"
           if [ -n "${forbidden}" ]; then
             echo "DENIED: destroy plan reaches beyond module 15:"

@@ -1,7 +1,8 @@
 # modules/foundry-resource
 
-Child Terraform module that provisions an Azure AI Foundry resource and an
-optional Application Insights connected for agent tracing. Projects live in
+Child Terraform module that provisions an Azure AI Foundry resource, a
+storage account in the same region and an optional Application Insights
+connected for agent tracing. Projects live in
 [`../foundry-project/`](../foundry-project/README.md).
 
 Called by `terraform/roots/15-foundry-resource/`.
@@ -13,6 +14,8 @@ Called by `terraform/roots/15-foundry-resource/`.
 | `azurerm_cognitive_account`                    | `aif-<workload>ai-<env>-<region>`   | `AIServices`, S0, custom subdomain = name  |
 | `azurerm_role_assignment`                      | —                                | UAMI "Cognitive Services OpenAI User"      |
 | `azurerm_role_assignment`                      | —                                | "Foundry User"; only when a user ID is set |
+| `azurerm_storage_account`                      | `st<workload>ai<env><region>`    | Same posture as `modules/storage`          |
+| `azurerm_role_assignment`                      | —                                | UAMI "Storage Blob Data Contributor"       |
 | `azurerm_application_insights`                 | `appi-<workload>ai-<env>-<region>`        | Only when `app_insights_enabled`           |
 | `azurerm_cognitive_account_connection_api_key` | `appi-<workload>ai-<env>-<region>`        | Only when `app_insights_enabled`           |
 
@@ -45,7 +48,7 @@ every `Microsoft.CognitiveServices/*` data action.
 
 ## Outputs
 
-- `foundry_id`, `foundry_name`
+- `foundry_id`, `foundry_name`, `storage_account_name`
 - `app_insights_id`, `app_insights_name` (null when disabled)
 
 ## Caveats

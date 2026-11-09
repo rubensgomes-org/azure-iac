@@ -3,8 +3,9 @@
 #
 # Brings modules 01 (resource groups, for the ai RG), 03 (log analytics),
 # 04 (managed identities), 08 (storage) and 15 (foundry-resource) to their
-# desired state: a storage account, an Azure AI Foundry resource and, unless
-# `app_insights` is off, the Application Insights it traces agents to.
+# desired state: a storage account, an Azure AI Foundry resource with its
+# own storage account in the same region and, unless `app_insights` is off,
+# the Application Insights it traces agents to.
 # Projects come from aif-project-create.yml.
 # Module 15 state is per region: a new region adds a Foundry resource, and
 # an existing one is never destroyed (only aif-resource-destroy.yml does).
@@ -213,7 +214,7 @@ jobs:
         run: |
           make ENV="$ENV_NAME" init-foundry-resource plan-foundry-resource
 
-      - name: GUARD - Assert the plan destroys no Foundry resource
+      - name: GUARD - Assert the plan destroys no Foundry resource or storage
         shell: bash
         working-directory: ${{ env.ROOTS_DIR }}/15-foundry-resource
         run: |
@@ -221,17 +222,18 @@ jobs:
           forbidden="$(terraform show -json tfplan | jq -r '
             .resource_changes[]?
             | select(.change.actions | index("delete"))
-            | select(.type == "azurerm_cognitive_account")
+            | select(.type | IN("azurerm_cognitive_account",
+                                "azurerm_storage_account"))
             | .address')"
           if [ -n "${forbidden}" ]; then
-            echo "DENIED: plan destroys or replaces a Foundry resource."
+            echo "DENIED: plan destroys or replaces a Foundry resource or storage."
             echo "Use aif-resource-destroy.yml to remove one:"
             while IFS= read -r address; do
               echo "  ${address}"
             done <<< "${forbidden}"
             exit 1
           fi
-          echo "OK: plan destroys no Foundry resource."
+          echo "OK: plan destroys no Foundry resource or storage."
 
       # Applies the guarded plan file, not a fresh plan.
       - name: Apply module 15 - foundry resource

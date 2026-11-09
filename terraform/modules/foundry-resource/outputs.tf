@@ -22,3 +22,8 @@ output "app_insights_name" {
   description = "Name of the Application Insights connected for tracing. Null when disabled."
   value       = one(azurerm_application_insights.this[*].name)
 }
+
+output "storage_account_name" {
+  description = "Name of st<workload>ai<env><region>."
+  value       = azurerm_storage_account.this.name
+}
