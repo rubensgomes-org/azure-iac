@@ -63,7 +63,7 @@ variable "owner" {
 # Supplied as TF_VAR_foundry_user_object_id, not from env.tfvars, which is
 # shared by every root.
 variable "foundry_user_object_id" {
-  description = "Entra object ID of a user granted \"Foundry User\" on the resource. Null skips the grant."
+  description = "Entra object ID of a user granted \"Foundry User\" on the resource and \"Storage Blob Data Contributor\" on the storage account. Null skips the grants."
   type        = string
   default     = null
 }

@@ -22,13 +22,16 @@ Called by `terraform/roots/15-foundry-resource/`.
 
 ## RBAC
 
-Both roles are assigned by role definition ID, scoped to the Foundry
-resource.
+Foundry roles are assigned by role definition ID, scoped to the Foundry
+resource; blob roles are scoped to the storage account.
 
 | Principal                                    | Role                               |
 |----------------------------------------------|------------------------------------|
 | Shared UAMI used by the container apps (04)  | Cognitive Services OpenAI User     |
+| Shared UAMI used by the container apps (04)  | Storage Blob Data Contributor      |
+| Terraform SP                                 | Storage Blob Data Contributor      |
 | `foundry_user_object_id` (optional)          | Foundry User                       |
+| `foundry_user_object_id` (optional)          | Storage Blob Data Contributor      |
 
 The UAMI gets "Cognitive Services OpenAI User" rather than "Foundry User":
 it covers model inference (including the Responses API) without granting
@@ -44,7 +47,7 @@ every `Microsoft.CognitiveServices/*` data action.
 | `log_analytics_workspace_id` | `string`      | yes      | Workspace (module 03).                   |
 | `uami_principal_id`          | `string`      | yes      | Shared UAMI (module 04).                 |
 | `app_insights_enabled`       | `bool`        | no       | Default `true`.                          |
-| `foundry_user_object_id`     | `string`      | no       | User granted "Foundry User". Null skips. |
+| `foundry_user_object_id`     | `string`      | no       | User granted Foundry and blob roles.     |
 | `tags`                       | `map(string)` | no       | Merged with `component = "foundry"`.     |
 
 ## Outputs

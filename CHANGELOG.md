@@ -26,7 +26,13 @@ premise.
 
 ### Added
 
+- Module 15 (`foundry-resource`): "Storage Blob Data Contributor" on the
+  Foundry storage account for the Terraform SP and `foundry_user_object_id`.
+
 ### Changed
+
+- Module 15 (`foundry-resource`): Foundry storage network default action is
+  `Allow`, so the Portal can browse the container.
 
 ### Fixed
 

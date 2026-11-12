@@ -22,8 +22,8 @@
 #   covers model inference (including the Responses API) without granting
 #   every `Microsoft.CognitiveServices/*` data action.
 #
-# * **Storage.** Same posture as modules/storage (no public blobs, network
-#   default Deny), except shared key access is enabled.
+# * **Storage.** No public blobs; shared keys and public network access
+#   are enabled so the Portal can browse the container.
 # -----------------------------------------------------------------------------
 
 module "region_code" {
@@ -134,8 +134,7 @@ resource "azurerm_storage_account" "this" {
   allow_nested_items_to_be_public = false
 
   network_rules {
-    default_action = "Deny"
-    bypass         = ["AzureServices"]
+    default_action = "Allow"
   }
 
   blob_properties {
@@ -161,7 +160,7 @@ resource "azurerm_storage_account" "this" {
 }
 
 # `storage_account_id` routes the container through the ARM control plane,
-# which the network Deny rule does not block.
+# so the Terraform SP needs no data-plane grant to create it.
 resource "azurerm_storage_container" "this" {
   name                  = local.container_name
   storage_account_id    = azurerm_storage_account.this.id
@@ -173,4 +172,19 @@ resource "azurerm_role_assignment" "uami_blob_contributor" {
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = var.uami_principal_id
   principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "terraform_blob_contributor" {
+  scope                = azurerm_storage_account.this.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
+resource "azurerm_role_assignment" "user_blob_contributor" {
+  count = var.foundry_user_object_id == null ? 0 : 1
+
+  scope                = azurerm_storage_account.this.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = var.foundry_user_object_id
+  principal_type       = "User"
 }
