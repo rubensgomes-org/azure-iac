@@ -12,8 +12,7 @@
 #
 # `purge_soft_delete_on_destroy` releases the globally unique custom
 # subdomain, so the same name can be re-created right after a destroy.
-# `storage_use_azuread` is required because the storage account disables
-# shared keys.
+# `storage_use_azuread` keeps storage data-plane calls on Entra ID.
 # -----------------------------------------------------------------------------
 
 provider "azurerm" {

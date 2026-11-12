@@ -22,8 +22,8 @@
 #   covers model inference (including the Responses API) without granting
 #   every `Microsoft.CognitiveServices/*` data action.
 #
-# * **Storage.** Same posture as modules/storage (no shared keys, no public
-#   blobs, network default Deny).
+# * **Storage.** Same posture as modules/storage (no public blobs, network
+#   default Deny), except shared key access is enabled.
 # -----------------------------------------------------------------------------
 
 module "region_code" {
@@ -130,7 +130,7 @@ resource "azurerm_storage_account" "this" {
   min_tls_version                 = "TLS1_2"
   https_traffic_only_enabled      = true
   public_network_access_enabled   = true
-  shared_access_key_enabled       = false
+  shared_access_key_enabled       = true
   allow_nested_items_to_be_public = false
 
   network_rules {
@@ -161,7 +161,7 @@ resource "azurerm_storage_account" "this" {
 }
 
 # `storage_account_id` routes the container through the ARM control plane,
-# which the network Deny rule and disabled shared keys do not block.
+# which the network Deny rule does not block.
 resource "azurerm_storage_container" "this" {
   name                  = local.container_name
   storage_account_id    = azurerm_storage_account.this.id
