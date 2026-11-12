@@ -28,6 +28,14 @@ premise.
 
 ### Changed
 
+### Fixed
+
+## [0.0.81] - 2026-11-11
+
+### Added
+
+### Changed
+
 - Module 15 (`foundry-resource`): enable shared key access on the Foundry
   storage account.
 
