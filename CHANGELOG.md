@@ -26,6 +26,14 @@ premise.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.0.82] - 2026-11-11
+
+### Added
+
 - Module 15 (`foundry-resource`): "Storage Blob Data Contributor" on the
   Foundry storage account for the Terraform SP and `foundry_user_object_id`.
 
